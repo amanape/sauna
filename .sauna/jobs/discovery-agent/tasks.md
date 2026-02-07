@@ -1,6 +1,6 @@
 # Discovery Agent — Tasks
 
-Status: **No implementation exists.** The codebase contains specs, prompts (`sauna/prompts/jtbd.md`), and a stub `index.ts`. Every item below is net-new work.
+Status: **In progress.** Shared types defined; remaining work is net-new.
 
 ## P0 — Core Foundation
 
