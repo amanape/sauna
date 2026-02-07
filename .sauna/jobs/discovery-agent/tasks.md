@@ -4,7 +4,7 @@ Status: **In progress.** Shared types defined; remaining work is net-new.
 
 ## P0 — Core Foundation
 
-- [ ] Define shared TypeScript types: `Message`, `ToolDefinition`, `ToolCall`, `LLMResponse`, `LLMProvider`, `Tool`, `EngineOutput` — traces to all specs
+- [x] Define shared TypeScript types: `Message`, `ToolDefinition`, `ToolCall`, `LLMResponse`, `LLMProvider`, `Tool`, `EngineOutput` — traces to all specs — implemented in `src/types.ts`; also includes `MessageRole`, `ParameterDef` as supporting types; `Tool extends ToolDefinition` for clean reuse
 - [ ] Implement `LLMProvider` interface and `AnthropicProvider` concrete class with `complete(messages, tools?)`, config-based instantiation (API key, model, temperature), and tool-definition translation — traces to `specs/llm-provider.md`
 - [ ] Implement `Tool` interface and tool registry (simple array passed to engine at startup) — traces to `specs/tool-system.md`
 - [ ] Implement `ConversationEngine` with `start()`/`respond()` methods, internal message array, tool-execution loop (LLM call → tool calls → execute → repeat → return text), `files_written` tracking, and `done` detection via `session_complete` — traces to `specs/conversation-engine.md`

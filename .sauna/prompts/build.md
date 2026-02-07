@@ -37,5 +37,6 @@ IMPORTANT: Preserve your context for reasoning and decision-making. Use subagent
 - Keep `.sauna/agents.md` operational only; status updates and progress notes belong in `.sauna/jobs/${JOB_ID}/tasks.md`.
 - When authoring documentation, capture the why; tests and implementation importance
 - Do not write test files for pure type definitions (interfaces, type aliases, enums with no logic). These compile away and have no runtime behavior. A test file that only constructs object literals matching an interface and asserts their own values back is tautological by definition; delete it. Only test files that export functions, classes, or runtime logic.
+- Do not commit your work.
 
 Implement one task per iteration. Do not batch. Commit when done, then exit.
