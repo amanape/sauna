@@ -12,14 +12,13 @@ IMPORTANT: Preserve your context for reasoning and decision-making. Use subagent
 ### Workflow: New Features / Bug Fixes (TDD)
 
 1. Use subagents to search for existing test files related to the task. If none exist, create one.
-2. Draft the test cases first; define what you're testing before writing any implementation.
-3. Write the tests. Confirm they fail.
-4. Write the minimal code to make ONE test pass. No other changes.
-5. Refactor while tests stay green.
-6. Repeat steps 4–5 for remaining test cases until the suite passes.
+2. Write the tests. Confirm they fail.
+3. Write the minimal code to make ONE test pass. No other changes.
+4. Refactor while tests stay green.
+5. Repeat steps 4–5 for remaining test cases until the suite passes.
 
-99999. New tests must fail when broken. Alter expected values to verify; if a test doesn't fail, remove or revise it.
-999999. Tests must verify behavior, not structure. Do not test that assignment works, that types have fields, or that objects match their own literals. Every test must exercise a code path that can meaningfully break. If removing the implementation wouldn't cause the test to fail, the test is worthless.
+999. New tests must fail when broken. Alter expected values to verify; if a test doesn't fail, remove or revise it.
+9999. Tests must verify behavior, not structure. Do not test that assignment works, that types have fields, or that objects match their own literals. Every test must exercise a code path that can meaningfully break. If removing the implementation wouldn't cause the test to fail, the test is worthless.
 
 ### Workflow: Refactoring / Consolidation
 
@@ -37,5 +36,6 @@ IMPORTANT: Preserve your context for reasoning and decision-making. Use subagent
 - If you learn something about how to build/run the project, update `.sauna/agents.md` briefly.
 - Keep `.sauna/agents.md` operational only; status updates and progress notes belong in `.sauna/jobs/${JOB_ID}/tasks.md`.
 - When authoring documentation, capture the why; tests and implementation importance
+- Do not write test files for pure type definitions (interfaces, type aliases, enums with no logic). These compile away and have no runtime behavior. A test file that only constructs object literals matching an interface and asserts their own values back is tautological by definition; delete it. Only test files that export functions, classes, or runtime logic.
 
 Implement one task per iteration. Do not batch. Commit when done, then exit.
