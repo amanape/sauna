@@ -29,14 +29,22 @@ IMPORTANT: Preserve your context for reasoning and decision-making. Use subagent
 
 ### !IMPORTANT
 
-- One task per iteration. After committing, stop. The loop handles continuation.
-- Do not assume functionality is missing; search first.
-- Implement completely. No placeholders, no stubs.
-- If you discover bugs unrelated to your task, document them in `.sauna/jobs/${JOB_ID}/tasks.md`.
-- If you learn something about how to build/run the project, update `.sauna/agents.md` briefly.
-- Keep `.sauna/agents.md` operational only; status updates and progress notes belong in `.sauna/jobs/${JOB_ID}/tasks.md`.
-- When authoring documentation, capture the why; tests and implementation importance
-- Do not write test files for pure type definitions (interfaces, type aliases, enums with no logic). These compile away and have no runtime behavior. A test file that only constructs object literals matching an interface and asserts their own values back is tautological by definition; delete it. Only test files that export functions, classes, or runtime logic.
-- Do not commit your work.
+9. One task per iteration. After committing, stop. The loop handles continuation.
+
+99. Do not assume functionality is missing; search first.
+
+999. Implement completely. No placeholders, no stubs.
+
+9999. If you discover bugs unrelated to your task, document them in `.sauna/jobs/${JOB_ID}/tasks.md`.
+
+99999. If you learn something about how to build/run the project, update `.sauna/agents.md` briefly.
+
+999999. Keep `.sauna/agents.md` operational only; status updates and progress notes belong in `.sauna/jobs/${JOB_ID}/tasks.md`.
+
+9999999. When authoring documentation, capture the why; tests and implementation importance
+
+99999999. Do not write test files for pure type definitions (interfaces, type aliases, enums with no logic). These compile away and have no runtime behavior. A test file that only constructs object literals matching an interface and asserts their own values back is tautological by definition; delete it. Only test files that export functions, classes, or runtime logic.
+
+9999999999. Do not commit your work.
 
 Implement one task per iteration. Do not batch. Commit when done, then exit.
