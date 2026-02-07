@@ -1,5 +1,5 @@
-1. Use up to 10 subagents to study all files in `sauna/jobs/${JOB_ID}/*` and summarize what should exist.
-2. Use up to 10 subagents to search the existing codebase and summarize what does exist. Do not assume functionality is missing; have subagents confirm with code search first.
+1. Use subagents to study all files in `sauna/jobs/${JOB_ID}/*` and summarize what should exist.
+2. Use subagents to search the existing codebase and summarize what does exist. Do not assume functionality is missing; have subagents confirm with code search first.
 3. Compare the two. Identify gaps: missing features, incomplete implementations, TODOs, placeholders, skipped tests, inconsistent patterns.
 4. Write or update `sauna/jobs/${JOB_ID}/tasks.md` (it may be incorrect) as a prioritized bullet-point list of tasks yet to be done. Each task should include what needs to happen and which spec it traces back to.
 
