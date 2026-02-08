@@ -60,4 +60,23 @@ test("returns error when path is a directory", async () => {
   const tool = createFileReadTool(codebaseDir);
   const result = await tool.execute({ path: "subdir" });
   expect(result).toMatch(/error/i);
+  expect(result).toContain("directory");
+  expect(result).toContain("subdir");
+});
+
+test("resolves .. segments that stay inside codebase", async () => {
+  mkdirSync(join(codebaseDir, "src"));
+  writeFileSync(join(codebaseDir, "root.txt"), "at root");
+  const tool = createFileReadTool(codebaseDir);
+  const result = await tool.execute({ path: "src/../root.txt" });
+  expect(result).toBe("at root");
+});
+
+test("rejects path with codebase as prefix but different directory", async () => {
+  // If codebase is /tmp/abc123, then /tmp/abc123-evil/secret must be rejected.
+  // This catches the mutation of removing "+ '/'" from the startsWith check.
+  const tool = createFileReadTool(codebaseDir);
+  const siblingPath = codebaseDir + "-evil/secret.txt";
+  const result = await tool.execute({ path: siblingPath });
+  expect(result).toMatch(/outside.*codebase/i);
 });

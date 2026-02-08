@@ -81,3 +81,22 @@ test("returns error for invalid regex pattern", async () => {
   expect(result).toMatch(/error/i);
   expect(result).toContain("[invalid");
 });
+
+test("no-match message includes the searched pattern", async () => {
+  writeFileSync(join(codebaseDir, "a.ts"), "nothing here\n");
+  const tool = createFileSearchTool(codebaseDir);
+  const result = await tool.execute({ pattern: "xyzzy_unique" });
+  expect(result).toContain("xyzzy_unique");
+});
+
+test("finds multiple matches across different lines of same file", async () => {
+  writeFileSync(
+    join(codebaseDir, "multi.ts"),
+    "foo at start\nbar in middle\nfoo again\n",
+  );
+  const tool = createFileSearchTool(codebaseDir);
+  const result = await tool.execute({ pattern: "foo" });
+  expect(result).toContain("multi.ts:1:");
+  expect(result).toContain("multi.ts:3:");
+  expect(result).not.toContain("multi.ts:2:");
+});

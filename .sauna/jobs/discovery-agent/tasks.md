@@ -1,6 +1,6 @@
 # Discovery Agent — Tasks
 
-Status: **In progress.** Core foundation complete; P1 tools 6 of 6 done; P2 CLI wired. Next: P3 remaining tests.
+Status: **Complete.** All phases done: P0 core foundation, P1 tools (6/6), P2 CLI wired, P3 tests (all mutation-verified).
 
 ## P0 — Core Foundation
 
@@ -28,6 +28,6 @@ Status: **In progress.** Core foundation complete; P1 tools 6 of 6 done; P2 CLI 
 
 - [x] Tests for `AnthropicProvider`: verify message/tool-definition translation and response parsing — traces to `specs/llm-provider.md` — implemented in `src/providers/anthropic.test.ts`; 14 tests covering extractSystemMessage, translateMessages (user/assistant/tool/mixed), translateTools (required params, empty params), mapResponse (text-only, tool-only, mixed, multi-tool), and Provider.complete integration with mocked SDK client; all 4 mutation tests caught
 - [x] Tests for `ConversationEngine`: tool-execution loop, done detection, files_written tracking — traces to `specs/conversation-engine.md` — implemented in `src/engine.test.ts`; 12 tests covering start/respond lifecycle, tool execution loop (single/multiple calls, multiple iterations), session_complete detection, files_written tracking (single/accumulated), error handling (missing tool, execution throw), assistant message history with tool_calls, and tool definitions passed to provider; all 6 mutation tests caught
-- [ ] Tests for `file_read`, `file_search`, and `web_search` tools: path scoping, error handling, result formatting — traces to `specs/tool-system.md`
+- [x] Tests for `file_read`, `file_search`, and `web_search` tools: path scoping, error handling, result formatting — traces to `specs/tool-system.md` — hardened existing tests: `file-read.test.ts` now 9 tests (added `..` segment resolution, codebase-prefix sibling path rejection), `file-search.test.ts` now 10 tests (added pattern in no-match message, multi-line same-file matches), `web-search.test.ts` now 10 tests (added query in no-results message, non-Error throw handling, exact format assertion); 6/6 meaningful mutations killed (1 isFile() guard mutation survived — redundant with try/catch, test removed per policy)
 - [x] Tests for `write_spec`: slug validation (reject uppercase/spaces/special chars), directory creation, overwrite behavior — traces to `specs/output-writer.md` — 8 tests in `src/tools/output-writer.test.ts` (total 17 with write_jtbd tests), 4/4 mutations killed
 - [x] Tests for CLI argument parsing: required args, defaults, missing codebase error — traces to `specs/cli-adapter.md` — implemented in `src/cli.test.ts`; 9 tests covering required `--codebase`, defaults for `--output`/`--provider`, optional `--model`, and combined args; 4/4 mutations killed

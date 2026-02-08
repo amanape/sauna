@@ -93,3 +93,31 @@ test("numbers multiple results sequentially", async () => {
   expect(result).toContain("2.");
   expect(result).toContain("3.");
 });
+
+test("no-results message includes the query", async () => {
+  const searchFn: SearchFunction = async () => [];
+  const tool = createWebSearchTool(searchFn);
+  const result = await tool.execute({ query: "xyzzy_unique" });
+  expect(result).toContain("xyzzy_unique");
+});
+
+test("handles non-Error thrown values in search function", async () => {
+  const searchFn = async () => {
+    throw "plain string error";
+  };
+  const tool = createWebSearchTool(searchFn as SearchFunction);
+  const result = await tool.execute({ query: "test" });
+  expect(result).toMatch(/error/i);
+  expect(result).toContain("plain string error");
+});
+
+test("formats each result with indented snippet and URL", async () => {
+  const searchFn: SearchFunction = async () => [
+    { title: "Only", snippet: "the snippet", url: "https://x.com" },
+  ];
+  const tool = createWebSearchTool(searchFn);
+  const result = await tool.execute({ query: "test" });
+  // Verify the exact indentation format: number + title on first line,
+  // then 3-space-indented snippet and URL on subsequent lines
+  expect(result).toBe("1. Only\n   the snippet\n   https://x.com");
+});
