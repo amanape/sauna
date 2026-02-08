@@ -20,7 +20,7 @@ Status: **In progress.** Core foundation complete; P1 tools 6 of 6 done. Next: P
 
 ## P2 — CLI & Integration
 
-- [ ] Implement CLI adapter: parse `--codebase` (required), `--output` (default `./jobs/`), `--provider` (default `anthropic`), `--model` (optional) — traces to `specs/cli-adapter.md`
+- [x] Implement CLI adapter: parse `--codebase` (required), `--output` (default `./jobs/`), `--provider` (default `anthropic`), `--model` (optional) — traces to `specs/cli-adapter.md` — implemented in `src/cli.ts`; exports `parseCliArgs(argv)` and `CliArgs` interface; uses `node:util` `parseArgs` with strict mode; validates `--codebase` required; 9 tests in `src/cli.test.ts`, 4/4 mutations killed
 - [ ] Wire entry point: init provider, register tools scoped to codebase path, load `sauna/prompts/jtbd.md` as system prompt, create engine, start readline loop — traces to `specs/cli-adapter.md`
 - [ ] Handle I/O: readline stdin/stdout, print file-write notifications mid-conversation, print summary on done, graceful Ctrl+C — traces to `specs/cli-adapter.md`
 
@@ -30,4 +30,4 @@ Status: **In progress.** Core foundation complete; P1 tools 6 of 6 done. Next: P
 - [x] Tests for `ConversationEngine`: tool-execution loop, done detection, files_written tracking — traces to `specs/conversation-engine.md` — implemented in `src/engine.test.ts`; 12 tests covering start/respond lifecycle, tool execution loop (single/multiple calls, multiple iterations), session_complete detection, files_written tracking (single/accumulated), error handling (missing tool, execution throw), assistant message history with tool_calls, and tool definitions passed to provider; all 6 mutation tests caught
 - [ ] Tests for `file_read`, `file_search`, and `web_search` tools: path scoping, error handling, result formatting — traces to `specs/tool-system.md`
 - [x] Tests for `write_spec`: slug validation (reject uppercase/spaces/special chars), directory creation, overwrite behavior — traces to `specs/output-writer.md` — 8 tests in `src/tools/output-writer.test.ts` (total 17 with write_jtbd tests), 4/4 mutations killed
-- [ ] Tests for CLI argument parsing: required args, defaults, missing codebase error — traces to `specs/cli-adapter.md`
+- [x] Tests for CLI argument parsing: required args, defaults, missing codebase error — traces to `specs/cli-adapter.md` — implemented in `src/cli.test.ts`; 9 tests covering required `--codebase`, defaults for `--output`/`--provider`, optional `--model`, and combined args; 4/4 mutations killed
