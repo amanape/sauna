@@ -1,33 +1,32 @@
 # Discovery Agent — Tasks
 
-Status: **Complete.** All phases done: P0 core foundation, P1 tools (6/6), P2 CLI wired, P3 tests (all mutation-verified).
+Status: **Near-complete.** All core architecture, tools, engine, and CLI implemented with 88 passing tests. 4 gaps remain.
 
-## P0 — Core Foundation
+## Remaining
 
-- [x] Define shared TypeScript types: `Message`, `ToolDefinition`, `ToolCall`, `LLMResponse`, `LLMProvider`, `Tool`, `EngineOutput` — traces to all specs — implemented in `src/types.ts`; also includes `MessageRole`, `ParameterDef` as supporting types; `Tool extends ToolDefinition` for clean reuse
-- [x] Implement `LLMProvider` interface and `AnthropicProvider` concrete class with `complete(messages, tools?)`, config-based instantiation (API key, model, temperature), and tool-definition translation — traces to `specs/llm-provider.md` — implemented in `src/providers/anthropic.ts`; exports pure translation functions (`extractSystemMessage`, `translateMessages`, `translateTools`, `mapResponse`) for testability; handles system message extraction, tool schema conversion to Anthropic `input_schema` format, and response mapping (text + tool_use blocks)
-- [x] Implement `Tool` interface and tool registry (simple array passed to engine at startup) — traces to `specs/tool-system.md` — `Tool` interface defined in `src/types.ts` (extends `ToolDefinition` with `execute` method); registry is `Tool[]` passed to engine constructor; no separate module needed per spec
-- [x] Implement `ConversationEngine` with `start()`/`respond()` methods, internal message array, tool-execution loop (LLM call → tool calls → execute → repeat → return text), `files_written` tracking, and `done` detection via `session_complete` — traces to `specs/conversation-engine.md` — implemented in `src/engine.ts`; uses `Map<string, Tool>` for O(1) tool lookup; detects file writes via "Wrote " prefix convention; snapshots messages before each LLM call to prevent reference mutation; safety limit of 50 loop iterations; graceful error handling for missing tools and execution failures
+### P1 — Blocking
 
-## P1 — SLC Tools
+- [ ] Implement a concrete `SearchFunction` for `web_search` (API wrapper or fetch+scrape) — `cli.ts:47` `defaultSearchFn` throws "not configured"; tool wrapper works, needs a real backend — `specs/tool-system.md`, `jtbd.md`
 
-- [x] Implement `file_read` tool: read file contents scoped to `--codebase` path — traces to `specs/tool-system.md` — implemented in `src/tools/file-read.ts`; factory `createFileReadTool(codebasePath)` returns `Tool`; resolves paths relative to codebase, rejects traversal/out-of-scope paths, uses `node:fs/promises` stat for directory detection and `Bun.file()` for reading; 7 tests in `src/tools/file-read.test.ts`, 4/4 mutations killed
-- [x] Implement `file_search` tool: grep/pattern search across codebase, return matching paths and lines — traces to `specs/tool-system.md` — implemented in `src/tools/file-search.ts`; factory `createFileSearchTool(codebasePath)` returns `Tool`; walks files recursively with `readdir({ recursive: true })`, skips binary files (null byte detection), matches lines with `RegExp`, returns grep-like format `path:line: content`; 8 tests in `src/tools/file-search.test.ts`, 4/5 mutations killed (survivor: sort removal is an implementation detail, not functional)
-- [x] Implement `web_search` tool: query a search API/fetch+scrape, return title/snippet/URL results — traces to `specs/tool-system.md` — implemented in `src/tools/web-search.ts`; factory `createWebSearchTool(searchFn)` takes injectable `SearchFunction` for testability; validates query (required, non-empty, trims whitespace), delegates to injected search function, formats results as numbered list with title/snippet/URL; exports `SearchResult` and `SearchFunction` types; 7 tests in `src/tools/web-search.test.ts`, 5/5 mutations killed
-- [x] Implement `write_jtbd` tool: validate slug (lowercase, hyphenated, no special chars), create dirs, write `jobs/<slug>/jtbd.md`, return confirmation — traces to `specs/output-writer.md` — implemented in `src/tools/output-writer.ts`; factory `createWriteJtbdTool(outputBasePath)` returns `Tool`; validates slug with `/^[a-z0-9]+(-[a-z0-9]+)*$/`, validates non-empty content, creates directories with `mkdir({ recursive: true })`, writes with `Bun.write()`, returns `"Wrote jobs/<slug>/jtbd.md"` for engine file-write detection; shared `validateSlug`/`validateContent` helpers for reuse by `write_spec`; 9 tests in `src/tools/output-writer.test.ts`, 4/4 meaningful mutations killed (mkdir removal is false positive — `Bun.write()` auto-creates parent dirs)
-- [x] Implement `write_spec` tool: validate slugs, create dirs, write `jobs/<slug>/specs/<spec-slug>.md`, return confirmation — traces to `specs/output-writer.md` — implemented in `src/tools/output-writer.ts`; factory `createWriteSpecTool(outputBasePath)` returns `Tool`; validates both `job_slug` and `spec_slug` with shared `validateSlug` helper, validates non-empty content, creates `jobs/<job_slug>/specs/` directory with `mkdir({ recursive: true })`, writes with `Bun.write()`, returns `"Wrote jobs/<job_slug>/specs/<spec_slug>.md"` for engine file-write detection; 8 tests in `src/tools/output-writer.test.ts`, 4/4 mutations killed
-- [x] Implement `session_complete` no-op tool whose invocation signals the engine to set `done: true` — traces to `specs/conversation-engine.md` — implemented in `src/tools/session-complete.ts`; factory `createSessionCompleteTool()` returns `Tool`; no parameters, returns "Session complete." confirmation string; 3 tests in `src/tools/session-complete.test.ts`, 3/3 mutations killed (name drift, throw, error string)
+### P2 — Packaging
 
-## P2 — CLI & Integration
+- [ ] Add `bin` field to `package.json` so the tool runs via `bunx discovery-agent --codebase ./path` — `specs/cli-adapter.md`, `jtbd.md`
 
-- [x] Implement CLI adapter: parse `--codebase` (required), `--output` (default `./jobs/`), `--provider` (default `anthropic`), `--model` (optional) — traces to `specs/cli-adapter.md` — implemented in `src/cli.ts`; exports `parseCliArgs(argv)` and `CliArgs` interface; uses `node:util` `parseArgs` with strict mode; validates `--codebase` required; 9 tests in `src/cli.test.ts`, 4/4 mutations killed
-- [x] Wire entry point: init provider, register tools scoped to codebase path, load system prompt, create engine, start readline loop — traces to `specs/cli-adapter.md` — implemented in `src/cli.ts` as `main()` function; `createTools(codebasePath, outputPath)` factory assembles all 6 tools; loads `.sauna/prompts/discovery.md` as system prompt; `index.ts` calls `main()`; 4 tests for `createTools` in `src/cli.test.ts`, 2/3 mutations killed (uncaught: search fn injection is tested in web-search tests)
-- [x] Handle I/O: readline stdin/stdout, print file-write notifications mid-conversation, print summary on done, graceful Ctrl+C — traces to `specs/cli-adapter.md` — implemented in `main()` in `src/cli.ts`; uses `node:readline` `createInterface` for stdin/stdout; prints file-write notifications from `output.files_written`; prints "Session complete." on done; handles Ctrl+C via `rl.on("close")`; validates `ANTHROPIC_API_KEY` env var on startup
+### P3 — Spec compliance
 
-## P3 — Tests
+- [ ] Accumulate `files_written` across all turns in the CLI loop and print full summary on session complete — currently only per-turn; spec says "print summary of files written and exit" — `specs/cli-adapter.md`
+- [ ] Add visual separator (e.g. `---`) between agent response and input prompt — spec says "print a visual separator so the conversation is easy to follow" — `specs/cli-adapter.md`
 
-- [x] Tests for `AnthropicProvider`: verify message/tool-definition translation and response parsing — traces to `specs/llm-provider.md` — implemented in `src/providers/anthropic.test.ts`; 14 tests covering extractSystemMessage, translateMessages (user/assistant/tool/mixed), translateTools (required params, empty params), mapResponse (text-only, tool-only, mixed, multi-tool), and Provider.complete integration with mocked SDK client; all 4 mutation tests caught
-- [x] Tests for `ConversationEngine`: tool-execution loop, done detection, files_written tracking — traces to `specs/conversation-engine.md` — implemented in `src/engine.test.ts`; 12 tests covering start/respond lifecycle, tool execution loop (single/multiple calls, multiple iterations), session_complete detection, files_written tracking (single/accumulated), error handling (missing tool, execution throw), assistant message history with tool_calls, and tool definitions passed to provider; all 6 mutation tests caught
-- [x] Tests for `file_read`, `file_search`, and `web_search` tools: path scoping, error handling, result formatting — traces to `specs/tool-system.md` — hardened existing tests: `file-read.test.ts` now 9 tests (added `..` segment resolution, codebase-prefix sibling path rejection), `file-search.test.ts` now 10 tests (added pattern in no-match message, multi-line same-file matches), `web-search.test.ts` now 10 tests (added query in no-results message, non-Error throw handling, exact format assertion); 6/6 meaningful mutations killed (1 isFile() guard mutation survived — redundant with try/catch, test removed per policy)
-- [x] Tests for `write_spec`: slug validation (reject uppercase/spaces/special chars), directory creation, overwrite behavior — traces to `specs/output-writer.md` — 8 tests in `src/tools/output-writer.test.ts` (total 17 with write_jtbd tests), 4/4 mutations killed
-- [x] Tests for CLI argument parsing: required args, defaults, missing codebase error — traces to `specs/cli-adapter.md` — implemented in `src/cli.test.ts`; 9 tests covering required `--codebase`, defaults for `--output`/`--provider`, optional `--model`, and combined args; 4/4 mutations killed
+## Completed
+
+- [x] Shared types (`src/types.ts`) — Message, ToolCall, LLMProvider, Tool, EngineOutput
+- [x] LLMProvider interface + AnthropicProvider (`src/providers/anthropic.ts`) — 14 tests
+- [x] ConversationEngine (`src/engine.ts`) — start/respond, tool loop, done detection, file tracking — 12 tests
+- [x] file_read tool (`src/tools/file-read.ts`) — sandbox-scoped reads — 8 tests
+- [x] file_search tool (`src/tools/file-search.ts`) — recursive regex grep — 10 tests
+- [x] web_search tool wrapper (`src/tools/web-search.ts`) — injectable SearchFunction — 9 tests
+- [x] write_jtbd + write_spec tools (`src/tools/output-writer.ts`) — slug validation, dir creation — 14 tests
+- [x] session_complete tool (`src/tools/session-complete.ts`) — 3 tests
+- [x] CLI adapter (`src/cli.ts`) — arg parsing, readline, Ctrl+C, file-write notifications — 8 tests
+- [x] Entry point (`index.ts`) — wires provider, tools, engine, prompt
+- [x] System prompt (`discovery.md`) — full JTBD interview flow
