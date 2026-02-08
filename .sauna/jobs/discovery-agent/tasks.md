@@ -1,6 +1,6 @@
 # Discovery Agent — Tasks
 
-Status: **In progress.** Core foundation complete; P1 tools 5 of 6 done (file_read, file_search, web_search, write_jtbd, write_spec). Next: session_complete.
+Status: **In progress.** Core foundation complete; P1 tools 6 of 6 done. Next: P2 CLI & Integration.
 
 ## P0 — Core Foundation
 
@@ -16,7 +16,7 @@ Status: **In progress.** Core foundation complete; P1 tools 5 of 6 done (file_re
 - [x] Implement `web_search` tool: query a search API/fetch+scrape, return title/snippet/URL results — traces to `specs/tool-system.md` — implemented in `src/tools/web-search.ts`; factory `createWebSearchTool(searchFn)` takes injectable `SearchFunction` for testability; validates query (required, non-empty, trims whitespace), delegates to injected search function, formats results as numbered list with title/snippet/URL; exports `SearchResult` and `SearchFunction` types; 7 tests in `src/tools/web-search.test.ts`, 5/5 mutations killed
 - [x] Implement `write_jtbd` tool: validate slug (lowercase, hyphenated, no special chars), create dirs, write `jobs/<slug>/jtbd.md`, return confirmation — traces to `specs/output-writer.md` — implemented in `src/tools/output-writer.ts`; factory `createWriteJtbdTool(outputBasePath)` returns `Tool`; validates slug with `/^[a-z0-9]+(-[a-z0-9]+)*$/`, validates non-empty content, creates directories with `mkdir({ recursive: true })`, writes with `Bun.write()`, returns `"Wrote jobs/<slug>/jtbd.md"` for engine file-write detection; shared `validateSlug`/`validateContent` helpers for reuse by `write_spec`; 9 tests in `src/tools/output-writer.test.ts`, 4/4 meaningful mutations killed (mkdir removal is false positive — `Bun.write()` auto-creates parent dirs)
 - [x] Implement `write_spec` tool: validate slugs, create dirs, write `jobs/<slug>/specs/<spec-slug>.md`, return confirmation — traces to `specs/output-writer.md` — implemented in `src/tools/output-writer.ts`; factory `createWriteSpecTool(outputBasePath)` returns `Tool`; validates both `job_slug` and `spec_slug` with shared `validateSlug` helper, validates non-empty content, creates `jobs/<job_slug>/specs/` directory with `mkdir({ recursive: true })`, writes with `Bun.write()`, returns `"Wrote jobs/<job_slug>/specs/<spec_slug>.md"` for engine file-write detection; 8 tests in `src/tools/output-writer.test.ts`, 4/4 mutations killed
-- [ ] Implement `session_complete` no-op tool whose invocation signals the engine to set `done: true` — traces to `specs/conversation-engine.md`
+- [x] Implement `session_complete` no-op tool whose invocation signals the engine to set `done: true` — traces to `specs/conversation-engine.md` — implemented in `src/tools/session-complete.ts`; factory `createSessionCompleteTool()` returns `Tool`; no parameters, returns "Session complete." confirmation string; 3 tests in `src/tools/session-complete.test.ts`, 3/3 mutations killed (name drift, throw, error string)
 
 ## P2 — CLI & Integration
 
