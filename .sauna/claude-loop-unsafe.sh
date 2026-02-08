@@ -13,8 +13,8 @@ ULTIMATE GOAL: $2
 fi
 
 while has_pending_tasks; do
-  clear
-  claude --dangerously-skip-permissions "$PROMPT"
+  echo "--- $(grep -c '^\- \[ \]' "$TASKS_FILE") tasks remaining ---"
+  claude --dangerously-skip-permissions -p "$PROMPT"
   echo "--- Run complete. Checking tasks... ---"
 done
 
