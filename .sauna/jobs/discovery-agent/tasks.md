@@ -12,7 +12,7 @@ Status: **In progress.** Core foundation (types, provider, engine) implemented w
 ## P1 — SLC Tools
 
 - [x] Implement `file_read` tool: read file contents scoped to `--codebase` path — traces to `specs/tool-system.md` — implemented in `src/tools/file-read.ts`; factory `createFileReadTool(codebasePath)` returns `Tool`; resolves paths relative to codebase, rejects traversal/out-of-scope paths, uses `node:fs/promises` stat for directory detection and `Bun.file()` for reading; 7 tests in `src/tools/file-read.test.ts`, 4/4 mutations killed
-- [ ] Implement `file_search` tool: grep/pattern search across codebase, return matching paths and lines — traces to `specs/tool-system.md`
+- [x] Implement `file_search` tool: grep/pattern search across codebase, return matching paths and lines — traces to `specs/tool-system.md` — implemented in `src/tools/file-search.ts`; factory `createFileSearchTool(codebasePath)` returns `Tool`; walks files recursively with `readdir({ recursive: true })`, skips binary files (null byte detection), matches lines with `RegExp`, returns grep-like format `path:line: content`; 8 tests in `src/tools/file-search.test.ts`, 4/5 mutations killed (survivor: sort removal is an implementation detail, not functional)
 - [ ] Implement `web_search` tool: query a search API/fetch+scrape, return title/snippet/URL results — traces to `specs/tool-system.md`
 - [ ] Implement `write_jtbd` tool: validate slug (lowercase, hyphenated, no special chars), create dirs, write `jobs/<slug>/jtbd.md`, return confirmation — traces to `specs/output-writer.md`
 - [ ] Implement `write_spec` tool: validate slugs, create dirs, write `jobs/<slug>/specs/<spec-slug>.md`, return confirmation — traces to `specs/output-writer.md`
