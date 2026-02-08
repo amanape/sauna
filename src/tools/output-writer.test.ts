@@ -1,5 +1,5 @@
 import { test, expect, beforeEach, afterEach } from "bun:test";
-import { createWriteJtbdTool } from "./output-writer";
+import { createWriteJtbdTool, createWriteSpecTool } from "./output-writer";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -78,4 +78,69 @@ test("rejects missing content parameter", async () => {
   const result = await tool.execute({ job_slug: "test-job" });
 
   expect(result).toMatch(/error/i);
+});
+
+// --- write_spec tests ---
+
+test("write_spec writes spec file to correct nested path", async () => {
+  const tool = createWriteSpecTool(tempDir);
+  await tool.execute({ job_slug: "auth-flow", spec_slug: "login-page", content: "# Login Page\nSpec content" });
+
+  const written = await readFile(join(tempDir, "auth-flow", "specs", "login-page.md"), "utf-8");
+  expect(written).toBe("# Login Page\nSpec content");
+});
+
+test("write_spec returns confirmation with 'Wrote ' prefix for engine detection", async () => {
+  const tool = createWriteSpecTool(tempDir);
+  const result = await tool.execute({ job_slug: "auth-flow", spec_slug: "login-page", content: "content" });
+
+  expect(result).toBe("Wrote jobs/auth-flow/specs/login-page.md");
+});
+
+test("write_spec overwrites existing spec on second write", async () => {
+  const tool = createWriteSpecTool(tempDir);
+  await tool.execute({ job_slug: "auth-flow", spec_slug: "login-page", content: "original" });
+  await tool.execute({ job_slug: "auth-flow", spec_slug: "login-page", content: "revised" });
+
+  const written = await readFile(join(tempDir, "auth-flow", "specs", "login-page.md"), "utf-8");
+  expect(written).toBe("revised");
+});
+
+test("write_spec rejects invalid job_slug", async () => {
+  const tool = createWriteSpecTool(tempDir);
+  const result = await tool.execute({ job_slug: "Bad Slug", spec_slug: "ok-slug", content: "content" });
+
+  expect(result).toMatch(/error/i);
+});
+
+test("write_spec rejects invalid spec_slug", async () => {
+  const tool = createWriteSpecTool(tempDir);
+  const result = await tool.execute({ job_slug: "ok-slug", spec_slug: "Bad_Slug!", content: "content" });
+
+  expect(result).toMatch(/error/i);
+});
+
+test("write_spec rejects missing spec_slug", async () => {
+  const tool = createWriteSpecTool(tempDir);
+  const result = await tool.execute({ job_slug: "ok-slug", content: "content" });
+
+  expect(result).toMatch(/error/i);
+});
+
+test("write_spec rejects empty content", async () => {
+  const tool = createWriteSpecTool(tempDir);
+  const result = await tool.execute({ job_slug: "ok-slug", spec_slug: "ok-spec", content: "" });
+
+  expect(result).toMatch(/error/i);
+});
+
+test("write_spec creates multiple specs under same job", async () => {
+  const tool = createWriteSpecTool(tempDir);
+  await tool.execute({ job_slug: "auth-flow", spec_slug: "login-page", content: "login content" });
+  await tool.execute({ job_slug: "auth-flow", spec_slug: "signup-page", content: "signup content" });
+
+  const login = await readFile(join(tempDir, "auth-flow", "specs", "login-page.md"), "utf-8");
+  const signup = await readFile(join(tempDir, "auth-flow", "specs", "signup-page.md"), "utf-8");
+  expect(login).toBe("login content");
+  expect(signup).toBe("signup content");
 });

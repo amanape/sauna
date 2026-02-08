@@ -65,3 +65,55 @@ export function createWriteJtbdTool(outputBasePath: string): Tool {
     },
   };
 }
+
+export function createWriteSpecTool(outputBasePath: string): Tool {
+  return {
+    name: "write_spec",
+    description:
+      "Write a spec file within a JTBD job. Creates the directory structure and writes the file.",
+    parameters: {
+      job_slug: {
+        type: "string",
+        description:
+          "The job slug (lowercase, hyphenated). Example: 'discovery-agent'",
+        required: true,
+      },
+      spec_slug: {
+        type: "string",
+        description:
+          "The spec slug (lowercase, hyphenated). Example: 'llm-provider'",
+        required: true,
+      },
+      content: {
+        type: "string",
+        description: "The full markdown content of the spec document",
+        required: true,
+      },
+    },
+    async execute(args: Record<string, unknown>): Promise<string> {
+      const jobSlugError = validateSlug(args.job_slug, "job_slug");
+      if (jobSlugError) return jobSlugError;
+
+      const specSlugError = validateSlug(args.spec_slug, "spec_slug");
+      if (specSlugError) return specSlugError;
+
+      const contentError = validateContent(args.content);
+      if (contentError) return contentError;
+
+      const jobSlug = args.job_slug as string;
+      const specSlug = args.spec_slug as string;
+      const content = args.content as string;
+      const dirPath = join(outputBasePath, jobSlug, "specs");
+      const filePath = join(dirPath, `${specSlug}.md`);
+
+      try {
+        await mkdir(dirPath, { recursive: true });
+        await Bun.write(filePath, content);
+        return `Wrote jobs/${jobSlug}/specs/${specSlug}.md`;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return `Error writing spec: ${msg}`;
+      }
+    },
+  };
+}

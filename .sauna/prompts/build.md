@@ -45,6 +45,6 @@ IMPORTANT: Preserve your context for reasoning and decision-making. Use subagent
 
 99999999. Do not write test files for pure type definitions (interfaces, type aliases, enums with no logic). These compile away and have no runtime behavior. A test file that only constructs object literals matching an interface and asserts their own values back is tautological by definition; delete it. Only test files that export functions, classes, or runtime logic.
 
-9999999999. The commit messsage should be ONE LINE ONLY! Only include a message relevant to the commit, NOTHING ELSE!
+9999999999. The commit messsage should be ONE LINE ONLY! Without any watermarks.
 
 Implement one task per iteration. Do not batch. Commit when done, then exit.
