@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { parseCliArgs, type CliArgs } from "./cli";
+import { parseCliArgs, createTools, type CliArgs } from "./cli";
 
 describe("parseCliArgs", () => {
   test("parses --codebase as required argument", () => {
@@ -61,5 +61,39 @@ describe("parseCliArgs", () => {
     expect(result.output).toBe("/my/output");
     expect(result.provider).toBe("openai");
     expect(result.model).toBe("gpt-4");
+  });
+});
+
+describe("createTools", () => {
+  test("returns all 6 tools with correct names", () => {
+    const tools = createTools("/some/codebase", "./jobs/");
+    const names = tools.map((t) => t.name);
+    expect(names).toEqual([
+      "file_read",
+      "file_search",
+      "web_search",
+      "write_jtbd",
+      "write_spec",
+      "session_complete",
+    ]);
+  });
+
+  test("returns exactly 6 tools", () => {
+    const tools = createTools("/some/codebase", "./jobs/");
+    expect(tools).toHaveLength(6);
+  });
+
+  test("all tools have execute functions", () => {
+    const tools = createTools("/some/codebase", "./jobs/");
+    for (const tool of tools) {
+      expect(typeof tool.execute).toBe("function");
+    }
+  });
+
+  test("scopes file_read to codebase path", async () => {
+    const tools = createTools("/nonexistent/codebase", "./jobs/");
+    const fileRead = tools.find((t) => t.name === "file_read")!;
+    const result = await fileRead.execute({ path: "../../etc/passwd" });
+    expect(result).toContain("outside the codebase");
   });
 });

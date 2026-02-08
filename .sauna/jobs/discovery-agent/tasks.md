@@ -1,6 +1,6 @@
 # Discovery Agent — Tasks
 
-Status: **In progress.** Core foundation complete; P1 tools 6 of 6 done. Next: P2 CLI & Integration.
+Status: **In progress.** Core foundation complete; P1 tools 6 of 6 done; P2 CLI wired. Next: P3 remaining tests.
 
 ## P0 — Core Foundation
 
@@ -21,8 +21,8 @@ Status: **In progress.** Core foundation complete; P1 tools 6 of 6 done. Next: P
 ## P2 — CLI & Integration
 
 - [x] Implement CLI adapter: parse `--codebase` (required), `--output` (default `./jobs/`), `--provider` (default `anthropic`), `--model` (optional) — traces to `specs/cli-adapter.md` — implemented in `src/cli.ts`; exports `parseCliArgs(argv)` and `CliArgs` interface; uses `node:util` `parseArgs` with strict mode; validates `--codebase` required; 9 tests in `src/cli.test.ts`, 4/4 mutations killed
-- [ ] Wire entry point: init provider, register tools scoped to codebase path, load `sauna/prompts/jtbd.md` as system prompt, create engine, start readline loop — traces to `specs/cli-adapter.md`
-- [ ] Handle I/O: readline stdin/stdout, print file-write notifications mid-conversation, print summary on done, graceful Ctrl+C — traces to `specs/cli-adapter.md`
+- [x] Wire entry point: init provider, register tools scoped to codebase path, load system prompt, create engine, start readline loop — traces to `specs/cli-adapter.md` — implemented in `src/cli.ts` as `main()` function; `createTools(codebasePath, outputPath)` factory assembles all 6 tools; loads `.sauna/prompts/discovery.md` as system prompt; `index.ts` calls `main()`; 4 tests for `createTools` in `src/cli.test.ts`, 2/3 mutations killed (uncaught: search fn injection is tested in web-search tests)
+- [x] Handle I/O: readline stdin/stdout, print file-write notifications mid-conversation, print summary on done, graceful Ctrl+C — traces to `specs/cli-adapter.md` — implemented in `main()` in `src/cli.ts`; uses `node:readline` `createInterface` for stdin/stdout; prints file-write notifications from `output.files_written`; prints "Session complete." on done; handles Ctrl+C via `rl.on("close")`; validates `ANTHROPIC_API_KEY` env var on startup
 
 ## P3 — Tests
 
