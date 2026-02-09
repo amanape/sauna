@@ -14,7 +14,10 @@
   - Removed `AnthropicProvider` import and usage from `src/cli.ts`; `main()` stubbed pending Priority 3 rewrite
   - Removed unused imports (`createInterface`, `resolve`, `dirname`, `join`, `ConversationEngine`) from cli.ts
   - All 74 tests pass, tsc clean (previously 61/63 with 1 tsc error from missing @anthropic-ai/sdk)
-- [ ] Delete `src/engine.ts` and `src/engine.test.ts` — replaced by Vercel AI SDK agentic loop — [vercel-ai-sdk-integration.md]
+- [x] Delete `src/engine.ts` and `src/engine.test.ts` — replaced by Vercel AI SDK agentic loop — [vercel-ai-sdk-integration.md]
+  - Deleted both files; no other files import ConversationEngine
+  - 62 tests pass (down from 74 — 12 engine tests removed), tsc clean
+  - Priority 1 foundation complete — all custom plumbing removed
 
 ## Priority 2 — Tool migration (3 tools, Zod schemas)
 
