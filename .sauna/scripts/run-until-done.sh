@@ -12,8 +12,12 @@ has_pending_tasks() { grep -q '^\- \[ \]' "$TASKS_FILE"; }
 
 PROMPT_FILE="${1:?Usage: run-until-done.sh <prompt-file> [goal]}"
 GOAL="${2:-}"
-MAX_RUNS="${MAX_RUNS:-20}"
+BUFFER="${BUFFER:-5}"
+INITIAL_TASKS=$(grep -c '^\- \[ \]' "$TASKS_FILE" || true)
+MAX_RUNS=$((INITIAL_TASKS + BUFFER))
 RUN=0
+
+echo "--- $INITIAL_TASKS pending tasks, max $MAX_RUNS runs (tasks + $BUFFER buffer) ---"
 
 while has_pending_tasks; do
   RUN=$((RUN + 1))
