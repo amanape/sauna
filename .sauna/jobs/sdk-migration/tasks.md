@@ -9,7 +9,11 @@
 - [x] Delete `src/types.ts` (Message, ToolCall, Tool, LLMProvider, LLMResponse, EngineOutput) — all replaced by Vercel AI SDK types — [vercel-ai-sdk-integration.md]
   - Deleted file and inlined minimal type definitions in consuming files (engine.ts, anthropic.ts, all tool files, cli.ts)
   - No test regression: still 61/63 pass, same 2 pre-existing failures (anthropic.test.ts, cli.test.ts from missing @anthropic-ai/sdk)
-- [ ] Delete `src/providers/anthropic.ts` and `src/providers/anthropic.test.ts` — replaced by `@ai-sdk/anthropic` provider — [vercel-ai-sdk-integration.md]
+- [x] Delete `src/providers/anthropic.ts` and `src/providers/anthropic.test.ts` — replaced by `@ai-sdk/anthropic` provider — [vercel-ai-sdk-integration.md]
+  - Deleted both files and removed empty `src/providers/` directory
+  - Removed `AnthropicProvider` import and usage from `src/cli.ts`; `main()` stubbed pending Priority 3 rewrite
+  - Removed unused imports (`createInterface`, `resolve`, `dirname`, `join`, `ConversationEngine`) from cli.ts
+  - All 74 tests pass, tsc clean (previously 61/63 with 1 tsc error from missing @anthropic-ai/sdk)
 - [ ] Delete `src/engine.ts` and `src/engine.test.ts` — replaced by Vercel AI SDK agentic loop — [vercel-ai-sdk-integration.md]
 
 ## Priority 2 — Tool migration (3 tools, Zod schemas)
