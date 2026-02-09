@@ -16,6 +16,7 @@
 #   .sauna/scripts/cycle.sh 5
 #   PLAN_ITERATIONS=3 .sauna/scripts/cycle.sh 2
 set -euo pipefail
+trap 'exit 130' INT TERM
 
 CYCLES="${1:?Usage: cycle.sh <cycles>}"
 PLAN_ITERATIONS="${PLAN_ITERATIONS:-2}"

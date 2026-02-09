@@ -2,6 +2,7 @@
 # run-agent.sh — Run claude once with a prompt file.
 # Usage: .sauna/scripts/run-agent.sh <prompt-file>
 set -euo pipefail
+trap 'exit 130' INT TERM
 
 export JOB_ID="${JOB_ID:-discovery-agent}"
 

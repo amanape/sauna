@@ -2,6 +2,7 @@
 # run-until-done.sh — Run a prompt repeatedly until tasks.md has no pending tasks.
 # Usage: .sauna/scripts/run-until-done.sh <prompt-file>
 set -euo pipefail
+trap 'exit 130' INT TERM
 
 export JOB_ID="${JOB_ID:-discovery-agent}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
