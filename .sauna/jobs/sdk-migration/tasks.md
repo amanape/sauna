@@ -28,8 +28,13 @@
 - [x] Rewrite `src/tools/file-read.test.ts` to match new tool signature — [tool-migration.md]
   - Tests call `tool.execute!(input, { toolCallId, messages, abortSignal })` matching Vercel AI SDK's ToolExecuteFunction signature
   - All 9 behavioral tests preserved: happy path, nested dirs, path traversal, directory rejection, sibling-prefix attack
-- [ ] Create `src/tools/file-write.ts` — single general-purpose writer replacing `write_jtbd`/`write_spec`; Zod schema, sandboxed to output dir, creates parent dirs, returns `"Wrote <relative-path>"` — [tool-migration.md]
-- [ ] Create `src/tools/file-write.test.ts` — happy path, path traversal rejection, directory creation, overwrite behavior — [tool-migration.md]
+- [x] Create `src/tools/file-write.ts` — single general-purpose writer replacing `write_jtbd`/`write_spec`; Zod schema, sandboxed to output dir, creates parent dirs, returns `"Wrote <relative-path>"` — [tool-migration.md]
+  - Factory function `createFileWriteTool(outputPath)` returning Vercel AI SDK `tool()` with Zod schema
+  - Sandbox check mirrors file-read pattern (normalizedBase + "/" prefix); mkdir + Bun.write for writes
+  - 5/6 mutations caught (83%); surviving mutation: `mkdir` redundant because Bun.write auto-creates dirs — kept for intent clarity
+- [x] Create `src/tools/file-write.test.ts` — happy path, path traversal rejection, directory creation, overwrite behavior — [tool-migration.md]
+  - 8 behavioral tests: write + confirm, nested dir creation, overwrite, path traversal, absolute outside, absolute inside, sibling-prefix attack, .. resolution
+  - Pre-existing cli.test.ts failures (2) unrelated — `createTools` references `.name` on Vercel AI SDK tools (fixed in Priority 3)
 - [ ] Rewrite `src/tools/web-search.ts` to Vercel AI SDK `tool()` pattern with Zod schema and `.describe()` on params — [tool-migration.md]
 - [ ] Rewrite `src/tools/web-search.test.ts` to match new tool signature — [tool-migration.md]
 - [ ] Delete `src/tools/file-search.ts` and `src/tools/file-search.test.ts` — [tool-migration.md]
