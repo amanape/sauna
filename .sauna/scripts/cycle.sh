@@ -5,21 +5,19 @@
 #   1. Run the plan agent PLAN_ITERATIONS times
 #   2. Run the build agent until tasks.md is complete
 #
-# Usage: .sauna/scripts/cycle.sh <cycles> [goal]
+# Usage: .sauna/scripts/cycle.sh <cycles>
 #   cycles          — number of plan/build cycles to run (required)
-#   goal            — optional goal string appended to all prompts
 #
 # Environment:
 #   JOB_ID          — job directory name (default: discovery-agent)
 #   PLAN_ITERATIONS — how many times to run plan per cycle (default: 2)
 #
 # Example:
-#   .sauna/scripts/cycle.sh 5 "Build the discovery agent"
-#   PLAN_ITERATIONS=3 .sauna/scripts/cycle.sh 2 "Ship it"
+#   .sauna/scripts/cycle.sh 5
+#   PLAN_ITERATIONS=3 .sauna/scripts/cycle.sh 2
 set -euo pipefail
 
-CYCLES="${1:?Usage: cycle.sh <cycles> [goal]}"
-GOAL="${2:-}"
+CYCLES="${1:?Usage: cycle.sh <cycles>}"
 PLAN_ITERATIONS="${PLAN_ITERATIONS:-2}"
 
 export JOB_ID="${JOB_ID:-discovery-agent}"
@@ -35,12 +33,12 @@ for ((c = 1; c <= CYCLES; c++)); do
   # Phase 1: Plan
   for ((p = 1; p <= PLAN_ITERATIONS; p++)); do
     echo "--- Plan iteration $p/$PLAN_ITERATIONS ---"
-    "$SCRIPT_DIR/run-agent.sh" "$PLAN_PROMPT" "$GOAL"
+    "$SCRIPT_DIR/run-agent.sh" "$PLAN_PROMPT"
   done
 
   # Phase 2: Build until done
   echo "--- Build phase ---"
-  "$SCRIPT_DIR/run-until-done.sh" "$BUILD_PROMPT" "$GOAL"
+  "$SCRIPT_DIR/run-until-done.sh" "$BUILD_PROMPT"
 
   echo "=== Cycle $c/$CYCLES complete ==="
 done
