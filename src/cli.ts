@@ -6,7 +6,6 @@ import { parseArgs } from "node:util";
 import { createFileReadTool } from "./tools/file-read";
 import { createFileWriteTool } from "./tools/file-write";
 import { createWebSearchTool, type SearchFunction } from "./tools/web-search";
-import { createSessionCompleteTool } from "./tools/session-complete";
 
 export interface CliArgs {
   codebase: string;
@@ -52,7 +51,6 @@ export function createTools(
     createFileReadTool(codebasePath),
     createFileWriteTool(outputPath),
     createWebSearchTool(searchFn),
-    createSessionCompleteTool(),
   ];
 }
 

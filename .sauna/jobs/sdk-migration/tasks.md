@@ -52,7 +52,11 @@
   - Replaced `createWriteJtbdTool`/`createWriteSpecTool` imports in cli.ts with `createFileWriteTool`
   - `createTools` now returns 4 tools: file_read, file_write, web_search, session_complete
   - 38/41 tests pass; 3 cli.test.ts failures are pre-existing (`.name` property, wrong tool count) — fixed in Priority 3
-- [ ] Delete `src/tools/session-complete.ts` and `src/tools/session-complete.test.ts` — [tool-migration.md]
+- [x] Delete `src/tools/session-complete.ts` and `src/tools/session-complete.test.ts` — [tool-migration.md]
+  - Deleted both files and removed import/usage from `src/cli.ts`
+  - `createTools` now returns 3 tools: file_read, file_write, web_search
+  - 35/38 tests pass; 3 cli.test.ts failures are pre-existing (`.name` property, wrong tool count) — fixed in Priority 3
+  - Priority 2 (Tool migration) complete
 
 ## Priority 3 — CLI simplification
 
