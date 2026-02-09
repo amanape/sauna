@@ -6,7 +6,8 @@ import { createInterface } from "node:readline/promises";
 import { resolve } from "node:path";
 import { generateText, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
-import type { ModelMessage, ToolSet } from "ai";
+import type { LanguageModel, ModelMessage, ToolSet } from "ai";
+import type { Readable, Writable } from "node:stream";
 
 import { createFileReadTool } from "./tools/file-read";
 import { createFileWriteTool } from "./tools/file-write";
@@ -56,6 +57,58 @@ export function createTools(
   };
 }
 
+export interface ConversationDeps {
+  model: LanguageModel;
+  tools: ToolSet;
+  systemPrompt: string;
+  input: Readable;
+  output: Writable;
+}
+
+export async function runConversation(deps: ConversationDeps): Promise<void> {
+  const messages: ModelMessage[] = [];
+
+  const rl = createInterface({
+    input: deps.input,
+    output: deps.output,
+  });
+
+  try {
+    for await (const line of rl) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      messages.push({ role: "user", content: trimmed });
+
+      const result = await generateText({
+        model: deps.model,
+        system: deps.systemPrompt,
+        tools: deps.tools,
+        stopWhen: stepCountIs(50),
+        messages,
+        onStepFinish({ toolResults }) {
+          for (const tr of toolResults) {
+            if (
+              typeof tr.output === "string" &&
+              tr.output.startsWith("Wrote ")
+            ) {
+              deps.output.write(tr.output + "\n");
+            }
+          }
+        },
+      });
+
+      messages.push(...result.response.messages);
+
+      if (result.text) {
+        deps.output.write(result.text + "\n");
+      }
+    }
+  } finally {
+    rl.close();
+  }
+}
+
 export async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
 
@@ -71,45 +124,12 @@ export async function main(): Promise<void> {
   ).text();
 
   const modelId = args.model ?? "claude-sonnet-4-5-20250929";
-  const messages: ModelMessage[] = [];
 
-  const rl = createInterface({
+  await runConversation({
+    model: anthropic(modelId),
+    tools,
+    systemPrompt,
     input: process.stdin,
     output: process.stdout,
   });
-
-  try {
-    for await (const line of rl) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      messages.push({ role: "user", content: trimmed });
-
-      const result = await generateText({
-        model: anthropic(modelId),
-        system: systemPrompt,
-        tools,
-        stopWhen: stepCountIs(50),
-        messages,
-        onStepFinish({ toolResults }) {
-          for (const tr of toolResults) {
-            if (
-              typeof tr.output === "string" &&
-              tr.output.startsWith("Wrote ")
-            ) {
-              console.log(tr.output);
-            }
-          }
-        },
-      });
-
-      messages.push(...result.response.messages);
-
-      if (result.text) {
-        console.log(result.text);
-      }
-    }
-  } finally {
-    rl.close();
-  }
 }

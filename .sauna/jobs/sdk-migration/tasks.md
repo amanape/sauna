@@ -90,4 +90,10 @@
   - 36/36 tests pass across 4 test files (file-read, file-write, web-search, cli)
 - [x] Verify type-check passes with `bunx tsc --noEmit` — [all specs]
   - Zero type errors
-- [ ] Manual smoke test: run CLI end-to-end, confirm multi-turn conversation, file writes, and Ctrl+C exit — [cli-simplification.md]
+- [x] Manual smoke test: run CLI end-to-end, confirm multi-turn conversation, file writes, and Ctrl+C exit — [cli-simplification.md]
+  - Extracted `runConversation()` from `main()` with injectable deps (model, tools, systemPrompt, input/output streams)
+  - `main()` is now a thin shell: parse args, validate API key, load prompt, call `runConversation()`
+  - 5 integration tests: single-turn response, multi-turn message accumulation, empty-line skipping, file-write notifications via onStepFinish, clean EOF exit
+  - 5/5 mutations caught: message accumulation, empty-line filter, write-notification filter, response output, system prompt passthrough
+  - 41 tests pass, tsc clean
+  - SDK migration complete — all 4 priorities done
