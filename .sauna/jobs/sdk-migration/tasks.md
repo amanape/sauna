@@ -44,7 +44,9 @@
   - 8 behavioral tests using Vercel AI SDK `execute(input, { toolCallId, messages, abortSignal })` signature
   - Removed old tests for empty/missing query (now handled by Zod schema validation, not execute logic)
   - Pre-existing cli.test.ts failures (2) unrelated — `createTools` references `.name` on Vercel AI SDK tools (fixed in Priority 3)
-- [ ] Delete `src/tools/file-search.ts` and `src/tools/file-search.test.ts` — [tool-migration.md]
+- [x] Delete `src/tools/file-search.ts` and `src/tools/file-search.test.ts` — [tool-migration.md]
+  - Deleted both files and removed import/usage from `src/cli.ts` (`createTools` now returns 5 tools)
+  - 55/58 tests pass; 3 cli.test.ts failures are pre-existing (`.name` property on Vercel AI SDK tools, wrong tool count) — fixed in Priority 3
 - [ ] Delete `src/tools/output-writer.ts` and `src/tools/output-writer.test.ts` — [tool-migration.md]
 - [ ] Delete `src/tools/session-complete.ts` and `src/tools/session-complete.test.ts` — [tool-migration.md]
 

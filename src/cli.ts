@@ -4,7 +4,6 @@
 import { parseArgs } from "node:util";
 
 import { createFileReadTool } from "./tools/file-read";
-import { createFileSearchTool } from "./tools/file-search";
 import { createWebSearchTool, type SearchFunction } from "./tools/web-search";
 import { createWriteJtbdTool, createWriteSpecTool } from "./tools/output-writer";
 import { createSessionCompleteTool } from "./tools/session-complete";
@@ -51,7 +50,6 @@ export function createTools(
 ) {
   return [
     createFileReadTool(codebasePath),
-    createFileSearchTool(codebasePath),
     createWebSearchTool(searchFn),
     createWriteJtbdTool(outputPath),
     createWriteSpecTool(outputPath),
