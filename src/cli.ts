@@ -4,8 +4,8 @@
 import { parseArgs } from "node:util";
 
 import { createFileReadTool } from "./tools/file-read";
+import { createFileWriteTool } from "./tools/file-write";
 import { createWebSearchTool, type SearchFunction } from "./tools/web-search";
-import { createWriteJtbdTool, createWriteSpecTool } from "./tools/output-writer";
 import { createSessionCompleteTool } from "./tools/session-complete";
 
 export interface CliArgs {
@@ -50,9 +50,8 @@ export function createTools(
 ) {
   return [
     createFileReadTool(codebasePath),
+    createFileWriteTool(outputPath),
     createWebSearchTool(searchFn),
-    createWriteJtbdTool(outputPath),
-    createWriteSpecTool(outputPath),
     createSessionCompleteTool(),
   ];
 }
