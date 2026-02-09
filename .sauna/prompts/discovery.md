@@ -74,7 +74,7 @@ When you have enough information, write the files. Do not ask for permission to 
 Each JTBD gets its own directory containing the job definition and its specs. Each directory must be **self-contained** — a downstream agent will read only that directory with no access to this conversation.
 
 ```
-jobs/
+jtbd/
   <job-slug>/
     jtbd.md
     specs/
@@ -121,9 +121,24 @@ Focus on **what** and **why**. Keep it at the level of the problem and desired o
 
 ### Spec Files (`specs/<slug>.md`)
 
-Each spec covers a distinct component or concern within the JTBD. Specs describe **what** to build and the requirements it must meet — not step-by-step implementation instructions.
+Each spec covers a distinct component or concern within the JTBD. Write as many specs as the job naturally breaks into. One is fine. Ten is fine. Follow the shape of the problem, not an arbitrary count.
 
-Write as many specs as the job naturally breaks into. One is fine. Ten is fine. Follow the shape of the problem, not an arbitrary count.
+**Specs define requirements, not implementation.**
+
+A spec should answer: what does this component do, what inputs/outputs does it have, what constraints must it satisfy, and what behaviors must be true. A downstream agent will read this spec and decide how to build it.
+
+Do NOT include in specs:
+
+- Code samples or implementation snippets
+- File paths to create or delete
+- Migration steps or ordering instructions
+- Specific API calls or SDK usage
+
+Technology choices that were explicitly decided during the discovery conversation (e.g., "use Vercel AI SDK", "use PostgreSQL") ARE valid spec requirements — they are constraints. But the spec should not dictate how to use them. The downstream agent is expected to search documentation and figure out usage on its own.
+
+**Good spec requirement:** "The tool must sandbox file reads to the configured codebase directory and reject paths that resolve outside it."
+
+**Bad spec requirement:** "Use `path.resolve()` to normalize the path, then check it starts with the codebase root using `resolvedPath.startsWith(basePath)`."
 
 ## Completion
 
