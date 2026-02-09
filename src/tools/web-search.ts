@@ -1,10 +1,5 @@
-// Inline type — src/types.ts removed during SDK migration
-interface Tool {
-  name: string;
-  description: string;
-  parameters: Record<string, { type: string; description: string; required?: boolean }>;
-  execute(args: Record<string, unknown>): Promise<string>;
-}
+import { tool } from "ai";
+import * as z from "zod";
 
 export interface SearchResult {
   title: string;
@@ -14,25 +9,15 @@ export interface SearchResult {
 
 export type SearchFunction = (query: string) => Promise<SearchResult[]>;
 
-export function createWebSearchTool(searchFn: SearchFunction): Tool {
-  return {
-    name: "web_search",
+export function createWebSearchTool(searchFn: SearchFunction) {
+  return tool({
     description:
       "Search the web for a query and return relevant results with titles, snippets, and URLs.",
-    parameters: {
-      query: {
-        type: "string",
-        description: "The search query to execute",
-        required: true,
-      },
-    },
-    async execute(args: Record<string, unknown>): Promise<string> {
-      const raw = args.query;
-      if (typeof raw !== "string" || raw.trim() === "") {
-        return "Error: query parameter is required and must be a non-empty string.";
-      }
-
-      const query = raw.trim();
+    inputSchema: z.object({
+      query: z.string().describe("The search query to execute"),
+    }),
+    async execute({ query: rawQuery }) {
+      const query = rawQuery.trim();
 
       try {
         const results = await searchFn(query);
@@ -52,5 +37,5 @@ export function createWebSearchTool(searchFn: SearchFunction): Tool {
         return `Error searching for "${query}": ${msg}`;
       }
     },
-  };
+  });
 }

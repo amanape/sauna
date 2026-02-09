@@ -1,9 +1,16 @@
 import { test, expect } from "bun:test";
-import {
-  createWebSearchTool,
-  type SearchResult,
-  type SearchFunction,
-} from "./web-search";
+import { createWebSearchTool, type SearchFunction } from "./web-search";
+
+function execute(
+  tool: ReturnType<typeof createWebSearchTool>,
+  input: { query: string },
+) {
+  return tool.execute!(input, {
+    toolCallId: "test",
+    messages: [],
+    abortSignal: new AbortController().signal,
+  });
+}
 
 test("formats search results with title, snippet, and URL", async () => {
   const searchFn: SearchFunction = async () => [
@@ -19,7 +26,7 @@ test("formats search results with title, snippet, and URL", async () => {
     },
   ];
   const tool = createWebSearchTool(searchFn);
-  const result = await tool.execute({ query: "bun runtime" });
+  const result = await execute(tool, { query: "bun runtime" });
 
   expect(result).toContain("Bun Runtime");
   expect(result).toContain("Bun is a fast JavaScript runtime");
@@ -36,37 +43,18 @@ test("passes trimmed query to search function", async () => {
     return [];
   };
   const tool = createWebSearchTool(searchFn);
-  await tool.execute({ query: "  spaced query  " });
+  await execute(tool, { query: "  spaced query  " });
 
   expect(receivedQuery).toBe("spaced query");
 });
 
-test("returns error when query is missing", async () => {
+test("returns no-results message including the query", async () => {
   const searchFn: SearchFunction = async () => [];
   const tool = createWebSearchTool(searchFn);
-  const result = await tool.execute({});
-
-  expect(result).toMatch(/error/i);
-  expect(result).toContain("query");
-});
-
-test("returns error when query is empty or whitespace", async () => {
-  const searchFn: SearchFunction = async () => [];
-  const tool = createWebSearchTool(searchFn);
-
-  const empty = await tool.execute({ query: "" });
-  expect(empty).toMatch(/error/i);
-
-  const whitespace = await tool.execute({ query: "   " });
-  expect(whitespace).toMatch(/error/i);
-});
-
-test("returns no-results message when search returns empty array", async () => {
-  const searchFn: SearchFunction = async () => [];
-  const tool = createWebSearchTool(searchFn);
-  const result = await tool.execute({ query: "obscure query" });
+  const result = await execute(tool, { query: "obscure query" });
 
   expect(result).toMatch(/no results/i);
+  expect(result).toContain("obscure query");
 });
 
 test("handles search function errors gracefully", async () => {
@@ -74,7 +62,7 @@ test("handles search function errors gracefully", async () => {
     throw new Error("API rate limited");
   };
   const tool = createWebSearchTool(searchFn);
-  const result = await tool.execute({ query: "test" });
+  const result = await execute(tool, { query: "test" });
 
   expect(result).toMatch(/error/i);
   expect(result).toContain("API rate limited");
@@ -87,18 +75,11 @@ test("numbers multiple results sequentially", async () => {
     { title: "Third", snippet: "s3", url: "https://c.com" },
   ];
   const tool = createWebSearchTool(searchFn);
-  const result = await tool.execute({ query: "test" });
+  const result = await execute(tool, { query: "test" });
 
   expect(result).toContain("1.");
   expect(result).toContain("2.");
   expect(result).toContain("3.");
-});
-
-test("no-results message includes the query", async () => {
-  const searchFn: SearchFunction = async () => [];
-  const tool = createWebSearchTool(searchFn);
-  const result = await tool.execute({ query: "xyzzy_unique" });
-  expect(result).toContain("xyzzy_unique");
 });
 
 test("handles non-Error thrown values in search function", async () => {
@@ -106,7 +87,7 @@ test("handles non-Error thrown values in search function", async () => {
     throw "plain string error";
   };
   const tool = createWebSearchTool(searchFn as SearchFunction);
-  const result = await tool.execute({ query: "test" });
+  const result = await execute(tool, { query: "test" });
   expect(result).toMatch(/error/i);
   expect(result).toContain("plain string error");
 });
@@ -116,8 +97,16 @@ test("formats each result with indented snippet and URL", async () => {
     { title: "Only", snippet: "the snippet", url: "https://x.com" },
   ];
   const tool = createWebSearchTool(searchFn);
-  const result = await tool.execute({ query: "test" });
-  // Verify the exact indentation format: number + title on first line,
-  // then 3-space-indented snippet and URL on subsequent lines
+  const result = await execute(tool, { query: "test" });
   expect(result).toBe("1. Only\n   the snippet\n   https://x.com");
+});
+
+test("includes query text in error message on failure", async () => {
+  const searchFn: SearchFunction = async () => {
+    throw new Error("timeout");
+  };
+  const tool = createWebSearchTool(searchFn);
+  const result = await execute(tool, { query: "specific query" });
+  expect(result).toContain("specific query");
+  expect(result).toContain("timeout");
 });

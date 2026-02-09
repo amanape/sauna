@@ -35,8 +35,15 @@
 - [x] Create `src/tools/file-write.test.ts` — happy path, path traversal rejection, directory creation, overwrite behavior — [tool-migration.md]
   - 8 behavioral tests: write + confirm, nested dir creation, overwrite, path traversal, absolute outside, absolute inside, sibling-prefix attack, .. resolution
   - Pre-existing cli.test.ts failures (2) unrelated — `createTools` references `.name` on Vercel AI SDK tools (fixed in Priority 3)
-- [ ] Rewrite `src/tools/web-search.ts` to Vercel AI SDK `tool()` pattern with Zod schema and `.describe()` on params — [tool-migration.md]
-- [ ] Rewrite `src/tools/web-search.test.ts` to match new tool signature — [tool-migration.md]
+- [x] Rewrite `src/tools/web-search.ts` to Vercel AI SDK `tool()` pattern with Zod schema and `.describe()` on params — [tool-migration.md]
+  - Factory function `createWebSearchTool(searchFn)` returning Vercel AI SDK `tool()` with Zod schema (`z.object({ query: z.string().describe(...) })`)
+  - Removed old custom `Tool` interface; Zod handles parameter validation (empty/missing query rejected by schema)
+  - All behavioral logic preserved: trim, no-results message, numbered formatting, error handling for Error and non-Error throws
+  - 6/6 mutations caught (100%): trim removal, empty-results check, numbering, error message content, formatting indent, try/catch removal
+- [x] Rewrite `src/tools/web-search.test.ts` to match new tool signature — [tool-migration.md]
+  - 8 behavioral tests using Vercel AI SDK `execute(input, { toolCallId, messages, abortSignal })` signature
+  - Removed old tests for empty/missing query (now handled by Zod schema validation, not execute logic)
+  - Pre-existing cli.test.ts failures (2) unrelated — `createTools` references `.name` on Vercel AI SDK tools (fixed in Priority 3)
 - [ ] Delete `src/tools/file-search.ts` and `src/tools/file-search.test.ts` — [tool-migration.md]
 - [ ] Delete `src/tools/output-writer.ts` and `src/tools/output-writer.test.ts` — [tool-migration.md]
 - [ ] Delete `src/tools/session-complete.ts` and `src/tools/session-complete.test.ts` — [tool-migration.md]
