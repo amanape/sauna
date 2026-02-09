@@ -1,6 +1,12 @@
 import { resolve } from "node:path";
 import { stat } from "node:fs/promises";
-import type { Tool } from "../types";
+// Inline type — src/types.ts removed during SDK migration
+interface Tool {
+  name: string;
+  description: string;
+  parameters: Record<string, { type: string; description: string; required?: boolean }>;
+  execute(args: Record<string, unknown>): Promise<string>;
+}
 
 export function createFileReadTool(codebasePath: string): Tool {
   const normalizedBase = resolve(codebasePath);

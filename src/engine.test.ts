@@ -1,6 +1,29 @@
 import { describe, test, expect, mock } from "bun:test";
 import { ConversationEngine } from "./engine";
-import type { LLMProvider, LLMResponse, Tool, Message } from "./types";
+// Inline types — src/types.ts removed during SDK migration
+
+interface Message {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  tool_calls?: { id: string; name: string; args: Record<string, unknown> }[];
+  tool_call_id?: string;
+}
+
+interface LLMResponse {
+  text?: string;
+  tool_calls?: { id: string; name: string; args: Record<string, unknown> }[];
+}
+
+interface LLMProvider {
+  complete(messages: Message[], tools?: any[]): Promise<LLMResponse>;
+}
+
+interface Tool {
+  name: string;
+  description: string;
+  parameters: Record<string, any>;
+  execute(args: Record<string, unknown>): Promise<string>;
+}
 
 function mockProvider(responses: LLMResponse[]): LLMProvider {
   let callIndex = 0;

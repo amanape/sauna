@@ -1,10 +1,34 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type {
-  LLMProvider,
-  LLMResponse,
-  Message,
-  ToolDefinition,
-} from '../types.ts';
+
+// Inline types — src/types.ts removed during SDK migration
+
+interface Message {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  tool_calls?: { id: string; name: string; args: Record<string, unknown> }[];
+  tool_call_id?: string;
+}
+
+interface ParameterDef {
+  type: string;
+  description: string;
+  required?: boolean;
+}
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: Record<string, ParameterDef>;
+}
+
+interface LLMResponse {
+  text?: string;
+  tool_calls?: { id: string; name: string; args: Record<string, unknown> }[];
+}
+
+interface LLMProvider {
+  complete(messages: Message[], tools?: ToolDefinition[]): Promise<LLMResponse>;
+}
 
 export interface AnthropicConfig {
   apiKey: string;

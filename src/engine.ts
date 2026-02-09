@@ -1,13 +1,48 @@
 // Conversation Engine — core orchestrator
 // Traces to: specs/conversation-engine.md
 
-import type {
-  LLMProvider,
-  Tool,
-  Message,
-  ToolCall,
-  EngineOutput,
-} from './types';
+// Inline types — src/types.ts removed during SDK migration
+
+interface Message {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+}
+
+interface ToolCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
+interface ParameterDef {
+  type: string;
+  description: string;
+  required?: boolean;
+}
+
+interface Tool {
+  name: string;
+  description: string;
+  parameters: Record<string, ParameterDef>;
+  execute(args: Record<string, unknown>): Promise<string>;
+}
+
+interface LLMResponse {
+  text?: string;
+  tool_calls?: ToolCall[];
+}
+
+interface LLMProvider {
+  complete(messages: Message[], tools?: Tool[]): Promise<LLMResponse>;
+}
+
+interface EngineOutput {
+  text: string;
+  files_written?: string[];
+  done: boolean;
+}
 
 const MAX_LOOP_ITERATIONS = 50;
 

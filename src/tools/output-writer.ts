@@ -1,7 +1,14 @@
 // Output Writer — tools for writing JTBD and spec files
 // Traces to: specs/output-writer.md
 
-import type { Tool } from "../types";
+// Inline type — src/types.ts removed during SDK migration
+interface Tool {
+  name: string;
+  description: string;
+  parameters: Record<string, { type: string; description: string; required?: boolean }>;
+  execute(args: Record<string, unknown>): Promise<string>;
+}
+
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 

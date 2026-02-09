@@ -1,7 +1,13 @@
 // Session Complete — no-op tool to signal session end
 // Traces to: specs/conversation-engine.md
 
-import type { Tool } from "../types";
+// Inline type — src/types.ts removed during SDK migration
+interface Tool {
+  name: string;
+  description: string;
+  parameters: Record<string, { type: string; description: string; required?: boolean }>;
+  execute(args: Record<string, unknown>): Promise<string>;
+}
 
 export function createSessionCompleteTool(): Tool {
   return {

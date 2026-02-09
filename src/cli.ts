@@ -4,7 +4,6 @@
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline";
 import { resolve, dirname, join } from "node:path";
-import type { Tool } from "./types";
 import { ConversationEngine } from "./engine";
 import { AnthropicProvider } from "./providers/anthropic";
 import { createFileReadTool } from "./tools/file-read";
@@ -52,7 +51,7 @@ export function createTools(
   codebasePath: string,
   outputPath: string,
   searchFn: SearchFunction = defaultSearchFn,
-): Tool[] {
+) {
   return [
     createFileReadTool(codebasePath),
     createFileSearchTool(codebasePath),

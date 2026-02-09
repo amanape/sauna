@@ -6,7 +6,9 @@
   - Installed: ai@6.0.77, @ai-sdk/anthropic@3.0.39, zod@4.3.6
   - Expected breakage: anthropic.ts, anthropic.test.ts, cli.test.ts (all slated for deletion/rewrite)
   - 61/63 tests still pass; sole tsc error is the removed import
-- [ ] Delete `src/types.ts` (Message, ToolCall, Tool, LLMProvider, LLMResponse, EngineOutput) — all replaced by Vercel AI SDK types — [vercel-ai-sdk-integration.md]
+- [x] Delete `src/types.ts` (Message, ToolCall, Tool, LLMProvider, LLMResponse, EngineOutput) — all replaced by Vercel AI SDK types — [vercel-ai-sdk-integration.md]
+  - Deleted file and inlined minimal type definitions in consuming files (engine.ts, anthropic.ts, all tool files, cli.ts)
+  - No test regression: still 61/63 pass, same 2 pre-existing failures (anthropic.test.ts, cli.test.ts from missing @anthropic-ai/sdk)
 - [ ] Delete `src/providers/anthropic.ts` and `src/providers/anthropic.test.ts` — replaced by `@ai-sdk/anthropic` provider — [vercel-ai-sdk-integration.md]
 - [ ] Delete `src/engine.ts` and `src/engine.test.ts` — replaced by Vercel AI SDK agentic loop — [vercel-ai-sdk-integration.md]
 

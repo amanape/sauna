@@ -1,5 +1,18 @@
 import { test, expect, describe, mock } from "bun:test";
-import type { Message, ToolDefinition } from "../types.ts";
+// Inline types — src/types.ts removed during SDK migration
+
+interface Message {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  tool_calls?: { id: string; name: string; args: Record<string, unknown> }[];
+  tool_call_id?: string;
+}
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: Record<string, { type: string; description: string; required?: boolean }>;
+}
 
 // We'll import from the implementation once it exists
 import {
