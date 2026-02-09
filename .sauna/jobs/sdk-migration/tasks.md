@@ -60,15 +60,34 @@
 
 ## Priority 3 — CLI simplification
 
-- [ ] Rewrite `src/cli.ts` to use Vercel AI SDK `generateText()` with `maxSteps: 50` instead of ConversationEngine; accumulate messages array across turns — [cli-simplification.md, vercel-ai-sdk-integration.md]
-- [ ] Remove `--provider` argument from CLI arg parsing — [cli-simplification.md]
-- [ ] Validate `ANTHROPIC_API_KEY` before first LLM call with clear error message — [cli-simplification.md]
-- [ ] Print file-write notifications immediately as writes occur (detect `"Wrote "` prefix in tool results) — [cli-simplification.md]
-- [ ] Remove programmatic session-complete detection (`output.done` logic) — session ends on user Ctrl+C/EOF only — [cli-simplification.md]
-- [ ] Rewrite `src/cli.test.ts` — update `parseCliArgs` tests (no `--provider`), update `createTools` to expect 3 tools — [cli-simplification.md]
+- [x] Rewrite `src/cli.ts` to use Vercel AI SDK `generateText()` with `stopWhen: stepCountIs(50)` instead of ConversationEngine; accumulate messages array across turns — [cli-simplification.md, vercel-ai-sdk-integration.md]
+  - AI SDK v6 uses `stopWhen: stepCountIs(50)` instead of `maxSteps: 50`
+  - Uses `@ai-sdk/anthropic` provider with `anthropic(modelId)` factory
+  - Messages accumulated via `result.response.messages` which includes tool call/result messages
+  - System prompt loaded from `.sauna/prompts/discovery.md` via `Bun.file()`
+  - Interactive readline loop: reads stdin lines, ignores empty, pushes user messages, calls generateText, prints response
+- [x] Remove `--provider` argument from CLI arg parsing — [cli-simplification.md]
+  - Removed from `parseArgs` options, `CliArgs` interface, and return value
+  - `strict: true` ensures unknown flags (including `--provider`) throw
+  - Test added: `--provider is not accepted` verifies the rejection
+- [x] Validate `ANTHROPIC_API_KEY` before first LLM call with clear error message — [cli-simplification.md]
+  - Checks `process.env.ANTHROPIC_API_KEY` at start of `main()`; exits with error message if missing
+- [x] Print file-write notifications immediately as writes occur (detect `"Wrote "` prefix in tool results) — [cli-simplification.md]
+  - Uses `onStepFinish` callback to inspect `toolResults` for `"Wrote "` prefix; prints immediately as each step completes
+- [x] Remove programmatic session-complete detection (`output.done` logic) — session ends on user Ctrl+C/EOF only — [cli-simplification.md]
+  - No session-complete detection; readline loop exits on EOF/Ctrl+C naturally
+- [x] Rewrite `src/cli.test.ts` — update `parseCliArgs` tests (no `--provider`), update `createTools` to expect 3 tools — [cli-simplification.md]
+  - `createTools` now returns a `Record` (object with named keys) instead of array — matches Vercel AI SDK `ToolSet` type
+  - Tests verify record keys (`file_read`, `file_write`, `web_search`), execute functions, and file_read sandbox behavior
+  - All `--provider` tests replaced with rejection test; "parses all arguments" test updated
+  - 3/3 mutations caught: provider re-add, array return, sandbox message
+  - 36 tests pass, tsc clean
+  - Priority 3 complete
 
 ## Priority 4 — Validation
 
-- [ ] Verify all tests pass with `bun test` — [all specs]
-- [ ] Verify type-check passes with `bunx tsc --noEmit` — [all specs]
+- [x] Verify all tests pass with `bun test` — [all specs]
+  - 36/36 tests pass across 4 test files (file-read, file-write, web-search, cli)
+- [x] Verify type-check passes with `bunx tsc --noEmit` — [all specs]
+  - Zero type errors
 - [ ] Manual smoke test: run CLI end-to-end, confirm multi-turn conversation, file writes, and Ctrl+C exit — [cli-simplification.md]
