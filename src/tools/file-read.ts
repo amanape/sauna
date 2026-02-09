@@ -1,28 +1,17 @@
+import { tool } from "ai";
+import * as z from "zod";
 import { resolve } from "node:path";
 import { stat } from "node:fs/promises";
-// Inline type — src/types.ts removed during SDK migration
-interface Tool {
-  name: string;
-  description: string;
-  parameters: Record<string, { type: string; description: string; required?: boolean }>;
-  execute(args: Record<string, unknown>): Promise<string>;
-}
 
-export function createFileReadTool(codebasePath: string): Tool {
+export function createFileReadTool(codebasePath: string) {
   const normalizedBase = resolve(codebasePath);
 
-  return {
-    name: "file_read",
+  return tool({
     description: "Read the contents of a file at the given path, relative to the codebase root.",
-    parameters: {
-      path: {
-        type: "string",
-        description: "File path to read, relative to the codebase root",
-        required: true,
-      },
-    },
-    async execute(args: Record<string, unknown>): Promise<string> {
-      const filePath = String(args.path);
+    inputSchema: z.object({
+      path: z.string().describe("File path to read, relative to the codebase root"),
+    }),
+    async execute({ path: filePath }) {
       const resolved = resolve(normalizedBase, filePath);
 
       if (!resolved.startsWith(normalizedBase + "/") && resolved !== normalizedBase) {
@@ -45,5 +34,5 @@ export function createFileReadTool(codebasePath: string): Tool {
         return `Error reading "${filePath}": ${msg}`;
       }
     },
-  };
+  });
 }

@@ -21,8 +21,13 @@
 
 ## Priority 2 — Tool migration (3 tools, Zod schemas)
 
-- [ ] Rewrite `src/tools/file-read.ts` to Vercel AI SDK `tool()` pattern with Zod schema and `.describe()` on params — [tool-migration.md]
-- [ ] Rewrite `src/tools/file-read.test.ts` to match new tool signature — [tool-migration.md]
+- [x] Rewrite `src/tools/file-read.ts` to Vercel AI SDK `tool()` pattern with Zod schema and `.describe()` on params — [tool-migration.md]
+  - Uses `tool()` from `ai` with `inputSchema: z.object({ path: z.string().describe(...) })`
+  - Execute receives typed `{ path: string }` input; all sandbox/error logic preserved
+  - 9/9 file-read tests pass; 2 cli.test.ts tests now fail (reference `.name` on tool — fixed in Priority 3)
+- [x] Rewrite `src/tools/file-read.test.ts` to match new tool signature — [tool-migration.md]
+  - Tests call `tool.execute!(input, { toolCallId, messages, abortSignal })` matching Vercel AI SDK's ToolExecuteFunction signature
+  - All 9 behavioral tests preserved: happy path, nested dirs, path traversal, directory rejection, sibling-prefix attack
 - [ ] Create `src/tools/file-write.ts` — single general-purpose writer replacing `write_jtbd`/`write_spec`; Zod schema, sandboxed to output dir, creates parent dirs, returns `"Wrote <relative-path>"` — [tool-migration.md]
 - [ ] Create `src/tools/file-write.test.ts` — happy path, path traversal rejection, directory creation, overwrite behavior — [tool-migration.md]
 - [ ] Rewrite `src/tools/web-search.ts` to Vercel AI SDK `tool()` pattern with Zod schema and `.describe()` on params — [tool-migration.md]
