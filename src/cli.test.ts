@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { realpathSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parseCliArgs, createTools, createWorkspace, createDiscoveryAgent, createResearchAgent, DEFAULT_MODEL, runConversation, getProviderFromModel, getApiKeyEnvVar, validateApiKey, type ConversationDeps } from "./cli";
+import { parseCliArgs, createTools, createWorkspace, createDiscoveryAgent, createResearchAgent, DEFAULT_MODEL, runConversation, getProviderFromModel, getApiKeyEnvVar, validateApiKey, resolveSearchFn, type ConversationDeps } from "./cli";
 
 describe("parseCliArgs", () => {
   test("parses --codebase as required argument", () => {
@@ -140,6 +140,33 @@ describe("createTools", () => {
     const tools = createTools(searchFn);
     const result = await tools.web_search.execute!({ query: "test" }, {} as any);
     expect(result).toContain("Result");
+  });
+});
+
+describe("resolveSearchFn", () => {
+  test("returns a Tavily-backed search function when TAVILY_API_KEY is set", async () => {
+    const searchFn = resolveSearchFn({ TAVILY_API_KEY: "tvly-test-key" });
+    // The returned function should be callable (not the default error thrower)
+    // We can't call a real API, but we can verify it doesn't throw synchronously
+    expect(typeof searchFn).toBe("function");
+    // Calling it should attempt a fetch (not throw "not configured")
+    // We verify by checking it doesn't throw the default error message
+    try {
+      await searchFn("test query");
+    } catch (e: any) {
+      // Should NOT be the "not configured" error — it should be a network/fetch error
+      expect(e.message).not.toContain("not configured");
+    }
+  });
+
+  test("returns error-throwing function when TAVILY_API_KEY is absent", async () => {
+    const searchFn = resolveSearchFn({});
+    await expect(searchFn("test")).rejects.toThrow("TAVILY_API_KEY");
+  });
+
+  test("error message suggests setting the environment variable", async () => {
+    const searchFn = resolveSearchFn({});
+    await expect(searchFn("test")).rejects.toThrow("TAVILY_API_KEY");
   });
 });
 
