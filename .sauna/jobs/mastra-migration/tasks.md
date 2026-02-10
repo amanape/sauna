@@ -106,7 +106,11 @@
   - When `skillsPaths` is omitted, workspace has no skills (`workspace.skills` is undefined) — backward compatible
   - 2 behavioral tests: skills discovery from configured directories (creates SKILL.md with frontmatter, verifies `workspace.skills.list()` returns it), no skills when not configured
   - 1/1 mutation caught (removing skills wiring breaks discovery test); 60 tests pass, `tsc --noEmit` clean
-- [ ] Create `.sauna/skills/` directory with one placeholder SKILL.md (name, description, instructions) to validate the pipeline — spec: skills-infrastructure
+- [x] Create `.sauna/skills/` directory with one placeholder SKILL.md (name, description, instructions) to validate the pipeline — spec: skills-infrastructure
+  - Created `.sauna/skills/spec-writing/SKILL.md` with YAML frontmatter (name, description, version, tags) and markdown instructions for structured JTBD spec writing
+  - Wired `skillsPaths: [".sauna/skills"]` into `main()` so workspace discovers skills from the conventional `.sauna/skills/` directory within the target codebase
+  - Integration test validates the actual `.sauna/skills/spec-writing/SKILL.md` is discovered by the workspace pipeline (mutation-tested: 1/1 caught)
+  - 61 tests pass across 2 files, `tsc --noEmit` clean
 
 ## Priority 6: Verification
 

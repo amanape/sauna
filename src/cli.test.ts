@@ -3,6 +3,7 @@ import { PassThrough } from "node:stream";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { realpathSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { parseCliArgs, createTools, createWorkspace, createDiscoveryAgent, createResearchAgent, DEFAULT_MODEL, runConversation, getProviderFromModel, getApiKeyEnvVar, validateApiKey, type ConversationDeps } from "./cli";
 
 describe("parseCliArgs", () => {
@@ -212,6 +213,21 @@ describe("createWorkspace", () => {
     await workspace.init();
     try {
       expect(workspace.skills).toBeUndefined();
+    } finally {
+      await workspace.destroy();
+    }
+  });
+
+  test("project .sauna/skills/ contains valid discoverable skills", async () => {
+    // Validate that the actual .sauna/skills/ directory in the project root
+    // contains properly formatted SKILL.md files that the pipeline can discover
+    const projectRoot = resolve(import.meta.dirname, "..");
+    const workspace = createWorkspace(projectRoot, { skillsPaths: [".sauna/skills"] });
+    await workspace.init();
+    try {
+      const skills = await workspace.skills!.list();
+      const names = skills.map((s) => s.name);
+      expect(names).toContain("spec-writing");
     } finally {
       await workspace.destroy();
     }
