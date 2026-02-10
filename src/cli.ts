@@ -92,8 +92,8 @@ export async function main(): Promise<void> {
 
   try {
     validateApiKey(args.model);
-  } catch (e: any) {
-    console.error(e.message);
+  } catch (e: unknown) {
+    console.error(e instanceof Error ? e.message : String(e));
     process.exit(1);
   }
 
