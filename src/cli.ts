@@ -5,15 +5,16 @@ import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
 import { resolve } from "node:path";
 import { Agent } from "@mastra/core/agent";
-import { Workspace, LocalFilesystem, LocalSandbox } from "@mastra/core/workspace";
+import type { Workspace } from "@mastra/core/workspace";
 import type { Readable, Writable } from "node:stream";
 
-import { OutputConstrainedFilesystem } from "./output-constrained-filesystem";
 import { DEFAULT_MODEL, validateApiKey } from "./model-resolution";
 import { createTools } from "./tool-factory";
+import { createWorkspace } from "./workspace-factory";
 
 export { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
 export { createTools, resolveSearchFn } from "./tool-factory";
+export { createWorkspace, type WorkspaceOptions } from "./workspace-factory";
 
 export interface CliArgs {
   codebase: string;
@@ -41,29 +42,6 @@ export function parseCliArgs(argv: string[]): CliArgs {
     output: values.output!,
     model: values.model,
   };
-}
-
-export interface WorkspaceOptions {
-  skillsPaths?: string[];
-  outputDir?: string;
-}
-
-export function createWorkspace(codebasePath: string, options?: WorkspaceOptions): Workspace {
-  const baseFs = new LocalFilesystem({
-    basePath: codebasePath,
-    contained: true,
-  });
-  const filesystem = options?.outputDir
-    ? new OutputConstrainedFilesystem(baseFs, options.outputDir)
-    : baseFs;
-
-  return new Workspace({
-    filesystem,
-    sandbox: new LocalSandbox({
-      workingDirectory: codebasePath,
-    }),
-    ...(options?.skillsPaths ? { skills: options.skillsPaths } : {}),
-  });
 }
 
 export interface ConversationDeps {

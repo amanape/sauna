@@ -4,7 +4,7 @@
 
 - [x] Extract model resolution module (`getProviderFromModel`, `getApiKeyEnvVar`, `validateApiKey`, `DEFAULT_MODEL`) from `cli.ts` into its own file — specs/module-decomposition.md
 - [x] Extract tool factory module (`createTools`, `resolveSearchFn`) from `cli.ts` into its own file — specs/module-decomposition.md ✓ (src/tool-factory.ts; cli.ts re-exports for backward compat)
-- [ ] Extract workspace factory module (`createWorkspace`, `WorkspaceOptions`) from `cli.ts` into its own file — specs/module-decomposition.md
+- [x] Extract workspace factory module (`createWorkspace`, `WorkspaceOptions`) from `cli.ts` into its own file — specs/module-decomposition.md ✓ (src/workspace-factory.ts; cli.ts re-exports for backward compat)
 - [ ] Extract agent definitions module (`createDiscoveryAgent`, `createResearchAgent` and their config types) from `cli.ts` into its own file — specs/module-decomposition.md
 - [ ] Extract session runner module (transport-agnostic conversation logic) from `runConversation` in `cli.ts` — specs/module-decomposition.md, specs/session-runner.md
 - [ ] Reduce `cli.ts` to CLI adapter: `parseCliArgs`, readline transport, `main()` entry point wiring — specs/module-decomposition.md
