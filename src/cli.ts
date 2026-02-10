@@ -135,7 +135,7 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
   }
 }
 
-export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929";
+export const DEFAULT_MODEL = "anthropic/claude-opus-4-6";
 
 export function getProviderFromModel(model?: string): string {
   const m = model ?? DEFAULT_MODEL;

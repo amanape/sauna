@@ -1,0 +1,4 @@
+- What are the 'events' an agent can go through? Which can we print in the UI?
+- Context7 MCP
+- .env.example
+- Support Markdown
