@@ -3,7 +3,7 @@ import { PassThrough } from "node:stream";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { realpathSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { parseCliArgs, createTools, createWorkspace, createDiscoveryAgent, DEFAULT_MODEL, runConversation, getProviderFromModel, getApiKeyEnvVar, validateApiKey, type ConversationDeps } from "./cli";
+import { parseCliArgs, createTools, createWorkspace, createDiscoveryAgent, createResearchAgent, DEFAULT_MODEL, runConversation, getProviderFromModel, getApiKeyEnvVar, validateApiKey, type ConversationDeps } from "./cli";
 
 describe("parseCliArgs", () => {
   test("parses --codebase as required argument", () => {
@@ -260,6 +260,89 @@ describe("createDiscoveryAgent", () => {
     const agentTools = await agent.listTools();
     const toolIds = Object.keys(agentTools);
     expect(toolIds).toContain("web_search");
+  });
+});
+
+describe("createResearchAgent", () => {
+  test("defaults model to DEFAULT_MODEL when not specified", () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createResearchAgent({ tools, workspace });
+    expect(agent.model).toBe(DEFAULT_MODEL);
+  });
+
+  test("uses provided model when specified", () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createResearchAgent({ tools, workspace, model: "openai/gpt-4" });
+    expect(agent.model).toBe("openai/gpt-4");
+  });
+
+  test("has instructions describing autonomous research role", async () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createResearchAgent({ tools, workspace });
+    const instructions = await agent.getInstructions();
+    expect(instructions).toContain("research");
+  });
+
+  test("includes web_search in agent tools", async () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createResearchAgent({ tools, workspace });
+    const agentTools = await agent.listTools();
+    const toolIds = Object.keys(agentTools);
+    expect(toolIds).toContain("web_search");
+  });
+
+  test("sets maxSteps via defaultOptions", async () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createResearchAgent({ tools, workspace, maxSteps: 25 });
+    const opts = await agent.getDefaultOptions();
+    expect(opts?.maxSteps).toBe(25);
+  });
+
+  test("defaults maxSteps to 30 when not specified", async () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createResearchAgent({ tools, workspace });
+    const opts = await agent.getDefaultOptions();
+    expect(opts?.maxSteps).toBe(30);
+  });
+
+  test("has a description for parent agent tool exposure", () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createResearchAgent({ tools, workspace });
+    expect(agent.getDescription()).toBeTruthy();
+  });
+});
+
+describe("createDiscoveryAgent — sub-agents", () => {
+  test("registers researcher as a sub-agent", async () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createDiscoveryAgent({
+      systemPrompt: "Test",
+      tools,
+      workspace,
+    });
+    const agents = await agent.listAgents();
+    expect(Object.keys(agents)).toContain("researcher");
+  });
+
+  test("researcher agent inherits model from discovery agent config", async () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createDiscoveryAgent({
+      systemPrompt: "Test",
+      model: "openai/gpt-4",
+      tools,
+      workspace,
+    });
+    const agents = await agent.listAgents();
+    expect(agents.researcher!.model).toBe("openai/gpt-4");
   });
 });
 

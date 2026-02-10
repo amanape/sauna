@@ -74,12 +74,29 @@
   - 3 behavioral tests: callback invoked by Mastra with correct payload, callback identity passed through to stream options, onFinish absent when not provided
   - Mutation tested: removing onFinish wiring fails 2 tests
   - 49 tests pass across 2 files, `tsc --noEmit` clean
-- [ ] Confirm Mastra's per-tool hooks (`createTool` lifecycle) and processor system don't preclude future pre-tool/post-tool hooks — design review only, no code — spec: lifecycle-hooks
+- [x] Confirm Mastra's per-tool hooks (`createTool` lifecycle) and processor system don't preclude future pre-tool/post-tool hooks — design review only, no code — spec: lifecycle-hooks
+  - **Confirmed: Mastra fully supports future pre-tool/post-tool hooks without framework modification** via two complementary systems:
+  - Tool-level hooks (`onInputStart`, `onInputDelta`, `onInputAvailable`, `onOutput`): observer-only, receive full context including `toolCallId`, messages, and `abortSignal`; ideal for metrics, logging, and side effects
+  - Agent-level processors (`processInputStep`, `processOutputStep`): transforming hooks that can validate, filter, block, or modify tool sets; support `abort({ retry: true })`, persistent state across steps, and processor chaining
+  - 12 built-in reference processor implementations (ToolSearchProcessor, ToolCallFilter, ModerationProcessor, TokenLimiterProcessor, etc.) demonstrate extension patterns
+  - No framework modifications needed: per-agent `processors` config at definition time satisfies the "configurable per agent without framework changes" constraint
 
 ## Priority 4: Sub-Agent Support
 
-- [ ] Define research sub-agent as `new Agent()` with workspace tools, configurable `maxSteps`, isolated context — spec: sub-agents
-- [ ] Register research sub-agent on discovery agent via `agents: { researcher }` (auto-exposed as `agent-researcher` tool) — spec: sub-agents
+- [x] Define research sub-agent as `new Agent()` with workspace tools, configurable `maxSteps`, isolated context — spec: sub-agents
+  - Created `createResearchAgent(config)` with `ResearchAgentConfig` interface: `model?`, `tools`, `workspace`, `maxSteps?`
+  - Agent has `id: "researcher"`, `description` for tool exposure, `instructions` for autonomous research role
+  - `defaultOptions: { maxSteps }` configures step limit (default 30) — Mastra enforces independently of parent agent
+  - Workspace and web_search tools shared with parent; fresh context per invocation (isolation by Mastra design)
+  - Wired into `createDiscoveryAgent()` via `agents: { researcher }` — Mastra auto-exposes as `agent-researcher` tool
+  - Researcher inherits model from discovery agent config (consistent provider across parent/child)
+  - 9 new tests: createResearchAgent (7 — model default/override, instructions, tools, maxSteps default/override, description) + createDiscoveryAgent sub-agents (2 — registration, model inheritance)
+  - All 5/5 mutations caught; 58 tests pass, `tsc --noEmit` clean
+- [x] Register research sub-agent on discovery agent via `agents: { researcher }` (auto-exposed as `agent-researcher` tool) — spec: sub-agents
+  - Completed as part of the previous task: `createDiscoveryAgent()` now creates researcher via `createResearchAgent()` and passes it as `agents: { researcher }`
+  - Mastra auto-exposes as `agent-researcher` tool — LLM decides when to delegate research tasks
+  - Verified via `agent.listAgents()` test: researcher key present in agents record
+  - Model inheritance verified: researcher uses same model as discovery agent config
 
 ## Priority 5: Skills Infrastructure
 
