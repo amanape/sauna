@@ -1,17 +1,6 @@
 import { test, expect, describe, mock } from "bun:test";
 import { PassThrough } from "node:stream";
-import { parseCliArgs, createTools, type CliArgs } from "./cli";
-
-// Mock generateText before importing runConversation
-const mockGenerateText = mock(async (): Promise<any> => ({
-  text: "",
-  response: { messages: [] },
-}));
-
-mock.module("ai", () => ({
-  generateText: mockGenerateText,
-  stepCountIs: () => () => false,
-}));
+import { parseCliArgs, createTools, runConversation, type ConversationDeps } from "./cli";
 
 describe("parseCliArgs", () => {
   test("parses --codebase as required argument", () => {
@@ -84,76 +73,72 @@ describe("createTools", () => {
     const tools = createTools("/nonexistent/codebase", "./jobs/");
     const result = await tools.file_read.execute!(
       { path: "../../etc/passwd" },
-      { toolCallId: "test", messages: [] },
+      {} as any,
     );
     expect(result).toContain("outside the codebase");
   });
 });
 
 describe("runConversation", () => {
-  // Dynamic import so mock.module takes effect
-  const getRunConversation = async () => {
-    const mod = await import("./cli");
-    return mod.runConversation;
-  };
-
-  function makeDeps(overrides?: Partial<{
-    generateTextImpl: (...args: any[]) => any;
-  }>) {
+  function makeDeps(overrides?: {
+    generateImpl?: (...args: any[]) => any;
+  }) {
     const input = new PassThrough();
     const output = new PassThrough();
     output.setEncoding("utf8");
 
-    if (overrides?.generateTextImpl) {
-      mockGenerateText.mockImplementation(overrides.generateTextImpl);
-    } else {
-      mockGenerateText.mockImplementation(async () => ({
+    const mockGenerate = mock(
+      overrides?.generateImpl ??
+      (async () => ({
         text: "Hello from AI",
-        response: { messages: [{ role: "assistant", content: "Hello from AI" }] },
-      }));
-    }
+        messages: [
+          { role: "user", content: "Hello" },
+          { role: "assistant", content: "Hello from AI" },
+        ],
+      })),
+    );
+
+    const mockAgent = { generate: mockGenerate } as any;
 
     return {
       input,
       output,
+      mockGenerate,
       deps: {
-        model: {} as any,
-        tools: {},
-        systemPrompt: "You are a test agent.",
+        agent: mockAgent,
         input,
         output,
-      },
+      } satisfies ConversationDeps,
     };
   }
 
-  test("passes user input to generateText and writes response to output", async () => {
-    const runConversation = await getRunConversation();
-    const { input, output, deps } = makeDeps();
+  test("passes user input to agent.generate and writes response to output", async () => {
+    const { input, output, mockGenerate, deps } = makeDeps();
 
     const done = runConversation(deps);
     input.write("Hello\n");
-    // Allow async processing
     await new Promise((r) => setTimeout(r, 50));
     input.end();
     await done;
 
     const captured = output.read();
     expect(captured).toContain("Hello from AI");
-    expect(mockGenerateText.mock.calls.length).toBeGreaterThanOrEqual(1);
-    const callArgs = (mockGenerateText.mock.calls as any)[0][0];
-    expect(callArgs.system).toBe("You are a test agent.");
-    expect(callArgs.messages).toContainEqual({ role: "user", content: "Hello" });
+    expect(mockGenerate.mock.calls.length).toBeGreaterThanOrEqual(1);
+    const [messages] = (mockGenerate.mock.calls as any)[0];
+    expect(messages).toContainEqual({ role: "user", content: "Hello" });
   });
 
   test("accumulates messages across multiple turns", async () => {
-    const runConversation = await getRunConversation();
     let callCount = 0;
-    const { input, output, deps } = makeDeps({
-      generateTextImpl: async () => {
+    const { input, output, mockGenerate, deps } = makeDeps({
+      generateImpl: async (msgs: any[]) => {
         callCount++;
         return {
           text: `Response ${callCount}`,
-          response: { messages: [{ role: "assistant", content: `Response ${callCount}` }] },
+          messages: [
+            ...msgs,
+            { role: "assistant", content: `Response ${callCount}` },
+          ],
         };
       },
     });
@@ -166,19 +151,15 @@ describe("runConversation", () => {
     input.end();
     await done;
 
-    // Second call should have accumulated messages from first turn
     expect(callCount).toBe(2);
-    const secondCallArgs = (mockGenerateText.mock.calls as any)[1][0];
-    const messages = secondCallArgs.messages;
-    expect(messages).toContainEqual({ role: "user", content: "First" });
-    expect(messages).toContainEqual({ role: "assistant", content: "Response 1" });
-    expect(messages).toContainEqual({ role: "user", content: "Second" });
+    const [secondMessages] = (mockGenerate.mock.calls as any)[1];
+    expect(secondMessages).toContainEqual({ role: "user", content: "First" });
+    expect(secondMessages).toContainEqual({ role: "assistant", content: "Response 1" });
+    expect(secondMessages).toContainEqual({ role: "user", content: "Second" });
   });
 
   test("skips empty lines", async () => {
-    const runConversation = await getRunConversation();
-    mockGenerateText.mockClear();
-    const { input, output, deps } = makeDeps();
+    const { input, output, mockGenerate, deps } = makeDeps();
 
     const done = runConversation(deps);
     input.write("\n");
@@ -188,23 +169,24 @@ describe("runConversation", () => {
     input.end();
     await done;
 
-    expect(mockGenerateText.mock.calls.length).toBe(1);
+    expect(mockGenerate.mock.calls.length).toBe(1);
   });
 
   test("prints file write notifications from onStepFinish", async () => {
-    const runConversation = await getRunConversation();
     const { input, output, deps } = makeDeps({
-      generateTextImpl: async (opts: any) => {
-        // Simulate onStepFinish being called with a file write result
+      generateImpl: async (msgs: any[], opts: any) => {
         opts.onStepFinish({
           toolResults: [
-            { output: "Wrote specs/my-spec.md" },
-            { output: "Some other result" },
+            { payload: { result: "Wrote specs/my-spec.md" } },
+            { payload: { result: "Some other result" } },
           ],
         });
         return {
           text: "Done writing.",
-          response: { messages: [{ role: "assistant", content: "Done writing." }] },
+          messages: [
+            ...msgs,
+            { role: "assistant", content: "Done writing." },
+          ],
         };
       },
     });
@@ -217,17 +199,14 @@ describe("runConversation", () => {
 
     const captured = output.read();
     expect(captured).toContain("Wrote specs/my-spec.md");
-    // Should NOT print non-"Wrote " results
     expect(captured).not.toContain("Some other result");
   });
 
   test("completes cleanly on EOF", async () => {
-    const runConversation = await getRunConversation();
     const { input, deps } = makeDeps();
 
     const done = runConversation(deps);
     input.end();
-    // Should resolve without throwing
     await done;
   });
 });

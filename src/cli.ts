@@ -4,9 +4,7 @@
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
 import { resolve } from "node:path";
-import { generateText, stepCountIs } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import type { LanguageModel, ModelMessage, ToolSet } from "ai";
+import { Agent } from "@mastra/core/agent";
 import type { Readable, Writable } from "node:stream";
 
 import { createFileReadTool } from "./tools/file-read";
@@ -58,15 +56,13 @@ export function createTools(
 }
 
 export interface ConversationDeps {
-  model: LanguageModel;
-  tools: ToolSet;
-  systemPrompt: string;
+  agent: Agent;
   input: Readable;
   output: Writable;
 }
 
 export async function runConversation(deps: ConversationDeps): Promise<void> {
-  const messages: ModelMessage[] = [];
+  let messages: any[] = [];
 
   const rl = createInterface({
     input: deps.input,
@@ -80,25 +76,22 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 
       messages.push({ role: "user", content: trimmed });
 
-      const result = await generateText({
-        model: deps.model,
-        system: deps.systemPrompt,
-        tools: deps.tools,
-        stopWhen: stepCountIs(50),
-        messages,
-        onStepFinish({ toolResults }) {
-          for (const tr of toolResults) {
+      const result = await deps.agent.generate(messages, {
+        maxSteps: 50,
+        onStepFinish(step) {
+          for (const tr of step.toolResults) {
+            const output = tr.payload.result;
             if (
-              typeof tr.output === "string" &&
-              tr.output.startsWith("Wrote ")
+              typeof output === "string" &&
+              output.startsWith("Wrote ")
             ) {
-              deps.output.write(tr.output + "\n");
+              deps.output.write(output + "\n");
             }
           }
         },
       });
 
-      messages.push(...result.response.messages);
+      messages = [...result.messages];
 
       if (result.text) {
         deps.output.write(result.text + "\n");
@@ -123,12 +116,18 @@ export async function main(): Promise<void> {
     resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),
   ).text();
 
-  const modelId = args.model ?? "claude-sonnet-4-5-20250929";
+  const modelId = args.model ?? "anthropic/claude-sonnet-4-5-20250929";
+
+  const agent = new Agent({
+    id: "discovery",
+    name: "discovery",
+    instructions: systemPrompt,
+    model: modelId,
+    tools,
+  });
 
   await runConversation({
-    model: anthropic(modelId),
-    tools,
-    systemPrompt,
+    agent,
     input: process.stdin,
     output: process.stdout,
   });

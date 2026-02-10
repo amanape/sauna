@@ -5,11 +5,7 @@ function execute(
   tool: ReturnType<typeof createWebSearchTool>,
   input: { query: string },
 ) {
-  return tool.execute!(input, {
-    toolCallId: "test",
-    messages: [],
-    abortSignal: new AbortController().signal,
-  });
+  return tool.execute!(input, {} as any);
 }
 
 test("formats search results with title, snippet, and URL", async () => {

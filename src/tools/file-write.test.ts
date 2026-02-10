@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 function execute(tool: ReturnType<typeof createFileWriteTool>, input: { path: string; content: string }) {
-  return tool.execute!(input, { toolCallId: "test", messages: [], abortSignal: new AbortController().signal });
+  return tool.execute!(input, {} as any);
 }
 
 test("writes file and returns confirmation with relative path", async () => {

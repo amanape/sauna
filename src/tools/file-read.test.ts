@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 function execute(tool: ReturnType<typeof createFileReadTool>, input: { path: string }) {
-  return tool.execute!(input, { toolCallId: "test", messages: [], abortSignal: new AbortController().signal });
+  return tool.execute!(input, {} as any);
 }
 
 test("reads file contents at a relative path", async () => {

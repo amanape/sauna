@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { createTool } from "@mastra/core/tools";
 import * as z from "zod";
 import { resolve, dirname } from "node:path";
 import { mkdir } from "node:fs/promises";
@@ -6,7 +6,8 @@ import { mkdir } from "node:fs/promises";
 export function createFileWriteTool(outputPath: string) {
   const normalizedBase = resolve(outputPath);
 
-  return tool({
+  return createTool({
+    id: "file_write",
     description: "Write content to a file at the given path, relative to the output directory. Creates parent directories as needed.",
     inputSchema: z.object({
       path: z.string().describe("File path to write, relative to the output directory"),

@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { createTool } from "@mastra/core/tools";
 import * as z from "zod";
 import { resolve } from "node:path";
 import { stat } from "node:fs/promises";
@@ -6,7 +6,8 @@ import { stat } from "node:fs/promises";
 export function createFileReadTool(codebasePath: string) {
   const normalizedBase = resolve(codebasePath);
 
-  return tool({
+  return createTool({
+    id: "file_read",
     description: "Read the contents of a file at the given path, relative to the codebase root.",
     inputSchema: z.object({
       path: z.string().describe("File path to read, relative to the codebase root"),
