@@ -17,8 +17,17 @@
   - 3 behavioral tests: filesystem reads files, filesystem rejects path traversal (mutation-tested), sandbox executes in codebase dir
   - 44 tests pass, `tsc --noEmit` clean
   - Note: output directory constraint (`--output` scoping) deferred to discovery agent task — workspace filesystem covers codebase; agent instructions + future task will handle write scoping
-- [ ] Create web search tool via Mastra `createTool()` with injectable search backend — spec: agent-framework-and-workspace
-- [ ] Delete hand-rolled tool files and tests: `src/tools/file-read.ts`, `file-write.ts`, `web-search.ts`, `file-read.test.ts`, `file-write.test.ts`, `web-search.test.ts` — spec: agent-framework-and-workspace
+- [x] Create web search tool via Mastra `createTool()` with injectable search backend — spec: agent-framework-and-workspace
+  - Already implemented: `createWebSearchTool(searchFn)` in `src/tools/web-search.ts` with 8 tests
+  - Injectable `SearchFunction` backend, Zod input schema, formatted output
+  - Wired into `createTools()` and Agent in `main()`
+- [x] Delete hand-rolled tool files and tests: `src/tools/file-read.ts`, `file-write.ts`, `file-read.test.ts`, `file-write.test.ts` — spec: agent-framework-and-workspace
+  - Deleted `file-read.ts` (8 tests) and `file-write.ts` (7 tests) — workspace `LocalFilesystem` replaces them
+  - Kept `web-search.ts` and `web-search.test.ts` — workspace doesn't provide web search
+  - Simplified `createTools()`: no longer takes `codebasePath`/`outputPath`, only returns `{ web_search }`
+  - Removed imports of `createFileReadTool` and `createFileWriteTool` from `cli.ts`
+  - Updated `createTools` tests: 3 tests verify single `web_search` key, execute function, and injectable search fn
+  - 27 tests pass across 2 files, `tsc --noEmit` clean
 
 ## Priority 2: Discovery Agent (primary deliverable)
 

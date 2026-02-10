@@ -8,8 +8,6 @@ import { Agent } from "@mastra/core/agent";
 import { Workspace, LocalFilesystem, LocalSandbox } from "@mastra/core/workspace";
 import type { Readable, Writable } from "node:stream";
 
-import { createFileReadTool } from "./tools/file-read";
-import { createFileWriteTool } from "./tools/file-write";
 import { createWebSearchTool, type SearchFunction } from "./tools/web-search";
 
 export interface CliArgs {
@@ -45,13 +43,9 @@ const defaultSearchFn: SearchFunction = async () => {
 };
 
 export function createTools(
-  codebasePath: string,
-  outputPath: string,
   searchFn: SearchFunction = defaultSearchFn,
 ) {
   return {
-    file_read: createFileReadTool(codebasePath),
-    file_write: createFileWriteTool(outputPath),
     web_search: createWebSearchTool(searchFn),
   };
 }
@@ -124,7 +118,7 @@ export async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const tools = createTools(args.codebase, args.output);
+  const tools = createTools();
   const workspace = createWorkspace(args.codebase);
   const systemPrompt = await Bun.file(
     resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),

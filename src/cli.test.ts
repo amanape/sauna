@@ -60,25 +60,23 @@ describe("parseCliArgs", () => {
 });
 
 describe("createTools", () => {
-  test("returns a record with file_read, file_write, web_search keys", () => {
-    const tools = createTools("/some/codebase", "./jobs/");
-    expect(Object.keys(tools).sort()).toEqual(["file_read", "file_write", "web_search"]);
+  test("returns a record with only web_search key", () => {
+    const tools = createTools();
+    expect(Object.keys(tools)).toEqual(["web_search"]);
   });
 
-  test("all tools have execute functions", () => {
-    const tools = createTools("/some/codebase", "./jobs/");
-    for (const [name, tool] of Object.entries(tools)) {
-      expect(typeof tool.execute).toBe("function");
-    }
+  test("web_search tool has execute function", () => {
+    const tools = createTools();
+    expect(typeof tools.web_search.execute).toBe("function");
   });
 
-  test("scopes file_read to codebase path", async () => {
-    const tools = createTools("/nonexistent/codebase", "./jobs/");
-    const result = await tools.file_read.execute!(
-      { path: "../../etc/passwd" },
-      {} as any,
-    );
-    expect(result).toContain("outside the codebase");
+  test("injects custom search function", async () => {
+    const searchFn = async (query: string) => [
+      { title: "Result", snippet: "A result", url: "https://example.com" },
+    ];
+    const tools = createTools(searchFn);
+    const result = await tools.web_search.execute!({ query: "test" }, {} as any);
+    expect(result).toContain("Result");
   });
 });
 
