@@ -11,6 +11,9 @@ import type { Readable, Writable } from "node:stream";
 import { createWebSearchTool, type SearchFunction } from "./tools/web-search";
 import { createTavilySearch } from "./tools/search-backends";
 import { OutputConstrainedFilesystem } from "./output-constrained-filesystem";
+import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
+
+export { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
 
 export interface CliArgs {
   codebase: string;
@@ -133,28 +136,6 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
   } finally {
     rl.close();
   }
-}
-
-export const DEFAULT_MODEL = "anthropic/claude-opus-4-6";
-
-export function getProviderFromModel(model?: string): string {
-  const m = model ?? DEFAULT_MODEL;
-  const slashIndex = m.indexOf("/");
-  if (slashIndex === -1) return "anthropic";
-  return m.slice(0, slashIndex);
-}
-
-export function getApiKeyEnvVar(provider: string): string {
-  return `${provider.toUpperCase()}_API_KEY`;
-}
-
-export function validateApiKey(model?: string): string {
-  const provider = getProviderFromModel(model);
-  const envVar = getApiKeyEnvVar(provider);
-  if (!process.env[envVar]) {
-    throw new Error(`${envVar} environment variable is required`);
-  }
-  return envVar;
 }
 
 export interface ResearchAgentConfig {
