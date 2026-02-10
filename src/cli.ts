@@ -1,5 +1,4 @@
 // CLI Adapter — argument parsing and entry point
-// Traces to: specs/cli-simplification.md
 
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";

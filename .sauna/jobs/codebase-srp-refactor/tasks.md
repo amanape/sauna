@@ -36,13 +36,13 @@
 
 ## Priority 5: Dead Code Cleanup (specs/dead-code-cleanup.md)
 
-- [ ] Remove unused `normalize` import from `node:path` in `output-constrained-filesystem.ts:5` (only `posix` is used) — specs/dead-code-cleanup.md
-- [ ] Remove unused type imports `FileStat` and `FileEntry` from `output-constrained-filesystem.ts:9-10` — specs/dead-code-cleanup.md
-- [ ] Remove stale comment `// Traces to: specs/cli-simplification.md` from `cli.ts:2` — specs/dead-code-cleanup.md
-- [ ] Remove stale comment `// Traces to: specs/agent-framework-and-workspace.md, specs/discovery-agent.md` from `output-constrained-filesystem.ts:3` — specs/dead-code-cleanup.md
-- [ ] Resolve or remove `// TODO: Why pass the entire env instead of just the key?` from `cli.ts:44` (will be clear after env-decoupling) — specs/dead-code-cleanup.md
+- [x] Remove unused `normalize` import from `node:path` in `output-constrained-filesystem.ts:5` (only `posix` is used) — specs/dead-code-cleanup.md ✓
+- [x] Remove unused type imports `FileStat` and `FileEntry` from `output-constrained-filesystem.ts:9-10` — specs/dead-code-cleanup.md ✓
+- [x] Remove stale comment `// Traces to: specs/cli-simplification.md` from `cli.ts:2` — specs/dead-code-cleanup.md ✓
+- [x] Remove stale comment `// Traces to: specs/agent-framework-and-workspace.md, specs/discovery-agent.md` from `output-constrained-filesystem.ts:3` — specs/dead-code-cleanup.md ✓
+- [x] Resolve or remove `// TODO: Why pass the entire env instead of just the key?` from `cli.ts:44` (will be clear after env-decoupling) — specs/dead-code-cleanup.md ✓ (already resolved by env-decoupling work; the TODO no longer exists)
 
 ## Verification (all specs)
 
-- [ ] `bun test` — all 98 tests pass with no behavior changes
-- [ ] `bunx tsc --noEmit` — zero type errors
+- [x] `bun test` — all 110 tests pass with no behavior changes ✓
+- [x] `bunx tsc --noEmit` — zero type errors ✓

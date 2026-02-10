@@ -1,13 +1,10 @@
 // OutputConstrainedFilesystem — wraps a WorkspaceFilesystem to restrict write
 // operations to a specific output directory while allowing reads everywhere.
-// Traces to: specs/agent-framework-and-workspace.md, specs/discovery-agent.md
 
-import { normalize, posix } from "node:path";
+import { posix } from "node:path";
 import type {
   WorkspaceFilesystem,
   FileContent,
-  FileStat,
-  FileEntry,
   ReadOptions,
   WriteOptions,
   ListOptions,
