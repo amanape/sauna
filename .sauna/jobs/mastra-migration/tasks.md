@@ -67,7 +67,13 @@
 
 ## Priority 3: Lifecycle Hooks
 
-- [ ] Wire `onFinish` callback on agent calls to support per-agent completion hooks (receives final output + tool call history); discovery agent doesn't need one yet but the pattern must exist — spec: lifecycle-hooks
+- [x] Wire `onFinish` callback on agent calls to support per-agent completion hooks (receives final output + tool call history); discovery agent doesn't need one yet but the pattern must exist — spec: lifecycle-hooks
+  - Added optional `onFinish` callback to `ConversationDeps` interface — any agent call site can provide a completion hook
+  - `runConversation()` conditionally passes `onFinish` to `agent.stream()` options — Mastra invokes it with final output (text, messages, toolResults)
+  - Discovery agent doesn't set `onFinish` (not needed), but future agents (build agent, etc.) can provide one at the call site
+  - 3 behavioral tests: callback invoked by Mastra with correct payload, callback identity passed through to stream options, onFinish absent when not provided
+  - Mutation tested: removing onFinish wiring fails 2 tests
+  - 49 tests pass across 2 files, `tsc --noEmit` clean
 - [ ] Confirm Mastra's per-tool hooks (`createTool` lifecycle) and processor system don't preclude future pre-tool/post-tool hooks — design review only, no code — spec: lifecycle-hooks
 
 ## Priority 4: Sub-Agent Support

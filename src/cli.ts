@@ -66,6 +66,7 @@ export interface ConversationDeps {
   agent: Agent;
   input: Readable;
   output: Writable;
+  onFinish?: (event: any) => Promise<void> | void;
 }
 
 export async function runConversation(deps: ConversationDeps): Promise<void> {
@@ -95,6 +96,7 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
             }
           }
         },
+        ...(deps.onFinish ? { onFinish: deps.onFinish } : {}),
       });
 
       for await (const chunk of streamResult.textStream) {

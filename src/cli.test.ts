@@ -276,6 +276,7 @@ describe("runConversation", () => {
 
   function makeDeps(overrides?: {
     streamImpl?: (...args: any[]) => any;
+    onFinish?: (event: any) => Promise<void> | void;
   }) {
     const input = new PassThrough();
     const output = new PassThrough();
@@ -296,15 +297,18 @@ describe("runConversation", () => {
 
     const mockAgent = { stream: mockStream } as any;
 
+    const deps: ConversationDeps = {
+      agent: mockAgent,
+      input,
+      output,
+      ...(overrides?.onFinish ? { onFinish: overrides.onFinish } : {}),
+    };
+
     return {
       input,
       output,
       mockStream,
-      deps: {
-        agent: mockAgent,
-        input,
-        output,
-      } satisfies ConversationDeps,
+      deps,
     };
   }
 
@@ -470,6 +474,86 @@ describe("runConversation", () => {
 
     const captured = output.read();
     expect(captured).not.toContain("Wrote specs/fail.md");
+  });
+
+  test("onFinish callback is invokable by Mastra when passed through stream options", async () => {
+    const onFinish = mock(async () => {});
+    const { input, output, deps } = makeDeps({
+      onFinish,
+      streamImpl: async (msgs: any[], opts: any) => {
+        // Simulate Mastra calling onFinish after completion
+        if (opts.onFinish) {
+          opts.onFinish({ text: "Done.", messages: msgs, toolResults: [] });
+        }
+        return {
+          textStream: textStreamFrom(["Done."]),
+          getFullOutput: async () => ({
+            messages: [
+              ...msgs,
+              { role: "assistant", content: "Done." },
+            ],
+          }),
+        };
+      },
+    });
+
+    const done = runConversation(deps);
+    input.write("Hello\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    expect(onFinish).toHaveBeenCalledTimes(1);
+    const [finishEvent] = (onFinish.mock.calls as any)[0];
+    expect(finishEvent.text).toBe("Done.");
+  });
+
+  test("passes onFinish to agent.stream options so Mastra invokes it", async () => {
+    let capturedOpts: any = null;
+    const onFinish = mock(async () => {});
+    const { input, output, deps } = makeDeps({
+      onFinish,
+      streamImpl: async (msgs: any[], opts: any) => {
+        capturedOpts = opts;
+        return {
+          textStream: textStreamFrom(["Response"]),
+          getFullOutput: async () => ({
+            messages: [...msgs, { role: "assistant", content: "Response" }],
+          }),
+        };
+      },
+    });
+
+    const done = runConversation(deps);
+    input.write("Test\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    expect(capturedOpts.onFinish).toBe(onFinish);
+  });
+
+  test("does not pass onFinish when not provided in deps", async () => {
+    let capturedOpts: any = null;
+    const { input, output, deps } = makeDeps({
+      streamImpl: async (msgs: any[], opts: any) => {
+        capturedOpts = opts;
+        return {
+          textStream: textStreamFrom(["Response"]),
+          getFullOutput: async () => ({
+            messages: [...msgs, { role: "assistant", content: "Response" }],
+          }),
+        };
+      },
+    });
+
+    const done = runConversation(deps);
+    input.write("Test\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    expect(capturedOpts.onFinish).toBeUndefined();
   });
 
   test("completes cleanly on EOF", async () => {
