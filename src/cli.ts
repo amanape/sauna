@@ -11,11 +11,13 @@ import { validateApiKey } from "./model-resolution";
 import { createTools } from "./tool-factory";
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent } from "./agent-definitions";
+import { SessionRunner } from "./session-runner";
 
 export { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
 export { createTools, resolveSearchFn } from "./tool-factory";
 export { createWorkspace, type WorkspaceOptions } from "./workspace-factory";
 export { createDiscoveryAgent, createResearchAgent, type DiscoveryAgentConfig, type ResearchAgentConfig } from "./agent-definitions";
+export { SessionRunner, type SessionRunnerConfig } from "./session-runner";
 
 export interface CliArgs {
   codebase: string;
@@ -53,7 +55,21 @@ export interface ConversationDeps {
 }
 
 export async function runConversation(deps: ConversationDeps): Promise<void> {
-  let messages: any[] = [];
+  const session = new SessionRunner({
+    agent: deps.agent,
+    maxSteps: 50,
+    onStepFinish(step: any) {
+      for (const tr of step.toolResults) {
+        if (
+          tr.payload.toolName === "mastra_workspace_write_file" &&
+          tr.payload.result?.success
+        ) {
+          deps.output.write(`Wrote ${tr.payload.result.path}\n`);
+        }
+      }
+    },
+    ...(deps.onFinish ? { onFinish: deps.onFinish } : {}),
+  });
 
   const rl = createInterface({
     input: deps.input,
@@ -62,33 +78,15 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 
   try {
     for await (const line of rl) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      messages.push({ role: "user", content: trimmed });
-
-      const streamResult = await deps.agent.stream(messages, {
-        maxSteps: 50,
-        onStepFinish(step: any) {
-          for (const tr of step.toolResults) {
-            if (
-              tr.payload.toolName === "mastra_workspace_write_file" &&
-              tr.payload.result?.success
-            ) {
-              deps.output.write(`Wrote ${tr.payload.result.path}\n`);
-            }
-          }
-        },
-        ...(deps.onFinish ? { onFinish: deps.onFinish } : {}),
-      });
+      const streamResult = await session.sendMessage(line);
+      if (!streamResult) continue;
 
       for await (const chunk of streamResult.textStream) {
         deps.output.write(chunk);
       }
       deps.output.write("\n");
 
-      const fullOutput = await streamResult.getFullOutput();
-      messages = [...fullOutput.messages];
+      await streamResult.getFullOutput();
     }
   } finally {
     rl.close();
