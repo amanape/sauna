@@ -31,7 +31,13 @@
 
 ## Priority 2: Discovery Agent (primary deliverable)
 
-- [ ] Define discovery agent as `new Agent()` with system prompt from `.sauna/prompts/discovery.md`, workspace, and web search tool — spec: discovery-agent
+- [x] Define discovery agent as `new Agent()` with system prompt from `.sauna/prompts/discovery.md`, workspace, and web search tool — spec: discovery-agent
+  - Extracted `createDiscoveryAgent(config)` from `main()` — takes `systemPrompt`, `model?`, `tools`, `workspace`; returns configured `Agent`
+  - Exported `DEFAULT_MODEL` constant (`anthropic/claude-sonnet-4-5-20250929`)
+  - Exported `DiscoveryAgentConfig` interface for type-safe agent creation
+  - `main()` now calls `createDiscoveryAgent()` instead of inline `new Agent()`
+  - 4 behavioral tests (all mutation-tested): model defaults, model override, system prompt wiring, web_search tool inclusion
+  - 31 tests pass across 2 files, `tsc --noEmit` clean
 - [ ] Rewrite `runConversation()` to use `agent.stream()`: iterate `textStream` for stdout, accumulate history across turns — spec: discovery-agent
 - [ ] Surface file writes in real time via `onStepFinish` callback on `agent.stream()` (detect workspace `write_file` tool results) — spec: discovery-agent, lifecycle-hooks
 - [ ] Wire CLI args (`--codebase`, `--output`, `--model`) to agent/workspace config; derive API key env var from `--model` provider prefix and validate at startup — spec: discovery-agent

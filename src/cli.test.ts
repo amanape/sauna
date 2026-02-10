@@ -3,7 +3,7 @@ import { PassThrough } from "node:stream";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { realpathSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { parseCliArgs, createTools, createWorkspace, runConversation, type ConversationDeps } from "./cli";
+import { parseCliArgs, createTools, createWorkspace, createDiscoveryAgent, DEFAULT_MODEL, runConversation, type ConversationDeps } from "./cli";
 
 describe("parseCliArgs", () => {
   test("parses --codebase as required argument", () => {
@@ -122,6 +122,56 @@ describe("createWorkspace", () => {
     } finally {
       await workspace.destroy();
     }
+  });
+});
+
+describe("createDiscoveryAgent", () => {
+  test("defaults model to DEFAULT_MODEL when not specified", () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createDiscoveryAgent({
+      systemPrompt: "You are a test agent.",
+      tools,
+      workspace,
+    });
+    expect(agent.model).toBe(DEFAULT_MODEL);
+  });
+
+  test("uses provided model when specified", () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createDiscoveryAgent({
+      systemPrompt: "You are a test agent.",
+      model: "openai/gpt-4",
+      tools,
+      workspace,
+    });
+    expect(agent.model).toBe("openai/gpt-4");
+  });
+
+  test("wires system prompt as instructions", async () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createDiscoveryAgent({
+      systemPrompt: "You are a JTBD discovery agent.",
+      tools,
+      workspace,
+    });
+    const instructions = await agent.getInstructions();
+    expect(instructions).toBe("You are a JTBD discovery agent.");
+  });
+
+  test("includes web_search in agent tools", async () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createDiscoveryAgent({
+      systemPrompt: "Test",
+      tools,
+      workspace,
+    });
+    const agentTools = await agent.listTools();
+    const toolIds = Object.keys(agentTools);
+    expect(toolIds).toContain("web_search");
   });
 });
 

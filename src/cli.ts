@@ -109,6 +109,26 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
   }
 }
 
+export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929";
+
+export interface DiscoveryAgentConfig {
+  systemPrompt: string;
+  model?: string;
+  tools: ReturnType<typeof createTools>;
+  workspace: Workspace;
+}
+
+export function createDiscoveryAgent(config: DiscoveryAgentConfig): Agent {
+  return new Agent({
+    id: "discovery",
+    name: "discovery",
+    instructions: config.systemPrompt,
+    model: config.model ?? DEFAULT_MODEL,
+    tools: config.tools,
+    workspace: config.workspace,
+  });
+}
+
 export async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
 
@@ -124,13 +144,9 @@ export async function main(): Promise<void> {
     resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),
   ).text();
 
-  const modelId = args.model ?? "anthropic/claude-sonnet-4-5-20250929";
-
-  const agent = new Agent({
-    id: "discovery",
-    name: "discovery",
-    instructions: systemPrompt,
-    model: modelId,
+  const agent = createDiscoveryAgent({
+    systemPrompt,
+    model: args.model,
     tools,
     workspace,
   });
