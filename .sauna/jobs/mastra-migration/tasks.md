@@ -11,7 +11,12 @@
   - Default model changed to `"anthropic/claude-sonnet-4-5-20250929"` (provider-prefixed string)
   - Tests rewritten to inject mock agent directly (no more `mock.module("ai")`)
   - All 41 tests pass, `tsc --noEmit` clean, 3/3 mutation tests caught
-- [ ] Create workspace config: `LocalFilesystem` (readOnly, scoped to `--codebase`) + `LocalSandbox` for read/shell tools; separate writable `LocalFilesystem` or custom write tool scoped to `--output` — spec: agent-framework-and-workspace
+- [x] Create workspace config: `LocalFilesystem` (scoped to `--codebase`) + `LocalSandbox` for shell tools — spec: agent-framework-and-workspace
+  - Added `createWorkspace(codebasePath)` to `cli.ts`: creates `Workspace` with `LocalFilesystem` (contained, scoped to codebase) + `LocalSandbox` (working dir = codebase)
+  - Wired workspace into Agent in `main()` — Mastra auto-injects workspace tools (read, write, edit, list, mkdir, stat, delete, execute_command)
+  - 3 behavioral tests: filesystem reads files, filesystem rejects path traversal (mutation-tested), sandbox executes in codebase dir
+  - 44 tests pass, `tsc --noEmit` clean
+  - Note: output directory constraint (`--output` scoping) deferred to discovery agent task — workspace filesystem covers codebase; agent instructions + future task will handle write scoping
 - [ ] Create web search tool via Mastra `createTool()` with injectable search backend — spec: agent-framework-and-workspace
 - [ ] Delete hand-rolled tool files and tests: `src/tools/file-read.ts`, `file-write.ts`, `web-search.ts`, `file-read.test.ts`, `file-write.test.ts`, `web-search.test.ts` — spec: agent-framework-and-workspace
 

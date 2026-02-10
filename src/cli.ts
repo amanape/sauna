@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
 import { resolve } from "node:path";
 import { Agent } from "@mastra/core/agent";
+import { Workspace, LocalFilesystem, LocalSandbox } from "@mastra/core/workspace";
 import type { Readable, Writable } from "node:stream";
 
 import { createFileReadTool } from "./tools/file-read";
@@ -53,6 +54,18 @@ export function createTools(
     file_write: createFileWriteTool(outputPath),
     web_search: createWebSearchTool(searchFn),
   };
+}
+
+export function createWorkspace(codebasePath: string): Workspace {
+  return new Workspace({
+    filesystem: new LocalFilesystem({
+      basePath: codebasePath,
+      contained: true,
+    }),
+    sandbox: new LocalSandbox({
+      workingDirectory: codebasePath,
+    }),
+  });
 }
 
 export interface ConversationDeps {
@@ -112,6 +125,7 @@ export async function main(): Promise<void> {
   }
 
   const tools = createTools(args.codebase, args.output);
+  const workspace = createWorkspace(args.codebase);
   const systemPrompt = await Bun.file(
     resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),
   ).text();
@@ -124,6 +138,7 @@ export async function main(): Promise<void> {
     instructions: systemPrompt,
     model: modelId,
     tools,
+    workspace,
   });
 
   await runConversation({

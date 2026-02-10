@@ -1,6 +1,9 @@
-import { test, expect, describe, mock } from "bun:test";
+import { test, expect, describe, mock, afterAll } from "bun:test";
 import { PassThrough } from "node:stream";
-import { parseCliArgs, createTools, runConversation, type ConversationDeps } from "./cli";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { realpathSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { parseCliArgs, createTools, createWorkspace, runConversation, type ConversationDeps } from "./cli";
 
 describe("parseCliArgs", () => {
   test("parses --codebase as required argument", () => {
@@ -76,6 +79,51 @@ describe("createTools", () => {
       {} as any,
     );
     expect(result).toContain("outside the codebase");
+  });
+});
+
+describe("createWorkspace", () => {
+  // Create temp dirs: parent has an outside file, child is the workspace base
+  const rawParent = join(tmpdir(), `method6-ws-${Date.now()}`);
+  const rawDir = join(rawParent, "codebase");
+  mkdirSync(rawDir, { recursive: true });
+  writeFileSync(join(rawParent, "outside.txt"), "should not read");
+  const testDir = realpathSync(rawDir);
+  writeFileSync(join(testDir, "hello.txt"), "hello world");
+
+  afterAll(() => rmSync(testDir, { recursive: true, force: true }));
+
+  test("workspace filesystem can read files within codebase", async () => {
+    const workspace = createWorkspace(testDir);
+    await workspace.init();
+    try {
+      const content = await workspace.filesystem!.readFile("hello.txt");
+      expect(content.toString()).toBe("hello world");
+    } finally {
+      await workspace.destroy();
+    }
+  });
+
+  test("workspace filesystem rejects path traversal", async () => {
+    const workspace = createWorkspace(testDir);
+    await workspace.init();
+    try {
+      // outside.txt exists in parent dir but must not be readable via traversal
+      await expect(workspace.filesystem!.readFile("../outside.txt")).rejects.toThrow("Permission denied");
+    } finally {
+      await workspace.destroy();
+    }
+  });
+
+  test("workspace sandbox executes commands in codebase directory", async () => {
+    const workspace = createWorkspace(testDir);
+    await workspace.init();
+    try {
+      const result = await workspace.sandbox!.executeCommand!("pwd");
+      expect(result.stdout.trim()).toBe(testDir);
+    } finally {
+      await workspace.destroy();
+    }
   });
 });
 
