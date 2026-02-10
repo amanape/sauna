@@ -87,12 +87,11 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
         maxSteps: 50,
         onStepFinish(step: any) {
           for (const tr of step.toolResults) {
-            const output = tr.payload.result;
             if (
-              typeof output === "string" &&
-              output.startsWith("Wrote ")
+              tr.payload.toolName === "mastra_workspace_write_file" &&
+              tr.payload.result?.success
             ) {
-              deps.output.write(output + "\n");
+              deps.output.write(`Wrote ${tr.payload.result.path}\n`);
             }
           }
         },

@@ -46,7 +46,12 @@
   - Added "streams text chunks to output in real time" test with multi-chunk ReadableStream
   - All 4 mutations caught: stream vs generate, textStream iteration, message accumulation, onStepFinish
   - 32 tests pass across 2 files, `tsc --noEmit` clean
-- [ ] Surface file writes in real time via `onStepFinish` callback on `agent.stream()` (detect workspace `write_file` tool results) — spec: discovery-agent, lifecycle-hooks
+- [x] Surface file writes in real time via `onStepFinish` callback on `agent.stream()` (detect workspace `write_file` tool results) — spec: discovery-agent, lifecycle-hooks
+  - Replaced old string-based detection (`"Wrote "` prefix) with workspace tool detection: checks `tr.payload.toolName === "mastra_workspace_write_file"` and `tr.payload.result?.success`
+  - Workspace write_file returns `{ success: boolean, path: string, size: number }` — notification formats as `"Wrote <path>"`
+  - Only successful writes are surfaced; failed writes and other workspace tools (edit_file, delete, etc.) are excluded
+  - 2 behavioral tests (all mutation-tested, 3/3 mutations caught): successful write surfaced + edit_file excluded, failed write excluded
+  - 33 tests pass across 2 files, `tsc --noEmit` clean
 - [ ] Wire CLI args (`--codebase`, `--output`, `--model`) to agent/workspace config; derive API key env var from `--model` provider prefix and validate at startup — spec: discovery-agent
 - [ ] Verify model/provider configurable via `--model` string (e.g. `anthropic/claude-sonnet-4-5-20250929`) without code changes — spec: agent-framework-and-workspace, discovery-agent
 

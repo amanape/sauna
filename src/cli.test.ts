@@ -307,13 +307,23 @@ describe("runConversation", () => {
     expect(mockStream.mock.calls.length).toBe(1);
   });
 
-  test("prints file write notifications from onStepFinish", async () => {
+  test("surfaces workspace write_file results as notifications", async () => {
     const { input, output, deps } = makeDeps({
       streamImpl: async (msgs: any[], opts: any) => {
         opts.onStepFinish({
           toolResults: [
-            { payload: { result: "Wrote specs/my-spec.md" } },
-            { payload: { result: "Some other result" } },
+            {
+              payload: {
+                toolName: "mastra_workspace_write_file",
+                result: { success: true, path: "specs/my-spec.md", size: 42 },
+              },
+            },
+            {
+              payload: {
+                toolName: "mastra_workspace_edit_file",
+                result: { success: true, path: "src/edited.ts", replacements: 1 },
+              },
+            },
           ],
         });
         return {
@@ -336,7 +346,42 @@ describe("runConversation", () => {
 
     const captured = output.read();
     expect(captured).toContain("Wrote specs/my-spec.md");
-    expect(captured).not.toContain("Some other result");
+    expect(captured).not.toContain("src/edited.ts");
+  });
+
+  test("does not surface failed workspace write_file results", async () => {
+    const { input, output, deps } = makeDeps({
+      streamImpl: async (msgs: any[], opts: any) => {
+        opts.onStepFinish({
+          toolResults: [
+            {
+              payload: {
+                toolName: "mastra_workspace_write_file",
+                result: { success: false, path: "specs/fail.md", size: 0 },
+              },
+            },
+          ],
+        });
+        return {
+          textStream: textStreamFrom(["Failed."]),
+          getFullOutput: async () => ({
+            messages: [
+              ...msgs,
+              { role: "assistant", content: "Failed." },
+            ],
+          }),
+        };
+      },
+    });
+
+    const done = runConversation(deps);
+    input.write("Write a spec\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    const captured = output.read();
+    expect(captured).not.toContain("Wrote specs/fail.md");
   });
 
   test("completes cleanly on EOF", async () => {
