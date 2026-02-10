@@ -100,7 +100,12 @@
 
 ## Priority 5: Skills Infrastructure
 
-- [ ] Add `skills` directory path to workspace config for SKILL.md discovery and loading — spec: skills-infrastructure
+- [x] Add `skills` directory path to workspace config for SKILL.md discovery and loading — spec: skills-infrastructure
+  - Extended `createWorkspace()` with optional `WorkspaceOptions` parameter containing `skillsPaths?: string[]`
+  - When `skillsPaths` is provided, passes paths to Mastra `Workspace` config as `skills` resolver (static string array)
+  - When `skillsPaths` is omitted, workspace has no skills (`workspace.skills` is undefined) — backward compatible
+  - 2 behavioral tests: skills discovery from configured directories (creates SKILL.md with frontmatter, verifies `workspace.skills.list()` returns it), no skills when not configured
+  - 1/1 mutation caught (removing skills wiring breaks discovery test); 60 tests pass, `tsc --noEmit` clean
 - [ ] Create `.sauna/skills/` directory with one placeholder SKILL.md (name, description, instructions) to validate the pipeline — spec: skills-infrastructure
 
 ## Priority 6: Verification

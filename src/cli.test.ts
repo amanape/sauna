@@ -185,6 +185,37 @@ describe("createWorkspace", () => {
       await workspace.destroy();
     }
   });
+
+  test("workspace discovers skills from configured skill directories", async () => {
+    // Create a skill directory with a valid SKILL.md
+    const skillDir = join(testDir, "test-skills", "greet");
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(
+      join(skillDir, "SKILL.md"),
+      "---\nname: greet\ndescription: Greets users warmly\n---\n\nAlways greet the user by name.\n",
+    );
+
+    const workspace = createWorkspace(testDir, { skillsPaths: ["test-skills"] });
+    await workspace.init();
+    try {
+      const skills = await workspace.skills!.list();
+      const names = skills.map((s) => s.name);
+      expect(names).toContain("greet");
+    } finally {
+      await workspace.destroy();
+      rmSync(join(testDir, "test-skills"), { recursive: true, force: true });
+    }
+  });
+
+  test("workspace has no skills when skillsPaths is not provided", async () => {
+    const workspace = createWorkspace(testDir);
+    await workspace.init();
+    try {
+      expect(workspace.skills).toBeUndefined();
+    } finally {
+      await workspace.destroy();
+    }
+  });
 });
 
 describe("createDiscoveryAgent", () => {

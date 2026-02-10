@@ -50,7 +50,11 @@ export function createTools(
   };
 }
 
-export function createWorkspace(codebasePath: string): Workspace {
+export interface WorkspaceOptions {
+  skillsPaths?: string[];
+}
+
+export function createWorkspace(codebasePath: string, options?: WorkspaceOptions): Workspace {
   return new Workspace({
     filesystem: new LocalFilesystem({
       basePath: codebasePath,
@@ -59,6 +63,7 @@ export function createWorkspace(codebasePath: string): Workspace {
     sandbox: new LocalSandbox({
       workingDirectory: codebasePath,
     }),
+    ...(options?.skillsPaths ? { skills: options.skillsPaths } : {}),
   });
 }
 
