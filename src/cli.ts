@@ -8,7 +8,7 @@ import { Agent } from "@mastra/core/agent";
 import type { Readable, Writable } from "node:stream";
 
 import { validateApiKey } from "./model-resolution";
-import { createTools } from "./tool-factory";
+import { createTools, resolveSearchFn } from "./tool-factory";
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent } from "./agent-definitions";
 import { SessionRunner } from "./session-runner";
@@ -101,7 +101,8 @@ export async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const tools = createTools();
+  const searchFn = resolveSearchFn(process.env as Record<string, string | undefined>);
+  const tools = createTools(searchFn);
   const workspace = createWorkspace(args.codebase, {
     skillsPaths: [".sauna/skills"],
     outputDir: args.output,

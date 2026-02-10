@@ -119,14 +119,18 @@ describe("validateApiKey", () => {
   });
 });
 
+const stubSearchFn = async () => [
+  { title: "Stub", snippet: "stub result", url: "https://example.com" },
+];
+
 describe("createTools", () => {
   test("returns a record with only web_search key", () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     expect(Object.keys(tools)).toEqual(["web_search"]);
   });
 
   test("web_search tool has execute function", () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     expect(typeof tools.web_search.execute).toBe("function");
   });
 
@@ -310,7 +314,7 @@ describe("createWorkspace", () => {
 
 describe("createDiscoveryAgent", () => {
   test("defaults model to DEFAULT_MODEL when not specified", () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a test agent.",
@@ -321,7 +325,7 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("uses provided model when specified", () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a test agent.",
@@ -333,7 +337,7 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("wires system prompt as instructions", async () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a JTBD discovery agent.",
@@ -345,7 +349,7 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("appends output directory to system prompt when provided", async () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a JTBD discovery agent.",
@@ -359,7 +363,7 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("does not modify system prompt when outputPath is absent", async () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a JTBD discovery agent.",
@@ -371,7 +375,7 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("includes web_search in agent tools", async () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
@@ -386,21 +390,21 @@ describe("createDiscoveryAgent", () => {
 
 describe("createResearchAgent", () => {
   test("defaults model to DEFAULT_MODEL when not specified", () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createResearchAgent({ tools, workspace });
     expect(agent.model).toBe(DEFAULT_MODEL);
   });
 
   test("uses provided model when specified", () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createResearchAgent({ tools, workspace, model: "openai/gpt-4" });
     expect(agent.model).toBe("openai/gpt-4");
   });
 
   test("has instructions describing autonomous research role", async () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createResearchAgent({ tools, workspace });
     const instructions = await agent.getInstructions();
@@ -408,7 +412,7 @@ describe("createResearchAgent", () => {
   });
 
   test("includes web_search in agent tools", async () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createResearchAgent({ tools, workspace });
     const agentTools = await agent.listTools();
@@ -417,7 +421,7 @@ describe("createResearchAgent", () => {
   });
 
   test("sets maxSteps via defaultOptions", async () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createResearchAgent({ tools, workspace, maxSteps: 25 });
     const opts = await agent.getDefaultOptions();
@@ -425,7 +429,7 @@ describe("createResearchAgent", () => {
   });
 
   test("defaults maxSteps to 30 when not specified", async () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createResearchAgent({ tools, workspace });
     const opts = await agent.getDefaultOptions();
@@ -433,7 +437,7 @@ describe("createResearchAgent", () => {
   });
 
   test("has a description for parent agent tool exposure", () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createResearchAgent({ tools, workspace });
     expect(agent.getDescription()).toBeTruthy();
@@ -442,7 +446,7 @@ describe("createResearchAgent", () => {
 
 describe("createDiscoveryAgent — sub-agents", () => {
   test("registers researcher as a sub-agent", async () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
@@ -454,7 +458,7 @@ describe("createDiscoveryAgent — sub-agents", () => {
   });
 
   test("researcher agent inherits model from discovery agent config", async () => {
-    const tools = createTools();
+    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",

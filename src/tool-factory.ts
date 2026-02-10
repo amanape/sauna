@@ -13,11 +13,8 @@ export function resolveSearchFn(env: Record<string, string | undefined>): Search
   };
 }
 
-export function createTools(
-  searchFn?: SearchFunction,
-) {
-  const effectiveSearchFn = searchFn ?? resolveSearchFn(process.env as Record<string, string | undefined>);
+export function createTools(searchFn: SearchFunction) {
   return {
-    web_search: createWebSearchTool(effectiveSearchFn),
+    web_search: createWebSearchTool(searchFn),
   };
 }

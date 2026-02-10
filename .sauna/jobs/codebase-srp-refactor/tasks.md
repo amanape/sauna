@@ -30,9 +30,9 @@
 ## Priority 4: Environment Decoupling (specs/env-decoupling.md)
 
 - [x] Make `validateApiKey` accept an `env: Record<string, string | undefined>` parameter instead of reading `process.env` directly — specs/env-decoupling.md ✓ (model-resolution.ts takes env as first param; cli.ts main() passes process.env; tests pass env records directly, no more process.env mutation)
-- [ ] Remove `process.env` fallback from `createTools`; caller must pass resolved `searchFn` or resolve it before calling — cli.ts:59 — specs/env-decoupling.md
+- [x] Remove `process.env` fallback from `createTools`; caller must pass resolved `searchFn` or resolve it before calling — cli.ts:59 — specs/env-decoupling.md ✓ (searchFn parameter now required in createTools(); cli.ts main() calls resolveSearchFn(process.env) explicitly; all 17 test call sites updated to pass stubSearchFn)
 - [x] Update `validateApiKey` tests to pass env records as parameters instead of mutating `process.env` — specs/env-decoupling.md ✓ (tests now construct local env objects, no afterAll/restore needed)
-- [ ] Verify `process.env`/`process.*` appears only in CLI adapter `main()` and test files — specs/env-decoupling.md
+- [x] Verify `process.env`/`process.*` appears only in CLI adapter `main()` and test files — specs/env-decoupling.md ✓ (process.env appears only in cli.ts:main() at lines 98 and 104; all business logic modules are process.env-free)
 
 ## Priority 5: Dead Code Cleanup (specs/dead-code-cleanup.md)
 
