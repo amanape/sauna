@@ -7,9 +7,9 @@
 - [x] Extract workspace factory module (`createWorkspace`, `WorkspaceOptions`) from `cli.ts` into its own file — specs/module-decomposition.md ✓ (src/workspace-factory.ts; cli.ts re-exports for backward compat)
 - [x] Extract agent definitions module (`createDiscoveryAgent`, `createResearchAgent` and their config types) from `cli.ts` into its own file — specs/module-decomposition.md ✓ (src/agent-definitions.ts; cli.ts re-exports for backward compat)
 - [x] Extract session runner module (transport-agnostic conversation logic) from `runConversation` in `cli.ts` — specs/module-decomposition.md, specs/session-runner.md ✓ (src/session-runner.ts; SessionRunner class, 12 tests; cli.ts re-exports and delegates via SessionRunner)
-- [ ] Reduce `cli.ts` to CLI adapter: `parseCliArgs`, readline transport, `main()` entry point wiring — specs/module-decomposition.md
-- [ ] Create `index.ts` entry point that imports from the CLI adapter module (`package.json` declares `"module": "index.ts"` but it doesn't exist) — specs/module-decomposition.md
-- [ ] Update all test imports to point at new module locations; all 98 tests must pass — specs/module-decomposition.md
+- [x] Reduce `cli.ts` to CLI adapter: `parseCliArgs`, readline transport, `main()` entry point wiring — specs/module-decomposition.md ✓ (removed re-exports; cli.ts now only exports parseCliArgs, CliArgs, ConversationDeps, runConversation, main)
+- [x] Create `index.ts` entry point that imports from the CLI adapter module (`package.json` declares `"module": "index.ts"` but it doesn't exist) — specs/module-decomposition.md ✓ (src/index.ts re-exports public API from all modules; root index.ts already existed as CLI runner)
+- [x] Update all test imports to point at new module locations; all 98 tests must pass — specs/module-decomposition.md ✓ (cli.test.ts now imports from model-resolution, tool-factory, workspace-factory, agent-definitions directly; 110 tests pass)
 
 ## Priority 2: Session Runner (specs/session-runner.md)
 

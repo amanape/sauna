@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { realpathSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parseCliArgs, createTools, createWorkspace, createDiscoveryAgent, createResearchAgent, DEFAULT_MODEL, runConversation, getProviderFromModel, getApiKeyEnvVar, validateApiKey, resolveSearchFn, type ConversationDeps } from "./cli";
+import { parseCliArgs, runConversation, type ConversationDeps } from "./cli";
+import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
+import { createTools, resolveSearchFn } from "./tool-factory";
+import { createWorkspace } from "./workspace-factory";
+import { createDiscoveryAgent, createResearchAgent } from "./agent-definitions";
 
 describe("parseCliArgs", () => {
   test("parses --codebase as required argument", () => {
