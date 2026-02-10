@@ -41,6 +41,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
 }
 
 export function resolveSearchFn(env: Record<string, string | undefined>): SearchFunction {
+  // TODO: Why pass the entire env instead of just the key? Feels a bit cleaner to just pass the key, but this is more flexible if we want to support multiple providers in the future.
   const tavilyKey = env.TAVILY_API_KEY;
   if (tavilyKey) {
     return createTavilySearch(tavilyKey);
