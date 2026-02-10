@@ -28,6 +28,8 @@ SAUNA_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PLAN_PROMPT="$SAUNA_DIR/prompts/plan.md"
 BUILD_PROMPT="$SAUNA_DIR/prompts/build.md"
 
+echo "=== Job: $JOB_ID ==="
+
 for ((c = 1; c <= CYCLES; c++)); do
   echo "=== Cycle $c/$CYCLES ==="
 

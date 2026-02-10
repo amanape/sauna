@@ -2,3 +2,5 @@
 - Context7 MCP
 - .env.example
 - Support Markdown
+- discovery agent should create jobs in .sauna/jobs
+- Use search engine / tavily MCP instead?
