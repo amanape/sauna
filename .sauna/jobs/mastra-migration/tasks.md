@@ -52,8 +52,18 @@
   - Only successful writes are surfaced; failed writes and other workspace tools (edit_file, delete, etc.) are excluded
   - 2 behavioral tests (all mutation-tested, 3/3 mutations caught): successful write surfaced + edit_file excluded, failed write excluded
   - 33 tests pass across 2 files, `tsc --noEmit` clean
-- [ ] Wire CLI args (`--codebase`, `--output`, `--model`) to agent/workspace config; derive API key env var from `--model` provider prefix and validate at startup — spec: discovery-agent
-- [ ] Verify model/provider configurable via `--model` string (e.g. `anthropic/claude-sonnet-4-5-20250929`) without code changes — spec: agent-framework-and-workspace, discovery-agent
+- [x] Wire CLI args (`--codebase`, `--output`, `--model`) to agent/workspace config; derive API key env var from `--model` provider prefix and validate at startup — spec: discovery-agent
+  - Extracted `getProviderFromModel(model?)`: parses `"provider/model"` prefix, defaults to `"anthropic"` when no slash
+  - Extracted `getApiKeyEnvVar(provider)`: uppercases provider + `_API_KEY` (supports any provider dynamically)
+  - Extracted `validateApiKey(model?)`: combines both, throws if env var is missing
+  - `main()` now calls `validateApiKey(args.model)` instead of hardcoded `ANTHROPIC_API_KEY` check
+  - `--output` wired into `createDiscoveryAgent({ outputPath: args.output })` — appends output directory instruction to system prompt
+  - `DiscoveryAgentConfig` extended with optional `outputPath` field
+  - 13 new tests: getProviderFromModel (4), getApiKeyEnvVar (4), validateApiKey (3), createDiscoveryAgent outputPath (2)
+  - All 5/5 mutations killed; 46 tests pass, `tsc --noEmit` clean
+- [x] Verify model/provider configurable via `--model` string (e.g. `anthropic/claude-sonnet-4-5-20250929`) without code changes — spec: agent-framework-and-workspace, discovery-agent
+  - `getProviderFromModel` handles any `"provider/model"` format; model string passed directly to Mastra Agent which routes to the correct provider
+  - Dynamic API key validation ensures the correct env var is checked (e.g., `OPENAI_API_KEY` for `openai/gpt-4`)
 
 ## Priority 3: Lifecycle Hooks
 

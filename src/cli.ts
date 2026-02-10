@@ -112,18 +112,44 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 
 export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929";
 
+export function getProviderFromModel(model?: string): string {
+  const m = model ?? DEFAULT_MODEL;
+  const slashIndex = m.indexOf("/");
+  if (slashIndex === -1) return "anthropic";
+  return m.slice(0, slashIndex);
+}
+
+export function getApiKeyEnvVar(provider: string): string {
+  return `${provider.toUpperCase()}_API_KEY`;
+}
+
+export function validateApiKey(model?: string): string {
+  const provider = getProviderFromModel(model);
+  const envVar = getApiKeyEnvVar(provider);
+  if (!process.env[envVar]) {
+    throw new Error(`${envVar} environment variable is required`);
+  }
+  return envVar;
+}
+
 export interface DiscoveryAgentConfig {
   systemPrompt: string;
   model?: string;
   tools: ReturnType<typeof createTools>;
   workspace: Workspace;
+  outputPath?: string;
 }
 
 export function createDiscoveryAgent(config: DiscoveryAgentConfig): Agent {
+  let instructions = config.systemPrompt;
+  if (config.outputPath) {
+    instructions += `\n\n## Output Directory\n\nWrite all output files to the \`${config.outputPath}\` directory.`;
+  }
+
   return new Agent({
     id: "discovery",
     name: "discovery",
-    instructions: config.systemPrompt,
+    instructions,
     model: config.model ?? DEFAULT_MODEL,
     tools: config.tools,
     workspace: config.workspace,
@@ -133,9 +159,10 @@ export function createDiscoveryAgent(config: DiscoveryAgentConfig): Agent {
 export async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    console.error("ANTHROPIC_API_KEY environment variable is required");
+  try {
+    validateApiKey(args.model);
+  } catch (e: any) {
+    console.error(e.message);
     process.exit(1);
   }
 
@@ -150,6 +177,7 @@ export async function main(): Promise<void> {
     model: args.model,
     tools,
     workspace,
+    outputPath: args.output,
   });
 
   await runConversation({

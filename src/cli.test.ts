@@ -3,7 +3,7 @@ import { PassThrough } from "node:stream";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { realpathSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { parseCliArgs, createTools, createWorkspace, createDiscoveryAgent, DEFAULT_MODEL, runConversation, type ConversationDeps } from "./cli";
+import { parseCliArgs, createTools, createWorkspace, createDiscoveryAgent, DEFAULT_MODEL, runConversation, getProviderFromModel, getApiKeyEnvVar, validateApiKey, type ConversationDeps } from "./cli";
 
 describe("parseCliArgs", () => {
   test("parses --codebase as required argument", () => {
@@ -56,6 +56,68 @@ describe("parseCliArgs", () => {
     expect(result.codebase).toBe("/my/project");
     expect(result.output).toBe("/my/output");
     expect(result.model).toBe("gpt-4");
+  });
+});
+
+describe("getProviderFromModel", () => {
+  test("extracts provider from prefixed model string", () => {
+    expect(getProviderFromModel("anthropic/claude-sonnet-4-5-20250929")).toBe("anthropic");
+  });
+
+  test("extracts provider from openai-prefixed model string", () => {
+    expect(getProviderFromModel("openai/gpt-4")).toBe("openai");
+  });
+
+  test("defaults to anthropic when no prefix", () => {
+    expect(getProviderFromModel("claude-opus-4-20250514")).toBe("anthropic");
+  });
+
+  test("defaults to anthropic when model is undefined", () => {
+    expect(getProviderFromModel(undefined)).toBe("anthropic");
+  });
+});
+
+describe("getApiKeyEnvVar", () => {
+  test("maps anthropic to ANTHROPIC_API_KEY", () => {
+    expect(getApiKeyEnvVar("anthropic")).toBe("ANTHROPIC_API_KEY");
+  });
+
+  test("maps openai to OPENAI_API_KEY", () => {
+    expect(getApiKeyEnvVar("openai")).toBe("OPENAI_API_KEY");
+  });
+
+  test("maps google to GOOGLE_API_KEY", () => {
+    expect(getApiKeyEnvVar("google")).toBe("GOOGLE_API_KEY");
+  });
+
+  test("uppercases arbitrary provider and appends _API_KEY", () => {
+    expect(getApiKeyEnvVar("mistral")).toBe("MISTRAL_API_KEY");
+  });
+});
+
+describe("validateApiKey", () => {
+  const originalEnv = { ...process.env };
+
+  afterAll(() => {
+    // Restore env after tests
+    process.env = originalEnv;
+  });
+
+  test("returns env var name when key is set", () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    const result = validateApiKey(undefined);
+    expect(result).toBe("ANTHROPIC_API_KEY");
+  });
+
+  test("throws when required API key is missing", () => {
+    delete process.env.OPENAI_API_KEY;
+    expect(() => validateApiKey("openai/gpt-4")).toThrow("OPENAI_API_KEY");
+  });
+
+  test("validates correct env var based on model prefix", () => {
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    const result = validateApiKey("openai/gpt-4");
+    expect(result).toBe("OPENAI_API_KEY");
   });
 });
 
@@ -150,6 +212,32 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("wires system prompt as instructions", async () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createDiscoveryAgent({
+      systemPrompt: "You are a JTBD discovery agent.",
+      tools,
+      workspace,
+    });
+    const instructions = await agent.getInstructions();
+    expect(instructions).toBe("You are a JTBD discovery agent.");
+  });
+
+  test("appends output directory to system prompt when provided", async () => {
+    const tools = createTools();
+    const workspace = createWorkspace("/tmp");
+    const agent = createDiscoveryAgent({
+      systemPrompt: "You are a JTBD discovery agent.",
+      tools,
+      workspace,
+      outputPath: "/my/output",
+    });
+    const instructions = await agent.getInstructions();
+    expect(instructions).toContain("/my/output");
+    expect(instructions).toContain("You are a JTBD discovery agent.");
+  });
+
+  test("does not modify system prompt when outputPath is absent", async () => {
     const tools = createTools();
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
