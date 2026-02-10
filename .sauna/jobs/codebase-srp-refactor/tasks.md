@@ -25,7 +25,7 @@
 - [x] Replace `onStepFinish(step: any)` with `LLMStepResult` type — session-runner.ts — specs/type-tightening.md ✓ BLOCKED: `LLMStepResult` is defined in `@mastra/core/dist/stream/types.d.ts` but NOT re-exported from any public index (`stream/index.d.ts` selectively exports only chunk types). Added `// TODO:` comment per spec. Retains `any` until Mastra exposes it publicly.
 - [x] Replace `onFinish?: (event: any)` with `MastraOnFinishCallback` type — session-runner.ts — specs/type-tightening.md ✓ BLOCKED: `MastraOnFinishCallback` is defined in `@mastra/core/dist/stream/types.d.ts` but NOT re-exported from any public index. Added `// TODO:` comment per spec. Retains `any` until Mastra exposes it publicly.
 - [x] Replace `catch (e: any)` with `catch (e: unknown)` plus type guard — cli.ts:95 — specs/type-tightening.md ✓ (uses `e instanceof Error ? e.message : String(e)` pattern)
-- [ ] Verify no `any` type annotations remain in application source files (`as any` in tests is acceptable) — specs/type-tightening.md
+- [x] Verify no `any` type annotations remain in application source files (`as any` in tests is acceptable) — specs/type-tightening.md ✓ (All remaining `any` uses are blocked by @mastra/core not exporting `LLMStepResult` and `MastraOnFinishCallback`; each use has a `// TODO:` comment in both session-runner.ts and cli.ts)
 
 ## Priority 4: Environment Decoupling (specs/env-decoupling.md)
 

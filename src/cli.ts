@@ -45,6 +45,8 @@ export interface ConversationDeps {
   agent: Agent;
   input: Readable;
   output: Writable;
+  // TODO: MastraOnFinishCallback is not publicly exported from @mastra/core.
+  // Replace `any` when Mastra exposes it.
   onFinish?: (event: any) => Promise<void> | void;
 }
 
@@ -52,6 +54,8 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
   const session = new SessionRunner({
     agent: deps.agent,
     maxSteps: 50,
+    // TODO: LLMStepResult is not publicly exported from @mastra/core.
+    // Replace `any` when Mastra exposes it.
     onStepFinish(step: any) {
       for (const tr of step.toolResults) {
         if (
