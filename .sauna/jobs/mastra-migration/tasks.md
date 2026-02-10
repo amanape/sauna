@@ -114,6 +114,12 @@
 
 ## Priority 6: Verification
 
-- [ ] Write tests for: Mastra agent creation, web search `createTool`, `runConversation` with `agent.stream()` — spec: all
-- [ ] Verify `bunx tsc --noEmit` passes with zero errors — spec: all
-- [ ] Verify `bun test` passes with all new tests green — spec: all
+- [x] Write tests for: Mastra agent creation, web search `createTool`, `runConversation` with `agent.stream()` — spec: all
+  - Tests were written incrementally during Priorities 1–5 using TDD (red-green-refactor with mutation testing)
+  - `src/cli.test.ts`: 53 tests covering parseCliArgs, getProviderFromModel, getApiKeyEnvVar, validateApiKey, createTools, createWorkspace, createDiscoveryAgent, createResearchAgent, sub-agent registration, and runConversation (streaming, message accumulation, file write notifications, onFinish hooks, EOF handling)
+  - `src/tools/web-search.test.ts`: 8 tests covering result formatting, query trimming, no-results message, error handling, multi-result numbering
+  - 61 total tests, 81 expect() calls across 2 test files
+- [x] Verify `bunx tsc --noEmit` passes with zero errors — spec: all
+  - Confirmed: zero errors on 2026-02-10
+- [x] Verify `bun test` passes with all new tests green — spec: all
+  - Confirmed: 61/61 tests pass, 0 failures on 2026-02-10
