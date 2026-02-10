@@ -8,12 +8,12 @@ import { Agent } from "@mastra/core/agent";
 import { Workspace, LocalFilesystem, LocalSandbox } from "@mastra/core/workspace";
 import type { Readable, Writable } from "node:stream";
 
-import { createWebSearchTool, type SearchFunction } from "./tools/web-search";
-import { createTavilySearch } from "./tools/search-backends";
 import { OutputConstrainedFilesystem } from "./output-constrained-filesystem";
-import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
+import { DEFAULT_MODEL, validateApiKey } from "./model-resolution";
+import { createTools } from "./tool-factory";
 
 export { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
+export { createTools, resolveSearchFn } from "./tool-factory";
 
 export interface CliArgs {
   codebase: string;
@@ -40,28 +40,6 @@ export function parseCliArgs(argv: string[]): CliArgs {
     codebase: values.codebase,
     output: values.output!,
     model: values.model,
-  };
-}
-
-export function resolveSearchFn(env: Record<string, string | undefined>): SearchFunction {
-  // TODO: Why pass the entire env instead of just the key? Feels a bit cleaner to just pass the key, but this is more flexible if we want to support multiple providers in the future.
-  const tavilyKey = env.TAVILY_API_KEY;
-  if (tavilyKey) {
-    return createTavilySearch(tavilyKey);
-  }
-  return async () => {
-    throw new Error(
-      "Web search is not configured. Set TAVILY_API_KEY environment variable to enable web search.",
-    );
-  };
-}
-
-export function createTools(
-  searchFn?: SearchFunction,
-) {
-  const effectiveSearchFn = searchFn ?? resolveSearchFn(process.env as Record<string, string | undefined>);
-  return {
-    web_search: createWebSearchTool(effectiveSearchFn),
   };
 }
 
