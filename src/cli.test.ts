@@ -101,27 +101,20 @@ describe("getApiKeyEnvVar", () => {
 });
 
 describe("validateApiKey", () => {
-  const originalEnv = { ...process.env };
-
-  afterAll(() => {
-    // Restore env after tests
-    process.env = originalEnv;
-  });
-
   test("returns env var name when key is set", () => {
-    process.env.ANTHROPIC_API_KEY = "test-key";
-    const result = validateApiKey(undefined);
+    const env = { ANTHROPIC_API_KEY: "test-key" };
+    const result = validateApiKey(env);
     expect(result).toBe("ANTHROPIC_API_KEY");
   });
 
   test("throws when required API key is missing", () => {
-    delete process.env.OPENAI_API_KEY;
-    expect(() => validateApiKey("openai/gpt-4")).toThrow("OPENAI_API_KEY");
+    const env = {};
+    expect(() => validateApiKey(env, "openai/gpt-4")).toThrow("OPENAI_API_KEY");
   });
 
   test("validates correct env var based on model prefix", () => {
-    process.env.OPENAI_API_KEY = "test-openai-key";
-    const result = validateApiKey("openai/gpt-4");
+    const env = { OPENAI_API_KEY: "test-openai-key" };
+    const result = validateApiKey(env, "openai/gpt-4");
     expect(result).toBe("OPENAI_API_KEY");
   });
 });

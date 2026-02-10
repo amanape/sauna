@@ -95,7 +95,7 @@ export async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
 
   try {
-    validateApiKey(args.model);
+    validateApiKey(process.env, args.model);
   } catch (e: unknown) {
     console.error(e instanceof Error ? e.message : String(e));
     process.exit(1);

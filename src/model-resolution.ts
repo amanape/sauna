@@ -11,10 +11,10 @@ export function getApiKeyEnvVar(provider: string): string {
   return `${provider.toUpperCase()}_API_KEY`;
 }
 
-export function validateApiKey(model?: string): string {
+export function validateApiKey(env: Record<string, string | undefined>, model?: string): string {
   const provider = getProviderFromModel(model);
   const envVar = getApiKeyEnvVar(provider);
-  if (!process.env[envVar]) {
+  if (!env[envVar]) {
     throw new Error(`${envVar} environment variable is required`);
   }
   return envVar;
