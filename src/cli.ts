@@ -10,6 +10,7 @@ import type { Readable, Writable } from "node:stream";
 
 import { createWebSearchTool, type SearchFunction } from "./tools/web-search";
 import { createTavilySearch } from "./tools/search-backends";
+import { OutputConstrainedFilesystem } from "./output-constrained-filesystem";
 
 export interface CliArgs {
   codebase: string;
@@ -62,14 +63,20 @@ export function createTools(
 
 export interface WorkspaceOptions {
   skillsPaths?: string[];
+  outputDir?: string;
 }
 
 export function createWorkspace(codebasePath: string, options?: WorkspaceOptions): Workspace {
+  const baseFs = new LocalFilesystem({
+    basePath: codebasePath,
+    contained: true,
+  });
+  const filesystem = options?.outputDir
+    ? new OutputConstrainedFilesystem(baseFs, options.outputDir)
+    : baseFs;
+
   return new Workspace({
-    filesystem: new LocalFilesystem({
-      basePath: codebasePath,
-      contained: true,
-    }),
+    filesystem,
     sandbox: new LocalSandbox({
       workingDirectory: codebasePath,
     }),
@@ -215,6 +222,7 @@ export async function main(): Promise<void> {
   const tools = createTools();
   const workspace = createWorkspace(args.codebase, {
     skillsPaths: [".sauna/skills"],
+    outputDir: args.output,
   });
   const systemPrompt = await Bun.file(
     resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),

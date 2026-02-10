@@ -2,7 +2,7 @@
 
 ## Completed (Priorities 1–6)
 
-All foundational work is done. 71/71 tests pass across 3 files, `tsc --noEmit` clean. See git history for details.
+All foundational work is done. 98/98 tests pass across 4 files, `tsc --noEmit` clean. See git history for details.
 
 - [x] P1: Install `@mastra/core`; remove `ai` and `@ai-sdk/anthropic` — spec: agent-framework-and-workspace
 - [x] P1: Create workspace (`LocalFilesystem` + `LocalSandbox`) scoped to `--codebase` — spec: agent-framework-and-workspace
@@ -33,4 +33,4 @@ All foundational work is done. 71/71 tests pass across 3 files, `tsc --noEmit` c
 ### Priority 2: Spec compliance (code works but deviates from written specs)
 
 - [x] Resolve `web-search.ts` deletion discrepancy — chose option (b): updated JTBD AC #9 and spec `agent-framework-and-workspace` to document that `web-search.ts` is intentionally retained as a Mastra `createTool()` wrapper around an injectable `SearchFunction` backend; it is not "hand-rolled" in the same sense as the deleted `file-read.ts`/`file-write.ts` because Mastra workspace does not provide web search natively — spec: agent-framework-and-workspace, jtbd
-- [ ] Enforce output directory constraint at filesystem level — spec says writes "must be constrained to this output directory" but current implementation only appends an instruction to the system prompt; `LocalFilesystem` prevents escape from codebase root but allows writes anywhere within it — spec: agent-framework-and-workspace, discovery-agent
+- [x] Enforce output directory constraint at filesystem level — created `OutputConstrainedFilesystem` wrapper (`src/output-constrained-filesystem.ts`) that delegates reads to inner `LocalFilesystem` but blocks write operations (`writeFile`, `appendFile`, `deleteFile`, `mkdir`, `rmdir`, `copyFile`, `moveFile`) targeting paths outside the configured output directory; wired into `createWorkspace()` via new `outputDir` option; `main()` passes `args.output` through; 23 unit tests + 4 integration tests; handles path normalization and traversal attempts — spec: agent-framework-and-workspace, discovery-agent
