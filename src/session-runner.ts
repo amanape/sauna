@@ -1,4 +1,11 @@
 import type { Agent } from "@mastra/core/agent";
+import type { MessageInput } from "@mastra/core/agent/message-list";
+
+// TODO: LLMStepResult is defined in @mastra/core/dist/stream/types but not
+// re-exported from @mastra/core/stream or any public index. Use `any` until
+// Mastra exposes it publicly.
+// TODO: MastraOnFinishCallback is defined in @mastra/core/dist/stream/types
+// but not re-exported from any public index. Use `any` until Mastra exposes it.
 
 export interface SessionRunnerConfig {
   agent: Agent;
@@ -9,7 +16,7 @@ export interface SessionRunnerConfig {
 
 export class SessionRunner {
   private agent: Agent;
-  private messages: any[] = [];
+  private messages: MessageInput[] = [];
   private maxSteps: number;
   private onStepFinish?: (step: any) => void;
   private onFinish?: (event: any) => Promise<void> | void;

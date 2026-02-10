@@ -21,9 +21,9 @@
 
 ## Priority 3: Type Tightening (specs/type-tightening.md)
 
-- [ ] Replace `messages: any[]` with `MastraDBMessage[]` (from `@mastra/core`) — session-runner.ts — specs/type-tightening.md (NOTE: `MastraDBMessage`, `LLMStepResult`, `MastraOnFinishCallback` are defined in `@mastra/core/dist/stream/types.d.ts` but NOT re-exported from `@mastra/core/stream` index; may need direct `@mastra/core/dist/stream/types` import or patch)
-- [ ] Replace `onStepFinish(step: any)` with `LLMStepResult` type — session-runner.ts — specs/type-tightening.md
-- [ ] Replace `onFinish?: (event: any)` with `MastraOnFinishCallback` type — session-runner.ts — specs/type-tightening.md
+- [x] Replace `messages: any[]` with `MessageInput[]` (from `@mastra/core/agent/message-list`) — session-runner.ts — specs/type-tightening.md ✓ (Used `MessageInput[]` instead of `MastraDBMessage[]` because the array holds both raw `{role,content}` pushes and canonical `MastraDBMessage[]` from `getFullOutput()`. `MessageInput` is the union that `agent.stream()` accepts.)
+- [x] Replace `onStepFinish(step: any)` with `LLMStepResult` type — session-runner.ts — specs/type-tightening.md ✓ BLOCKED: `LLMStepResult` is defined in `@mastra/core/dist/stream/types.d.ts` but NOT re-exported from any public index (`stream/index.d.ts` selectively exports only chunk types). Added `// TODO:` comment per spec. Retains `any` until Mastra exposes it publicly.
+- [x] Replace `onFinish?: (event: any)` with `MastraOnFinishCallback` type — session-runner.ts — specs/type-tightening.md ✓ BLOCKED: `MastraOnFinishCallback` is defined in `@mastra/core/dist/stream/types.d.ts` but NOT re-exported from any public index. Added `// TODO:` comment per spec. Retains `any` until Mastra exposes it publicly.
 - [ ] Replace `catch (e: any)` with `catch (e: unknown)` plus type guard — cli.ts:218 — specs/type-tightening.md
 - [ ] Verify no `any` type annotations remain in application source files (`as any` in tests is acceptable) — specs/type-tightening.md
 
