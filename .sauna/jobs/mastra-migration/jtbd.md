@@ -29,7 +29,7 @@ Specifically:
 - [ ] Skills can be defined as files in a skills directory and are discoverable by agents
 - [ ] The agent framework supports a "done" / completion hook that fires when an autonomous agent finishes
 - [ ] Model and provider are configurable per agent without code changes (e.g., switch from Anthropic to OpenAI by changing configuration)
-- [ ] The hand-rolled tool files (`file-read.ts`, `file-write.ts`, `web-search.ts`) and their tests are deleted
+- [ ] The hand-rolled tool files (`file-read.ts`, `file-write.ts`) and their tests are deleted; `web-search.ts` is retained as a Mastra `createTool()` wrapper because workspace does not provide web search natively — it delegates to an injectable search backend (e.g., Tavily)
 - [ ] `ai`, `@ai-sdk/anthropic` dependencies are removed from `package.json`
 - [ ] Type-checking passes (`bunx tsc --noEmit`)
 

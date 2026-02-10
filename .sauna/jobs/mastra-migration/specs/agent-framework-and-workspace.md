@@ -10,7 +10,7 @@ This is the foundational layer that replaces the Vercel AI SDK (`ai`, `@ai-sdk/a
 
 - The project must use Mastra (`@mastra/core`) as the agent framework.
 - The `ai`, `@ai-sdk/anthropic` npm dependencies must be removed from `package.json`.
-- The hand-rolled tool files (`src/tools/file-read.ts`, `src/tools/file-write.ts`, `src/tools/web-search.ts`) and their corresponding test files must be deleted.
+- The hand-rolled tool files (`src/tools/file-read.ts`, `src/tools/file-write.ts`) and their corresponding test files must be deleted. `src/tools/web-search.ts` is retained because Mastra workspace does not provide web search natively — it is a Mastra `createTool()` wrapper around an injectable `SearchFunction` backend, not a hand-rolled tool in the same sense as the file tools it replaces.
 
 ### Workspace
 
@@ -22,7 +22,8 @@ This is the foundational layer that replaces the Vercel AI SDK (`ai`, `@ai-sdk/a
 ### Web Search
 
 - A web search tool must be available to agents.
-- Since Mastra does not include a built-in web search tool, one must be provided — either as a custom Mastra tool, a provider-native tool (e.g., Anthropic or OpenAI web search), or via an MCP server.
+- Since Mastra does not include a built-in web search tool, one is provided as a custom Mastra tool (`src/tools/web-search.ts`) wrapping an injectable `SearchFunction` interface.
+- The search backend is injectable and resolved at startup: `src/tools/search-backends.ts` provides concrete implementations (currently Tavily via `createTavilySearch()`). New backends can be added without modifying the tool itself.
 - The choice of search backend should be configurable or injectable, not hardcoded to a single provider.
 
 ### Provider Agnosticism
