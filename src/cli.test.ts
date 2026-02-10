@@ -176,30 +176,42 @@ describe("createDiscoveryAgent", () => {
 });
 
 describe("runConversation", () => {
+  /** Create a ReadableStream<string> from an array of chunks */
+  function textStreamFrom(chunks: string[]): ReadableStream<string> {
+    return new ReadableStream({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(chunk);
+        controller.close();
+      },
+    });
+  }
+
   function makeDeps(overrides?: {
-    generateImpl?: (...args: any[]) => any;
+    streamImpl?: (...args: any[]) => any;
   }) {
     const input = new PassThrough();
     const output = new PassThrough();
     output.setEncoding("utf8");
 
-    const mockGenerate = mock(
-      overrides?.generateImpl ??
+    const mockStream = mock(
+      overrides?.streamImpl ??
       (async () => ({
-        text: "Hello from AI",
-        messages: [
-          { role: "user", content: "Hello" },
-          { role: "assistant", content: "Hello from AI" },
-        ],
+        textStream: textStreamFrom(["Hello from AI"]),
+        getFullOutput: async () => ({
+          messages: [
+            { role: "user", content: "Hello" },
+            { role: "assistant", content: "Hello from AI" },
+          ],
+        }),
       })),
     );
 
-    const mockAgent = { generate: mockGenerate } as any;
+    const mockAgent = { stream: mockStream } as any;
 
     return {
       input,
       output,
-      mockGenerate,
+      mockStream,
       deps: {
         agent: mockAgent,
         input,
@@ -208,8 +220,32 @@ describe("runConversation", () => {
     };
   }
 
-  test("passes user input to agent.generate and writes response to output", async () => {
-    const { input, output, mockGenerate, deps } = makeDeps();
+  test("streams text chunks to output in real time", async () => {
+    const { input, output, mockStream, deps } = makeDeps({
+      streamImpl: async () => ({
+        textStream: textStreamFrom(["Hello", " from", " AI"]),
+        getFullOutput: async () => ({
+          messages: [
+            { role: "user", content: "Hello" },
+            { role: "assistant", content: "Hello from AI" },
+          ],
+        }),
+      }),
+    });
+
+    const done = runConversation(deps);
+    input.write("Hello\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    const captured = output.read();
+    // All chunks should appear in output (streamed, not batched)
+    expect(captured).toContain("Hello from AI");
+  });
+
+  test("passes user input to agent.stream and writes streamed response", async () => {
+    const { input, output, mockStream, deps } = makeDeps();
 
     const done = runConversation(deps);
     input.write("Hello\n");
@@ -219,22 +255,25 @@ describe("runConversation", () => {
 
     const captured = output.read();
     expect(captured).toContain("Hello from AI");
-    expect(mockGenerate.mock.calls.length).toBeGreaterThanOrEqual(1);
-    const [messages] = (mockGenerate.mock.calls as any)[0];
+    expect(mockStream.mock.calls.length).toBeGreaterThanOrEqual(1);
+    const [messages] = (mockStream.mock.calls as any)[0];
     expect(messages).toContainEqual({ role: "user", content: "Hello" });
   });
 
   test("accumulates messages across multiple turns", async () => {
     let callCount = 0;
-    const { input, output, mockGenerate, deps } = makeDeps({
-      generateImpl: async (msgs: any[]) => {
+    const { input, output, mockStream, deps } = makeDeps({
+      streamImpl: async (msgs: any[]) => {
         callCount++;
+        const text = `Response ${callCount}`;
         return {
-          text: `Response ${callCount}`,
-          messages: [
-            ...msgs,
-            { role: "assistant", content: `Response ${callCount}` },
-          ],
+          textStream: textStreamFrom([text]),
+          getFullOutput: async () => ({
+            messages: [
+              ...msgs,
+              { role: "assistant", content: text },
+            ],
+          }),
         };
       },
     });
@@ -248,14 +287,14 @@ describe("runConversation", () => {
     await done;
 
     expect(callCount).toBe(2);
-    const [secondMessages] = (mockGenerate.mock.calls as any)[1];
+    const [secondMessages] = (mockStream.mock.calls as any)[1];
     expect(secondMessages).toContainEqual({ role: "user", content: "First" });
     expect(secondMessages).toContainEqual({ role: "assistant", content: "Response 1" });
     expect(secondMessages).toContainEqual({ role: "user", content: "Second" });
   });
 
   test("skips empty lines", async () => {
-    const { input, output, mockGenerate, deps } = makeDeps();
+    const { input, output, mockStream, deps } = makeDeps();
 
     const done = runConversation(deps);
     input.write("\n");
@@ -265,12 +304,12 @@ describe("runConversation", () => {
     input.end();
     await done;
 
-    expect(mockGenerate.mock.calls.length).toBe(1);
+    expect(mockStream.mock.calls.length).toBe(1);
   });
 
   test("prints file write notifications from onStepFinish", async () => {
     const { input, output, deps } = makeDeps({
-      generateImpl: async (msgs: any[], opts: any) => {
+      streamImpl: async (msgs: any[], opts: any) => {
         opts.onStepFinish({
           toolResults: [
             { payload: { result: "Wrote specs/my-spec.md" } },
@@ -278,11 +317,13 @@ describe("runConversation", () => {
           ],
         });
         return {
-          text: "Done writing.",
-          messages: [
-            ...msgs,
-            { role: "assistant", content: "Done writing." },
-          ],
+          textStream: textStreamFrom(["Done writing."]),
+          getFullOutput: async () => ({
+            messages: [
+              ...msgs,
+              { role: "assistant", content: "Done writing." },
+            ],
+          }),
         };
       },
     });

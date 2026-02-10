@@ -38,7 +38,14 @@
   - `main()` now calls `createDiscoveryAgent()` instead of inline `new Agent()`
   - 4 behavioral tests (all mutation-tested): model defaults, model override, system prompt wiring, web_search tool inclusion
   - 31 tests pass across 2 files, `tsc --noEmit` clean
-- [ ] Rewrite `runConversation()` to use `agent.stream()`: iterate `textStream` for stdout, accumulate history across turns — spec: discovery-agent
+- [x] Rewrite `runConversation()` to use `agent.stream()`: iterate `textStream` for stdout, accumulate history across turns — spec: discovery-agent
+  - Replaced `agent.generate()` with `agent.stream()` — text chunks stream to stdout in real time via `for await (const chunk of streamResult.textStream)`
+  - After stream completes, calls `streamResult.getFullOutput()` to retrieve `messages` for history accumulation
+  - `onStepFinish` callback preserved for file write notifications (unchanged behavior)
+  - Tests updated: mock provides `stream()` returning `{ textStream, getFullOutput() }` instead of `generate()` returning `{ text, messages }`
+  - Added "streams text chunks to output in real time" test with multi-chunk ReadableStream
+  - All 4 mutations caught: stream vs generate, textStream iteration, message accumulation, onStepFinish
+  - 32 tests pass across 2 files, `tsc --noEmit` clean
 - [ ] Surface file writes in real time via `onStepFinish` callback on `agent.stream()` (detect workspace `write_file` tool results) — spec: discovery-agent, lifecycle-hooks
 - [ ] Wire CLI args (`--codebase`, `--output`, `--model`) to agent/workspace config; derive API key env var from `--model` provider prefix and validate at startup — spec: discovery-agent
 - [ ] Verify model/provider configurable via `--model` string (e.g. `anthropic/claude-sonnet-4-5-20250929`) without code changes — spec: agent-framework-and-workspace, discovery-agent

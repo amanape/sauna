@@ -83,9 +83,9 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 
       messages.push({ role: "user", content: trimmed });
 
-      const result = await deps.agent.generate(messages, {
+      const streamResult = await deps.agent.stream(messages, {
         maxSteps: 50,
-        onStepFinish(step) {
+        onStepFinish(step: any) {
           for (const tr of step.toolResults) {
             const output = tr.payload.result;
             if (
@@ -98,11 +98,13 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
         },
       });
 
-      messages = [...result.messages];
-
-      if (result.text) {
-        deps.output.write(result.text + "\n");
+      for await (const chunk of streamResult.textStream) {
+        deps.output.write(chunk);
       }
+      deps.output.write("\n");
+
+      const fullOutput = await streamResult.getFullOutput();
+      messages = [...fullOutput.messages];
     }
   } finally {
     rl.close();
