@@ -20,7 +20,7 @@ describe("buildMcpServerConfigs", () => {
       command: "npx",
       args: ["-y", "tavily-mcp@latest"],
     });
-    expect(config.servers.tavily.env).toBeUndefined();
+    expect(config.servers.tavily!.env).toBeUndefined();
   });
 
   test("includes context7 server with stdio transport", () => {

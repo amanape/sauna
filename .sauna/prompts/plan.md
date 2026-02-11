@@ -8,3 +8,4 @@
 - Plan only. No code changes, no commits.
 - Search before adding a task; if it already exists in the codebase, don't plan it.
 - Keep the plan concise. One line per task. Group by priority, not by file or feature.
+- Never add git/branch management tasks (merging, rebasing, PR creation, branch cleanup). Those are the developer's responsibility, not the builder's.

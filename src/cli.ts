@@ -4,6 +4,7 @@ import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
 import { resolve } from "node:path";
 import { Agent } from "@mastra/core/agent";
+import type { LLMStepResult } from "@mastra/core/agent";
 import type { Readable, Writable } from "node:stream";
 
 import { validateApiKey } from "./model-resolution";
@@ -53,15 +54,14 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
   const session = new SessionRunner({
     agent: deps.agent,
     maxSteps: 50,
-    // TODO: LLMStepResult is not publicly exported from @mastra/core.
-    // Replace `any` when Mastra exposes it.
-    onStepFinish(step: any) {
+    onStepFinish(step: LLMStepResult) {
       for (const tr of step.toolResults) {
+        const result = tr.payload.result as Record<string, unknown> | undefined;
         if (
           tr.payload.toolName === "mastra_workspace_write_file" &&
-          tr.payload.result?.success
+          result?.success
         ) {
-          deps.output.write(`Wrote ${tr.payload.result.path}\n`);
+          deps.output.write(`Wrote ${result.path}\n`);
         }
       }
     },
