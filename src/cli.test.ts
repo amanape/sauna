@@ -779,3 +779,28 @@ describe("runConversation", () => {
     await done;
   });
 });
+
+describe("main() startup validation", () => {
+  test("exits with error when model provider API key is missing", async () => {
+    const entrypoint = resolve(import.meta.dirname, "../index.ts");
+    // Strip all known API keys so validateApiKey fails for the default provider
+    const cleanEnv = Object.fromEntries(
+      Object.entries(process.env).filter(
+        ([k]) => !k.endsWith("_API_KEY"),
+      ),
+    );
+
+    const proc = Bun.spawn(["bun", entrypoint, "--codebase", "/tmp"], {
+      env: cleanEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    const exitCode = await proc.exited;
+    const stderr = await new Response(proc.stderr).text();
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("ANTHROPIC_API_KEY");
+    expect(stderr).toContain("is required");
+  });
+});
