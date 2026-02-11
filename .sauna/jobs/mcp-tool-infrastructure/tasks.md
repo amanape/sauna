@@ -20,7 +20,7 @@
 
 ### P1: Spec coverage gap
 
-- [ ] Add integration test verifying MCP tool names are namespaced by server name (e.g. `tavily_*`, `context7_*`) — current tests only use stubs; nothing confirms real `mcp.listTools()` output matches the naming contract — _specs/shared-mcp-client.md §Tool Exposure_
+- [x] Add integration test verifying MCP tool names are namespaced by server name (e.g. `tavily_*`, `context7_*`) — added 2 integration tests in `mcp-client.test.ts` that spawn real MCP server subprocesses via `createMcpClient()` and verify `listTools()` returns `tavily_*` / `context7_*` prefixed names with no collisions; auto-skipped when `TAVILY_API_KEY` is absent (101 tests total: 99 pass, 2 skip) — _specs/shared-mcp-client.md §Tool Exposure_
 
 ### P2: Housekeeping (not blocking ship)
 
