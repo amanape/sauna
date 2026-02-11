@@ -24,5 +24,5 @@
 
 ### P2: Housekeeping (not blocking ship)
 
-- [ ] Export `createMcpClient` and `buildMcpServerConfigs` from `src/index.ts` — currently only used internally by `cli.ts` — _specs/shared-mcp-client.md §Configuration_
+- [x] Export `createMcpClient` and `buildMcpServerConfigs` from `src/index.ts` — re-exported `createMcpClient`, `buildMcpServerConfigs`, `validateTavilyApiKey`, and `McpServerConfigs` type from `src/index.ts`; 101 tests still passing (99 pass, 2 skip) — _specs/shared-mcp-client.md §Configuration_
 - [ ] Replace 4 `any` types (`MastraOnFinishCallback`, `LLMStepResult`) when `@mastra/core` exports them — `cli.ts:49`, `cli.ts:58`, `session-runner.ts:13-14`, `session-runner.ts:21-22` — _blocked on upstream_
