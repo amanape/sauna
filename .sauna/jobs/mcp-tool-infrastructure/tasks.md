@@ -26,4 +26,4 @@
 
 - [x] Export `createMcpClient` and `buildMcpServerConfigs` from `src/index.ts` — re-exported `createMcpClient`, `buildMcpServerConfigs`, `validateTavilyApiKey`, and `McpServerConfigs` type from `src/index.ts`; 101 tests still passing (99 pass, 2 skip) — _specs/shared-mcp-client.md §Configuration_
 - [x] Replace `LLMStepResult` `any` types — `@mastra/core@1.2.0` now exports `LLMStepResult` from `@mastra/core/agent`; replaced `any` with `LLMStepResult` in `session-runner.ts:13,21` and `cli.ts:57`; fixed `noUncheckedIndexedAccess` TS error in `mcp-client.test.ts:23`; 0 tsc errors, 101 tests passing (99 pass, 2 skip)
-- [ ] Replace 2 remaining `any` types (`MastraOnFinishCallback`) when `@mastra/core` exports it — `cli.ts:49`, `session-runner.ts:14,22` — _blocked on upstream_
+- [x] Replace 2 remaining `any` types (`MastraOnFinishCallback`) — derived `OnFinishCallback` type from `Agent['stream']` parameters using `NonNullable<Parameters<Agent["stream"]>[1]>["onFinish"]`; replaced `any` in `session-runner.ts:11,19` and `cli.ts:50`; exported `OnFinishCallback` from `src/index.ts`; 0 tsc errors, 101 tests passing (99 pass, 2 skip)

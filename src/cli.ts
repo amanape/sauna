@@ -12,6 +12,7 @@ import { createMcpClient, validateTavilyApiKey } from "./mcp-client";
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent } from "./agent-definitions";
 import { SessionRunner } from "./session-runner";
+import type { OnFinishCallback } from "./session-runner";
 
 export interface CliArgs {
   codebase: string;
@@ -45,9 +46,7 @@ export interface ConversationDeps {
   agent: Agent;
   input: Readable;
   output: Writable;
-  // TODO: MastraOnFinishCallback is not publicly exported from @mastra/core.
-  // Replace `any` when Mastra exposes it.
-  onFinish?: (event: any) => Promise<void> | void;
+  onFinish?: OnFinishCallback;
 }
 
 export async function runConversation(deps: ConversationDeps): Promise<void> {
