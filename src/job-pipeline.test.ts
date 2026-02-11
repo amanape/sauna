@@ -1,5 +1,6 @@
 import { test, expect, describe, mock } from "bun:test";
 import { runJobPipeline, type JobPipelineDeps } from "./job-pipeline";
+import type { HookResult } from "./hook-executor";
 
 function textStreamFrom(chunks: string[]): ReadableStream<string> {
   return new ReadableStream({
@@ -177,5 +178,78 @@ describe("runJobPipeline", () => {
 
     const writes = (output.write as any).mock.calls.map((c: any) => c[0]);
     expect(writes).toContain("planning output");
+  });
+
+  test("passes hooks to runUntilDone when provided", async () => {
+    const hookRunner = mock(async (): Promise<HookResult> => ({ ok: true, output: "" }));
+    const builder = makeMockAgent();
+    let callCount = 0;
+    const readTasksFile = mock(async () => {
+      callCount++;
+      if (callCount <= 2) return "- [ ] Task A\n";
+      return "- [x] Task A\n";
+    });
+    const deps = makeDeps({
+      createBuilder: mock(async () => builder),
+      readTasksFile,
+      hooks: ["bun test"],
+      runHooks: hookRunner,
+      hookCwd: "/project",
+    });
+
+    await runJobPipeline(deps);
+
+    expect(hookRunner).toHaveBeenCalled();
+  });
+
+  test("does not run hooks when hooks array is empty", async () => {
+    const hookRunner = mock(async (): Promise<HookResult> => ({ ok: true, output: "" }));
+    const deps = makeDeps({
+      hooks: [],
+      runHooks: hookRunner,
+      hookCwd: "/project",
+    });
+
+    await runJobPipeline(deps);
+
+    expect(hookRunner).not.toHaveBeenCalled();
+  });
+
+  test("does not run hooks when hooks are not configured", async () => {
+    const deps = makeDeps();
+
+    // Should complete without error when no hooks are provided
+    await runJobPipeline(deps);
+  });
+
+  test("passes onHookFailure callback through to runUntilDone", async () => {
+    const onHookFailure = mock(() => {});
+    let hookCallCount = 0;
+    const hookRunner = mock(async (): Promise<HookResult> => {
+      hookCallCount++;
+      if (hookCallCount === 1) {
+        return { ok: false, failedCommand: "bun test", exitCode: 1, output: "fail" };
+      }
+      return { ok: true, output: "" };
+    });
+    const builder = makeMockAgent();
+    let taskCallCount = 0;
+    const readTasksFile = mock(async () => {
+      taskCallCount++;
+      if (taskCallCount <= 2) return "- [ ] Task\n";
+      return "- [x] Task\n";
+    });
+    const deps = makeDeps({
+      createBuilder: mock(async () => builder),
+      readTasksFile,
+      hooks: ["bun test"],
+      runHooks: hookRunner,
+      hookCwd: "/project",
+      onHookFailure,
+    });
+
+    await runJobPipeline(deps);
+
+    expect(onHookFailure).toHaveBeenCalled();
   });
 });

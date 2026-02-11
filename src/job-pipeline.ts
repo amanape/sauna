@@ -1,5 +1,6 @@
 import type { Agent } from "@mastra/core/agent";
 import type { Writable } from "node:stream";
+import type { HookResult } from "./hook-executor";
 import { runFixedCount, runUntilDone } from "./loop-runner";
 
 export interface JobPipelineDeps {
@@ -9,10 +10,15 @@ export interface JobPipelineDeps {
   output: Writable;
   plannerIterations: number;
   jobId: string;
+  hooks?: string[];
+  runHooks?: (hooks: string[], cwd: string) => Promise<HookResult>;
+  hookCwd?: string;
+  maxHookRetries?: number;
+  onHookFailure?: (failedCommand: string, attempt: number, maxRetries: number) => void;
 }
 
 export async function runJobPipeline(deps: JobPipelineDeps): Promise<void> {
-  const { createPlanner, createBuilder, readTasksFile, output, plannerIterations, jobId } = deps;
+  const { createPlanner, createBuilder, readTasksFile, output, plannerIterations, jobId, hooks, runHooks, hookCwd, maxHookRetries, onHookFailure } = deps;
 
   // Phase 1: Planning
   const planner = await createPlanner();
@@ -40,6 +46,11 @@ export async function runJobPipeline(deps: JobPipelineDeps): Promise<void> {
     agent: builder,
     message: "Begin building.",
     readTasksFile,
+    hooks,
+    runHooks,
+    hookCwd,
+    maxHookRetries,
+    onHookFailure,
     onProgress: (iteration, remaining) => {
       output.write(`Build iteration ${iteration} — ${remaining} tasks remaining\n`);
     },

@@ -13,6 +13,8 @@ import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent, createResearchAgent, createPlanningAgent, createBuilderAgent } from "./agent-definitions";
 import { SessionRunner } from "./session-runner";
 import { runJobPipeline } from "./job-pipeline";
+import { loadHooks } from "./hooks-loader";
+import { runHooks } from "./hook-executor";
 
 export interface CliArgs {
   codebase: string;
@@ -128,6 +130,7 @@ export async function main(): Promise<void> {
 
   if (args.job) {
     const tasksPath = join(args.codebase, ".sauna", "jobs", args.job, "tasks.md");
+    const hooks = await loadHooks(args.codebase);
 
     await runJobPipeline({
       createPlanner: () =>
@@ -150,6 +153,9 @@ export async function main(): Promise<void> {
       output: process.stdout,
       plannerIterations: 1,
       jobId: args.job,
+      hooks,
+      runHooks,
+      hookCwd: args.codebase,
     });
     return;
   }
