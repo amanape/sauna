@@ -1,5 +1,6 @@
 import { test, expect, describe, mock } from "bun:test";
 import { runFixedCount, runUntilDone } from "./loop-runner";
+import type { HookResult } from "./hook-executor";
 
 function textStreamFrom(chunks: string[]): ReadableStream<string> {
   return new ReadableStream({
@@ -306,5 +307,235 @@ describe("runUntilDone", () => {
     expect(agent.stream).toHaveBeenCalledTimes(1);
     // Only 1 pending task detected
     expect(onProgress.mock.calls[0]).toEqual([1, 1]);
+  });
+});
+
+describe("runUntilDone with hooks", () => {
+  test("runs hooks after each builder iteration when hooks pass", async () => {
+    const agent = makeMockAgent();
+    let readCount = 0;
+    const readTasksFile = mock(async () => {
+      readCount++;
+      if (readCount === 1) return "- [ ] Task A\n";
+      return "- [x] Task A\n";
+    });
+    const hookRunner = mock(async (): Promise<HookResult> => ({
+      ok: true,
+      output: "all good",
+    }));
+
+    await runUntilDone({
+      agent,
+      message: "Go",
+      readTasksFile,
+      hooks: ["bun test"],
+      runHooks: hookRunner,
+      hookCwd: "/project",
+    });
+
+    expect(hookRunner).toHaveBeenCalledTimes(1);
+    expect(hookRunner).toHaveBeenCalledWith(["bun test"], "/project");
+  });
+
+  test("sends hook failure output to the same session for the builder to fix", async () => {
+    const agent = makeMockAgent();
+    let readCount = 0;
+    const readTasksFile = mock(async () => {
+      readCount++;
+      if (readCount === 1) return "- [ ] Task\n";
+      return "- [x] Task\n";
+    });
+    let hookCallCount = 0;
+    const hookRunner = mock(async (): Promise<HookResult> => {
+      hookCallCount++;
+      if (hookCallCount === 1) {
+        return { ok: false, failedCommand: "bun test", exitCode: 1, output: "test failed" };
+      }
+      return { ok: true, output: "" };
+    });
+
+    await runUntilDone({
+      agent,
+      message: "Go",
+      readTasksFile,
+      hooks: ["bun test"],
+      runHooks: hookRunner,
+      hookCwd: "/project",
+      maxHookRetries: 3,
+    });
+
+    // Agent called twice: initial message + hook failure feedback (same session)
+    expect(agent.stream).toHaveBeenCalledTimes(2);
+    // The second call should include accumulated messages (same session), not a fresh one
+    const secondCall = agent.stream.mock.calls[1] as any[];
+    const [messages] = secondCall;
+    // Same session means messages accumulate: user, assistant, user (hook feedback)
+    expect(messages.length).toBeGreaterThan(1);
+    expect(messages[messages.length - 1].content).toContain("Hook failed");
+    expect(messages[messages.length - 1].content).toContain("test failed");
+  });
+
+  test("throws when max hook retries exhausted", async () => {
+    const agent = makeMockAgent();
+    const readTasksFile = mock(async () => "- [ ] Task\n");
+    const hookRunner = mock(async (): Promise<HookResult> => ({
+      ok: false,
+      failedCommand: "bun typecheck",
+      exitCode: 2,
+      output: "type error",
+    }));
+
+    await expect(
+      runUntilDone({
+        agent,
+        message: "Go",
+        readTasksFile,
+        hooks: ["bun typecheck"],
+        runHooks: hookRunner,
+        hookCwd: "/project",
+        maxHookRetries: 2,
+      }),
+    ).rejects.toThrow('Hook "bun typecheck" failed after 2 retries (exit code 2)');
+  });
+
+  test("retry counter resets for each new task", async () => {
+    const agent = makeMockAgent();
+    let readCount = 0;
+    const readTasksFile = mock(async () => {
+      readCount++;
+      // Two tasks: first completes after iteration 1, second after iteration 2
+      if (readCount === 1) return "- [ ] A\n- [ ] B\n";
+      if (readCount === 2) return "- [x] A\n- [ ] B\n";
+      return "- [x] A\n- [x] B\n";
+    });
+
+    let hookCallCount = 0;
+    const hookRunner = mock(async (): Promise<HookResult> => {
+      hookCallCount++;
+      // Fail once per task, pass on retry
+      if (hookCallCount === 1) {
+        return { ok: false, failedCommand: "bun test", exitCode: 1, output: "fail 1" };
+      }
+      if (hookCallCount === 3) {
+        return { ok: false, failedCommand: "bun test", exitCode: 1, output: "fail 2" };
+      }
+      return { ok: true, output: "" };
+    });
+
+    await runUntilDone({
+      agent,
+      message: "Go",
+      readTasksFile,
+      hooks: ["bun test"],
+      runHooks: hookRunner,
+      hookCwd: "/project",
+      maxHookRetries: 2,
+    });
+
+    // Hooks ran 4 times total: fail+pass for task A, fail+pass for task B
+    expect(hookRunner).toHaveBeenCalledTimes(4);
+  });
+
+  test("skips hooks when no hooks configured", async () => {
+    const agent = makeMockAgent();
+    let readCount = 0;
+    const readTasksFile = mock(async () => {
+      readCount++;
+      if (readCount === 1) return "- [ ] Task\n";
+      return "- [x] Task\n";
+    });
+    const hookRunner = mock(async (): Promise<HookResult> => ({
+      ok: true,
+      output: "",
+    }));
+
+    await runUntilDone({
+      agent,
+      message: "Go",
+      readTasksFile,
+      // hooks not provided
+    });
+
+    // hookRunner should not have been created/called (it wasn't even passed)
+    expect(agent.stream).toHaveBeenCalledTimes(1);
+  });
+
+  test("skips hooks when hooks array is empty", async () => {
+    const agent = makeMockAgent();
+    let readCount = 0;
+    const readTasksFile = mock(async () => {
+      readCount++;
+      if (readCount === 1) return "- [ ] Task\n";
+      return "- [x] Task\n";
+    });
+    const hookRunner = mock(async (): Promise<HookResult> => ({
+      ok: true,
+      output: "",
+    }));
+
+    await runUntilDone({
+      agent,
+      message: "Go",
+      readTasksFile,
+      hooks: [],
+      runHooks: hookRunner,
+      hookCwd: "/project",
+    });
+
+    expect(hookRunner).toHaveBeenCalledTimes(0);
+  });
+
+  test("calls onHookFailure callback on each failed attempt", async () => {
+    const agent = makeMockAgent();
+    const readTasksFile = mock(async () => "- [ ] Task\n");
+    const hookRunner = mock(async (): Promise<HookResult> => ({
+      ok: false,
+      failedCommand: "bun test",
+      exitCode: 1,
+      output: "error",
+    }));
+    const onHookFailure = mock(() => {});
+
+    await expect(
+      runUntilDone({
+        agent,
+        message: "Go",
+        readTasksFile,
+        hooks: ["bun test"],
+        runHooks: hookRunner,
+        hookCwd: "/project",
+        maxHookRetries: 3,
+        onHookFailure,
+      }),
+    ).rejects.toThrow();
+
+    expect(onHookFailure).toHaveBeenCalledTimes(3);
+    expect(onHookFailure.mock.calls[0]).toEqual(["bun test", 1, 3]);
+    expect(onHookFailure.mock.calls[1]).toEqual(["bun test", 2, 3]);
+    expect(onHookFailure.mock.calls[2]).toEqual(["bun test", 3, 3]);
+  });
+
+  test("default max hook retries is 3", async () => {
+    const agent = makeMockAgent();
+    const readTasksFile = mock(async () => "- [ ] Task\n");
+    const hookRunner = mock(async (): Promise<HookResult> => ({
+      ok: false,
+      failedCommand: "bun test",
+      exitCode: 1,
+      output: "error",
+    }));
+
+    await expect(
+      runUntilDone({
+        agent,
+        message: "Go",
+        readTasksFile,
+        hooks: ["bun test"],
+        runHooks: hookRunner,
+        hookCwd: "/project",
+      }),
+    ).rejects.toThrow("failed after 3 retries");
+
+    expect(hookRunner).toHaveBeenCalledTimes(3);
   });
 });
