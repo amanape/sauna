@@ -3,9 +3,9 @@
 ## P0: Agent Definitions (spec: agent-definitions.md)
 
 - [x] Refactor `createDiscoveryAgent()` to accept researcher as a parameter instead of creating its own — currently hardcoded at `src/agent-definitions.ts:43-47` (spec: shared researcher)
-- [ ] Remove `OutputConstrainedFilesystem` — delete `src/output-constrained-filesystem.ts` and `src/output-constrained-filesystem.test.ts` (spec: workspace simplification)
-- [ ] Remove `outputDir` option from `createWorkspace()` in `src/workspace-factory.ts` and its `OutputConstrainedFilesystem` import (spec: workspace simplification)
-- [ ] Update CLI `main()` in `src/cli.ts` to stop passing `outputDir` and to pass researcher to `createDiscoveryAgent()` (spec: workspace simplification + shared researcher)
+- [x] Remove `OutputConstrainedFilesystem` — delete `src/output-constrained-filesystem.ts` and `src/output-constrained-filesystem.test.ts` (spec: workspace simplification)
+- [x] Remove `outputDir` option from `createWorkspace()` in `src/workspace-factory.ts` and its `OutputConstrainedFilesystem` import (spec: workspace simplification)
+- [x] Update CLI `main()` in `src/cli.ts` to stop passing `outputDir` and to pass researcher to `createDiscoveryAgent()` (spec: workspace simplification + shared researcher)
 - [ ] Create `createPlanningAgent()` factory — accepts config with researcher, tools, workspace, jobId; substitutes `${JOB_ID}` in `plan.md` prompt; agent id `"planner"` (spec: agent-definitions)
 - [ ] Create `createBuilderAgent()` factory — same pattern; substitutes `${JOB_ID}` in `build.md` prompt; agent id `"builder"`; shell execution via sandbox (spec: agent-definitions)
 - [ ] Update `src/index.ts` exports — add new agent factories and their config types (spec: agent-definitions)
@@ -26,7 +26,7 @@
 
 ## P3: Tests
 
-- [ ] Update `cli.test.ts` — reflect removal of `outputDir`/output constraint, addition of `--job` flag, researcher parameter change (spec: agent-definitions + loop-runner)
+- [ ] Update `cli.test.ts` — reflect addition of `--job` flag (spec: loop-runner). Note: `outputDir` constraint tests already removed alongside `OutputConstrainedFilesystem` deletion; researcher parameter change already reflected.
 - [ ] Add tests for `createPlanningAgent()` and `createBuilderAgent()` — config wiring, `${JOB_ID}` substitution, researcher sub-agent (spec: agent-definitions)
 - [ ] Add tests for fixed-count loop runner — iteration count, fresh session per iteration, progress reporting (spec: loop-runner)
 - [ ] Add tests for until-done loop runner — `- [ ]` completion condition, safety limit, progress reporting (spec: loop-runner)

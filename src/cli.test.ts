@@ -267,44 +267,7 @@ describe("createWorkspace", () => {
     }
   });
 
-  test("with outputDir, writes inside output directory succeed", async () => {
-    mkdirSync(join(testDir, "jobs"), { recursive: true });
-    const workspace = createWorkspace(testDir, { outputDir: "jobs" });
-    await workspace.init();
-    try {
-      await workspace.filesystem!.writeFile("jobs/spec.md", "# Spec");
-      const content = await workspace.filesystem!.readFile("jobs/spec.md");
-      expect(content.toString()).toBe("# Spec");
-    } finally {
-      await workspace.destroy();
-      rmSync(join(testDir, "jobs"), { recursive: true, force: true });
-    }
-  });
-
-  test("with outputDir, writes outside output directory are blocked", async () => {
-    const workspace = createWorkspace(testDir, { outputDir: "jobs" });
-    await workspace.init();
-    try {
-      await expect(
-        workspace.filesystem!.writeFile("src/hack.txt", "bad"),
-      ).rejects.toThrow("output directory");
-    } finally {
-      await workspace.destroy();
-    }
-  });
-
-  test("with outputDir, reads outside output directory still work", async () => {
-    const workspace = createWorkspace(testDir, { outputDir: "jobs" });
-    await workspace.init();
-    try {
-      const content = await workspace.filesystem!.readFile("hello.txt");
-      expect(content.toString()).toBe("hello world");
-    } finally {
-      await workspace.destroy();
-    }
-  });
-
-  test("without outputDir, writes anywhere within codebase are allowed", async () => {
+  test("writes anywhere within codebase are allowed", async () => {
     const workspace = createWorkspace(testDir);
     await workspace.init();
     try {

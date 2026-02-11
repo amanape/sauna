@@ -104,7 +104,6 @@ export async function main(): Promise<void> {
   const tools = createTools(searchFn);
   const workspace = createWorkspace(args.codebase, {
     skillsPaths: [".sauna/skills"],
-    outputDir: args.output,
   });
   const systemPrompt = await Bun.file(
     resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),
