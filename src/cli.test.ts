@@ -4,12 +4,26 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { realpathSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { Agent, LLMStepResult } from "@mastra/core/agent";
+import type { MessageInput } from "@mastra/core/agent/message-list";
 import { createTool } from "@mastra/core/tools";
 import * as z from "zod";
 import { parseCliArgs, runConversation, type ConversationDeps } from "./cli";
+import type { OnFinishCallback } from "./session-runner";
 import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent, createResearchAgent } from "./agent-definitions";
+
+/** Extract the stream options type from Agent.stream()'s second parameter */
+type StreamOptions = NonNullable<Parameters<Agent["stream"]>[1]>;
+
+/** Mock stream function signature matching Agent.stream() */
+type MockStreamFn = (messages: MessageInput[], opts: StreamOptions) => ReturnType<Agent["stream"]>;
+
+/** Typed accessor for mock call arguments */
+function mockCallArgs(fn: ReturnType<typeof mock>, index: number) {
+  return fn.mock.calls[index] as unknown as [MessageInput[], StreamOptions];
+}
 
 describe("parseCliArgs", () => {
   test("parses --codebase as required argument", () => {
@@ -438,8 +452,8 @@ describe("runConversation", () => {
   }
 
   function makeDeps(overrides?: {
-    streamImpl?: (...args: any[]) => any;
-    onFinish?: (event: any) => Promise<void> | void;
+    streamImpl?: MockStreamFn;
+    onFinish?: OnFinishCallback;
   }) {
     const input = new PassThrough();
     const output = new PassThrough();
@@ -458,7 +472,7 @@ describe("runConversation", () => {
       })),
     );
 
-    const mockAgent = { stream: mockStream } as any;
+    const mockAgent = { stream: mockStream } as unknown as Agent;
 
     const deps: ConversationDeps = {
       agent: mockAgent,
@@ -511,14 +525,14 @@ describe("runConversation", () => {
     const captured = output.read();
     expect(captured).toContain("Hello from AI");
     expect(mockStream.mock.calls.length).toBeGreaterThanOrEqual(1);
-    const [messages] = (mockStream.mock.calls as any)[0];
+    const [messages] = mockCallArgs(mockStream, 0);
     expect(messages).toContainEqual({ role: "user", content: "Hello" });
   });
 
   test("accumulates messages across multiple turns", async () => {
     let callCount = 0;
     const { input, output, mockStream, deps } = makeDeps({
-      streamImpl: async (msgs: any[]) => {
+      streamImpl: async (msgs: MessageInput[]) => {
         callCount++;
         const text = `Response ${callCount}`;
         return {
@@ -542,7 +556,7 @@ describe("runConversation", () => {
     await done;
 
     expect(callCount).toBe(2);
-    const [secondMessages] = (mockStream.mock.calls as any)[1];
+    const [secondMessages] = mockCallArgs(mockStream, 1);
     expect(secondMessages).toContainEqual({ role: "user", content: "First" });
     expect(secondMessages).toContainEqual({ role: "assistant", content: "Response 1" });
     expect(secondMessages).toContainEqual({ role: "user", content: "Second" });
@@ -564,8 +578,8 @@ describe("runConversation", () => {
 
   test("surfaces workspace write_file results as notifications", async () => {
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: any[], opts: any) => {
-        opts.onStepFinish({
+      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+        opts.onStepFinish!({
           toolResults: [
             {
               payload: {
@@ -580,7 +594,7 @@ describe("runConversation", () => {
               },
             },
           ],
-        });
+        } as LLMStepResult);
         return {
           textStream: textStreamFrom(["Done writing."]),
           getFullOutput: async () => ({
@@ -606,8 +620,8 @@ describe("runConversation", () => {
 
   test("does not surface failed workspace write_file results", async () => {
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: any[], opts: any) => {
-        opts.onStepFinish({
+      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+        opts.onStepFinish!({
           toolResults: [
             {
               payload: {
@@ -616,7 +630,7 @@ describe("runConversation", () => {
               },
             },
           ],
-        });
+        } as LLMStepResult);
         return {
           textStream: textStreamFrom(["Failed."]),
           getFullOutput: async () => ({
@@ -643,10 +657,10 @@ describe("runConversation", () => {
     const onFinish = mock(async () => {});
     const { input, output, deps } = makeDeps({
       onFinish,
-      streamImpl: async (msgs: any[], opts: any) => {
+      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
         // Simulate Mastra calling onFinish after completion
         if (opts.onFinish) {
-          opts.onFinish({ text: "Done.", messages: msgs, toolResults: [] });
+          opts.onFinish({ text: "Done.", messages: msgs, toolResults: [] } as Parameters<NonNullable<StreamOptions["onFinish"]>>[0]);
         }
         return {
           textStream: textStreamFrom(["Done."]),
@@ -667,16 +681,16 @@ describe("runConversation", () => {
     await done;
 
     expect(onFinish).toHaveBeenCalledTimes(1);
-    const [finishEvent] = (onFinish.mock.calls as any)[0];
+    const [finishEvent] = onFinish.mock.calls[0] as unknown as [Parameters<NonNullable<OnFinishCallback>>[0]];
     expect(finishEvent.text).toBe("Done.");
   });
 
   test("passes onFinish to agent.stream options so Mastra invokes it", async () => {
-    let capturedOpts: any = null;
+    let capturedOpts: StreamOptions | null = null;
     const onFinish = mock(async () => {});
     const { input, output, deps } = makeDeps({
       onFinish,
-      streamImpl: async (msgs: any[], opts: any) => {
+      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
         capturedOpts = opts;
         return {
           textStream: textStreamFrom(["Response"]),
@@ -693,13 +707,13 @@ describe("runConversation", () => {
     input.end();
     await done;
 
-    expect(capturedOpts.onFinish).toBe(onFinish);
+    expect(capturedOpts!.onFinish).toBe(onFinish);
   });
 
   test("does not pass onFinish when not provided in deps", async () => {
-    let capturedOpts: any = null;
+    let capturedOpts: StreamOptions | null = null;
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: any[], opts: any) => {
+      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
         capturedOpts = opts;
         return {
           textStream: textStreamFrom(["Response"]),
@@ -716,7 +730,7 @@ describe("runConversation", () => {
     input.end();
     await done;
 
-    expect(capturedOpts.onFinish).toBeUndefined();
+    expect(capturedOpts!.onFinish).toBeUndefined();
   });
 
   test("completes cleanly on EOF", async () => {
