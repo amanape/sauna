@@ -7,9 +7,9 @@
 
 ## P1: Agent Wiring
 
-- [ ] Change `DiscoveryAgentConfig.tools` and `ResearchAgentConfig.tools` types from `ReturnType<typeof createTools>` to the MCP tools record type — _tool-layer-replacement.md_
-- [ ] Update `createDiscoveryAgent`/`createResearchAgent` to pass MCP tools to the `Agent` constructor (already pass `config.tools` through — just needs type alignment) — _tool-layer-replacement.md_
-- [ ] Update agent instructions to reference both web search and documentation lookup capabilities — _tool-layer-replacement.md_
+- [x] Change `DiscoveryAgentConfig.tools` and `ResearchAgentConfig.tools` types from `ReturnType<typeof createTools>` to the MCP tools record type — _tool-layer-replacement.md_
+- [x] Update `createDiscoveryAgent`/`createResearchAgent` to pass MCP tools to the `Agent` constructor (already pass `config.tools` through — just needs type alignment) — _tool-layer-replacement.md_
+- [x] Update agent instructions to reference both web search and documentation lookup capabilities — _tool-layer-replacement.md_
 
 ## P2: CLI Integration
 
@@ -28,4 +28,4 @@
 
 - [x] Add tests for MCP client factory (env injection, server configuration, disconnection) — _shared-mcp-client.md_
 - [ ] Update `cli.test.ts`: remove `createTools`/`resolveSearchFn` tests, add MCP client integration tests — _tool-layer-replacement.md_
-- [ ] Update agent definition tests to verify agents receive MCP tools record — _tool-layer-replacement.md_
+- [x] Update agent definition tests to verify agents receive MCP tools record — _tool-layer-replacement.md_

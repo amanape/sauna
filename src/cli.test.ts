@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { realpathSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { createTool } from "@mastra/core/tools";
+import * as z from "zod";
 import { parseCliArgs, runConversation, type ConversationDeps } from "./cli";
 import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
 import { createTools, resolveSearchFn } from "./tool-factory";
@@ -122,6 +124,22 @@ describe("validateApiKey", () => {
 const stubSearchFn = async () => [
   { title: "Stub", snippet: "stub result", url: "https://example.com" },
 ];
+
+/** Stub MCP tools record matching ToolsInput for agent definition tests */
+const stubMcpTools = {
+  tavily_web_search: createTool({
+    id: "tavily_web_search",
+    description: "Search the web",
+    inputSchema: z.object({ query: z.string() }),
+    async execute({ query }) { return `results for ${query}`; },
+  }),
+  context7_lookup: createTool({
+    id: "context7_lookup",
+    description: "Look up library documentation",
+    inputSchema: z.object({ library: z.string() }),
+    async execute({ library }) { return `docs for ${library}`; },
+  }),
+};
 
 describe("createTools", () => {
   test("returns a record with only web_search key", () => {
@@ -314,34 +332,31 @@ describe("createWorkspace", () => {
 
 describe("createDiscoveryAgent", () => {
   test("defaults model to DEFAULT_MODEL when not specified", () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a test agent.",
-      tools,
+      tools: stubMcpTools,
       workspace,
     });
     expect(agent.model).toBe(DEFAULT_MODEL);
   });
 
   test("uses provided model when specified", () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a test agent.",
       model: "openai/gpt-4",
-      tools,
+      tools: stubMcpTools,
       workspace,
     });
     expect(agent.model).toBe("openai/gpt-4");
   });
 
   test("wires system prompt as instructions", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a JTBD discovery agent.",
-      tools,
+      tools: stubMcpTools,
       workspace,
     });
     const instructions = await agent.getInstructions();
@@ -349,11 +364,10 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("appends output directory to system prompt when provided", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a JTBD discovery agent.",
-      tools,
+      tools: stubMcpTools,
       workspace,
       outputPath: "/my/output",
     });
@@ -363,94 +377,88 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("does not modify system prompt when outputPath is absent", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a JTBD discovery agent.",
-      tools,
+      tools: stubMcpTools,
       workspace,
     });
     const instructions = await agent.getInstructions();
     expect(instructions).toBe("You are a JTBD discovery agent.");
   });
 
-  test("includes web_search in agent tools", async () => {
-    const tools = createTools(stubSearchFn);
+  test("exposes MCP tools passed via config", async () => {
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
-      tools,
+      tools: stubMcpTools,
       workspace,
     });
     const agentTools = await agent.listTools();
     const toolIds = Object.keys(agentTools);
-    expect(toolIds).toContain("web_search");
+    expect(toolIds).toContain("tavily_web_search");
+    expect(toolIds).toContain("context7_lookup");
   });
 });
 
 describe("createResearchAgent", () => {
   test("defaults model to DEFAULT_MODEL when not specified", () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace });
     expect(agent.model).toBe(DEFAULT_MODEL);
   });
 
   test("uses provided model when specified", () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace, model: "openai/gpt-4" });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace, model: "openai/gpt-4" });
     expect(agent.model).toBe("openai/gpt-4");
   });
 
-  test("has instructions describing autonomous research role", async () => {
-    const tools = createTools(stubSearchFn);
+  test("has instructions referencing research, web search, and documentation lookup", async () => {
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace });
     const instructions = await agent.getInstructions();
     expect(instructions).toContain("research");
+    expect(instructions).toContain("web search");
+    expect(instructions).toContain("documentation lookup");
   });
 
-  test("includes web_search in agent tools", async () => {
-    const tools = createTools(stubSearchFn);
+  test("exposes MCP tools passed via config", async () => {
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace });
     const agentTools = await agent.listTools();
     const toolIds = Object.keys(agentTools);
-    expect(toolIds).toContain("web_search");
+    expect(toolIds).toContain("tavily_web_search");
+    expect(toolIds).toContain("context7_lookup");
   });
 
   test("sets maxSteps via defaultOptions", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace, maxSteps: 25 });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace, maxSteps: 25 });
     const opts = await agent.getDefaultOptions();
     expect(opts?.maxSteps).toBe(25);
   });
 
   test("defaults maxSteps to 30 when not specified", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace });
     const opts = await agent.getDefaultOptions();
     expect(opts?.maxSteps).toBe(30);
   });
 
   test("has a description for parent agent tool exposure", () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace });
     expect(agent.getDescription()).toBeTruthy();
   });
 });
 
 describe("createDiscoveryAgent — sub-agents", () => {
   test("registers researcher as a sub-agent", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
-      tools,
+      tools: stubMcpTools,
       workspace,
     });
     const agents = await agent.listAgents();
@@ -458,12 +466,11 @@ describe("createDiscoveryAgent — sub-agents", () => {
   });
 
   test("researcher agent inherits model from discovery agent config", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
       model: "openai/gpt-4",
-      tools,
+      tools: stubMcpTools,
       workspace,
     });
     const agents = await agent.listAgents();
