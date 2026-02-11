@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import { Agent } from "@mastra/core/agent";
 import type { Workspace } from "@mastra/core/workspace";
 
@@ -44,6 +46,30 @@ export function createDiscoveryAgent(config: DiscoveryAgentConfig): Agent {
   return new Agent({
     id: "discovery",
     name: "discovery",
+    instructions,
+    model: config.model ?? DEFAULT_MODEL,
+    tools: config.tools,
+    workspace: config.workspace,
+    agents: { researcher: config.researcher },
+  });
+}
+
+export interface PlanningAgentConfig {
+  model?: string;
+  tools: ReturnType<typeof createTools>;
+  workspace: Workspace;
+  researcher: Agent;
+  jobId: string;
+}
+
+export async function createPlanningAgent(config: PlanningAgentConfig): Promise<Agent> {
+  const promptPath = resolve(import.meta.dirname, "../.sauna/prompts/plan.md");
+  const raw = await Bun.file(promptPath).text();
+  const instructions = raw.replaceAll("${JOB_ID}", config.jobId);
+
+  return new Agent({
+    id: "planner",
+    name: "planner",
     instructions,
     model: config.model ?? DEFAULT_MODEL,
     tools: config.tools,
