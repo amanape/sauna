@@ -19,13 +19,13 @@
 
 ## P3: Cleanup — Remove Old Tool Layer
 
-- [ ] Delete `src/tools/search-backends.ts` and `src/tools/search-backends.test.ts` — _tool-layer-replacement.md_
-- [ ] Delete `src/tools/web-search.ts` and `src/tools/web-search.test.ts` — _tool-layer-replacement.md_
-- [ ] Delete `src/tool-factory.ts` — _tool-layer-replacement.md_
-- [ ] Remove `createTools` and `resolveSearchFn` exports from `src/index.ts` — _tool-layer-replacement.md_
+- [x] Delete `src/tools/search-backends.ts` and `src/tools/search-backends.test.ts` — _tool-layer-replacement.md_
+- [x] Delete `src/tools/web-search.ts` and `src/tools/web-search.test.ts` — _tool-layer-replacement.md_
+- [x] Delete `src/tool-factory.ts` — _tool-layer-replacement.md_
+- [x] Remove `createTools` and `resolveSearchFn` exports from `src/index.ts` — _tool-layer-replacement.md_
 
 ## P4: Test Updates
 
 - [x] Add tests for MCP client factory (env injection, server configuration, disconnection) — _shared-mcp-client.md_
-- [ ] Update `cli.test.ts`: remove `createTools`/`resolveSearchFn` tests, add MCP client integration tests — _tool-layer-replacement.md_
+- [x] Update `cli.test.ts`: remove `createTools`/`resolveSearchFn` tests, add MCP client integration tests — _tool-layer-replacement.md_ — Removed 6 legacy tool-factory tests and the `stubSearchFn` helper. MCP client integration is already covered by the subprocess startup validation test and `mcp-client.test.ts`.
 - [x] Update agent definition tests to verify agents receive MCP tools record — _tool-layer-replacement.md_

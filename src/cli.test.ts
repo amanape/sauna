@@ -8,7 +8,6 @@ import { createTool } from "@mastra/core/tools";
 import * as z from "zod";
 import { parseCliArgs, runConversation, type ConversationDeps } from "./cli";
 import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
-import { createTools, resolveSearchFn } from "./tool-factory";
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent, createResearchAgent } from "./agent-definitions";
 
@@ -121,10 +120,6 @@ describe("validateApiKey", () => {
   });
 });
 
-const stubSearchFn = async () => [
-  { title: "Stub", snippet: "stub result", url: "https://example.com" },
-];
-
 /** Stub MCP tools record matching ToolsInput for agent definition tests */
 const stubMcpTools = {
   tavily_web_search: createTool({
@@ -141,53 +136,6 @@ const stubMcpTools = {
   }),
 };
 
-describe("createTools", () => {
-  test("returns a record with only web_search key", () => {
-    const tools = createTools(stubSearchFn);
-    expect(Object.keys(tools)).toEqual(["web_search"]);
-  });
-
-  test("web_search tool has execute function", () => {
-    const tools = createTools(stubSearchFn);
-    expect(typeof tools.web_search.execute).toBe("function");
-  });
-
-  test("injects custom search function", async () => {
-    const searchFn = async (query: string) => [
-      { title: "Result", snippet: "A result", url: "https://example.com" },
-    ];
-    const tools = createTools(searchFn);
-    const result = await tools.web_search.execute!({ query: "test" }, {} as any);
-    expect(result).toContain("Result");
-  });
-});
-
-describe("resolveSearchFn", () => {
-  test("returns a Tavily-backed search function when TAVILY_API_KEY is set", async () => {
-    const searchFn = resolveSearchFn({ TAVILY_API_KEY: "tvly-test-key" });
-    // The returned function should be callable (not the default error thrower)
-    // We can't call a real API, but we can verify it doesn't throw synchronously
-    expect(typeof searchFn).toBe("function");
-    // Calling it should attempt a fetch (not throw "not configured")
-    // We verify by checking it doesn't throw the default error message
-    try {
-      await searchFn("test query");
-    } catch (e: any) {
-      // Should NOT be the "not configured" error — it should be a network/fetch error
-      expect(e.message).not.toContain("not configured");
-    }
-  });
-
-  test("returns error-throwing function when TAVILY_API_KEY is absent", async () => {
-    const searchFn = resolveSearchFn({});
-    await expect(searchFn("test")).rejects.toThrow("TAVILY_API_KEY");
-  });
-
-  test("error message suggests setting the environment variable", async () => {
-    const searchFn = resolveSearchFn({});
-    await expect(searchFn("test")).rejects.toThrow("TAVILY_API_KEY");
-  });
-});
 
 describe("createWorkspace", () => {
   // Create temp dirs: parent has an outside file, child is the workspace base

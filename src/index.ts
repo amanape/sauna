@@ -2,7 +2,6 @@
 // Re-exports from all modules for external consumers
 
 export { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
-export { createTools, resolveSearchFn } from "./tool-factory";
 export { createWorkspace, type WorkspaceOptions } from "./workspace-factory";
 export { createDiscoveryAgent, createResearchAgent, type DiscoveryAgentConfig, type ResearchAgentConfig } from "./agent-definitions";
 export { SessionRunner, type SessionRunnerConfig } from "./session-runner";
