@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { buildMcpServerConfigs, createMcpClient } from "./mcp-client";
+import { buildMcpServerConfigs, createMcpClient, validateTavilyApiKey } from "./mcp-client";
 import { MCPClient } from "@mastra/mcp";
 
 describe("buildMcpServerConfigs", () => {
@@ -35,6 +35,21 @@ describe("buildMcpServerConfigs", () => {
   test("configures exactly two servers", () => {
     const config = buildMcpServerConfigs({ TAVILY_API_KEY: "key" });
     expect(Object.keys(config.servers)).toEqual(["tavily", "context7"]);
+  });
+});
+
+describe("validateTavilyApiKey", () => {
+  test("does not throw when TAVILY_API_KEY is present", () => {
+    expect(() => validateTavilyApiKey({ TAVILY_API_KEY: "tvly-test" })).not.toThrow();
+  });
+
+  test("throws when TAVILY_API_KEY is missing", () => {
+    expect(() => validateTavilyApiKey({})).toThrow("TAVILY_API_KEY");
+    expect(() => validateTavilyApiKey({})).toThrow("is required");
+  });
+
+  test("throws when TAVILY_API_KEY is empty string", () => {
+    expect(() => validateTavilyApiKey({ TAVILY_API_KEY: "" })).toThrow("TAVILY_API_KEY");
   });
 });
 

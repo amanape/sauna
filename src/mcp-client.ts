@@ -5,6 +5,16 @@ export interface McpServerConfigs {
 }
 
 /**
+ * Throws if TAVILY_API_KEY is missing or empty.
+ * Call at startup to fail fast before the MCP client silently starts without it.
+ */
+export function validateTavilyApiKey(env: Record<string, string | undefined>): void {
+  if (!env.TAVILY_API_KEY) {
+    throw new Error("TAVILY_API_KEY environment variable is required");
+  }
+}
+
+/**
  * Build MCP server configuration from an env record.
  * Pure function — testable without spawning servers.
  */

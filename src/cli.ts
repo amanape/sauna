@@ -7,7 +7,7 @@ import { Agent } from "@mastra/core/agent";
 import type { Readable, Writable } from "node:stream";
 
 import { validateApiKey } from "./model-resolution";
-import { createMcpClient } from "./mcp-client";
+import { createMcpClient, validateTavilyApiKey } from "./mcp-client";
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent } from "./agent-definitions";
 import { SessionRunner } from "./session-runner";
@@ -95,6 +95,7 @@ export async function main(): Promise<void> {
 
   try {
     validateApiKey(process.env, args.model);
+    validateTavilyApiKey(process.env);
   } catch (e: unknown) {
     console.error(e instanceof Error ? e.message : String(e));
     process.exit(1);

@@ -751,4 +751,28 @@ describe("main() startup validation", () => {
     expect(stderr).toContain("ANTHROPIC_API_KEY");
     expect(stderr).toContain("is required");
   });
+
+  test("exits with error when TAVILY_API_KEY is missing", async () => {
+    const entrypoint = resolve(import.meta.dirname, "../index.ts");
+    // Provide the LLM key so the first validation passes, but strip TAVILY_API_KEY
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(
+        ([k]) => k !== "TAVILY_API_KEY",
+      ),
+    );
+    env.ANTHROPIC_API_KEY = "test-key-for-validation";
+
+    const proc = Bun.spawn(["bun", entrypoint, "--codebase", "/tmp"], {
+      env,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    const exitCode = await proc.exited;
+    const stderr = await new Response(proc.stderr).text();
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("TAVILY_API_KEY");
+    expect(stderr).toContain("is required");
+  });
 });
