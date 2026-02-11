@@ -8,7 +8,7 @@
 - [x] Update CLI `main()` in `src/cli.ts` to stop passing `outputDir` and to pass researcher to `createDiscoveryAgent()` (spec: workspace simplification + shared researcher)
 - [x] Create `createPlanningAgent()` factory — accepts config with researcher, tools, workspace, jobId; substitutes `${JOB_ID}` in `plan.md` prompt; agent id `"planner"` (spec: agent-definitions)
 - [x] Create `createBuilderAgent()` factory — same pattern; substitutes `${JOB_ID}` in `build.md` prompt; agent id `"builder"`; shell execution via sandbox (spec: agent-definitions)
-- [ ] Update `src/index.ts` exports — add new agent factories and their config types (spec: agent-definitions)
+- [x] Update `src/index.ts` exports — add new agent factories and their config types (spec: agent-definitions). Done: exported `createPlanningAgent`, `createBuilderAgent`, `PlanningAgentConfig`, `BuilderAgentConfig`; added `src/index.test.ts` verifying exports.
 
 ## P1: Loop Runner (spec: loop-runner.md)
 
