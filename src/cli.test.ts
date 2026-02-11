@@ -62,6 +62,58 @@ describe("parseCliArgs", () => {
     expect(result.output).toBe("/my/output");
     expect(result.model).toBe("gpt-4");
   });
+
+  test("defaults --job to undefined", () => {
+    const result = parseCliArgs(["--codebase", "/some/path"]);
+    expect(result.job).toBeUndefined();
+  });
+
+  test("parses --job and resolves to .sauna/jobs/<slug>/", () => {
+    // Create a temp codebase with a valid job directory
+    const tmp = join(tmpdir(), `method6-job-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs(["--codebase", tmp, "--job", "my-job"]);
+      expect(result.job).toBe("my-job");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("throws when --job directory does not exist", () => {
+    const tmp = join(tmpdir(), `method6-job-nojob-${Date.now()}`);
+    mkdirSync(tmp, { recursive: true });
+    try {
+      expect(() =>
+        parseCliArgs(["--codebase", tmp, "--job", "nonexistent"]),
+      ).toThrow("nonexistent");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("--job requires --codebase to resolve path", () => {
+    expect(() => parseCliArgs(["--job", "my-job"])).toThrow("--codebase");
+  });
+
+  test("parses --job alongside all other arguments", () => {
+    const tmp = join(tmpdir(), `method6-job-all-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "test-job"), { recursive: true });
+    try {
+      const result = parseCliArgs([
+        "--codebase", tmp,
+        "--output", "/custom/out",
+        "--model", "gpt-4",
+        "--job", "test-job",
+      ]);
+      expect(result.codebase).toBe(tmp);
+      expect(result.output).toBe("/custom/out");
+      expect(result.model).toBe("gpt-4");
+      expect(result.job).toBe("test-job");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("getProviderFromModel", () => {
