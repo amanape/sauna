@@ -10,3 +10,4 @@ export { runFixedCount, runUntilDone, type FixedCountConfig, type UntilDoneConfi
 export { runJobPipeline, type JobPipelineDeps } from "./job-pipeline";
 export { parseCliArgs, runConversation, type CliArgs, type ConversationDeps } from "./cli";
 export { loadHooks } from "./hooks-loader";
+export { runHooks, type HookResult, type HookSuccess, type HookFailure } from "./hook-executor";
