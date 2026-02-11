@@ -13,7 +13,7 @@
 ## P1: Loop Runner (spec: loop-runner.md)
 
 - [x] Add `--job <slug>` CLI flag to `parseCliArgs()` — resolves to `.sauna/jobs/<slug>/`; validates directory exists (spec: loop-runner, job resolution). Done: added optional `job` field to `CliArgs`, `--job` option to `parseArgs`, directory existence validation; 6 tests added in `cli.test.ts` (mutation-tested).
-- [ ] Implement fixed-count loop runner — runs agent N times with fresh `SessionRunner` per iteration; streams output; reports progress `"Iteration 3/10"` (spec: loop-runner, iteration strategies)
+- [x] Implement fixed-count loop runner — runs agent N times with fresh `SessionRunner` per iteration; streams output; reports progress `"Iteration 3/10"` (spec: loop-runner, iteration strategies). Done: `runFixedCount()` in `src/loop-runner.ts`; exported from `src/index.ts`; 7 tests in `src/loop-runner.test.ts`.
 - [ ] Implement until-done loop runner — runs agent until no `- [ ]` lines in `tasks.md`; fresh session per iteration; configurable safety limit (spec: loop-runner, iteration strategies)
 - [ ] Wire loop runners into CLI — `--job` selects planner/builder mode vs current interactive discovery mode (spec: loop-runner)
 
@@ -28,6 +28,6 @@
 
 - [x] Update `cli.test.ts` — reflect addition of `--job` flag (spec: loop-runner). Note: `outputDir` constraint tests already removed alongside `OutputConstrainedFilesystem` deletion; researcher parameter change already reflected. Done: 6 tests added covering parsing, directory validation, error cases, and combination with other flags.
 - [x] Add tests for `createPlanningAgent()` and `createBuilderAgent()` — config wiring, `${JOB_ID}` substitution, researcher sub-agent (spec: agent-definitions). Note: both added in `src/agent-definitions.test.ts`; mutation-tested to confirm tests catch breakage.
-- [ ] Add tests for fixed-count loop runner — iteration count, fresh session per iteration, progress reporting (spec: loop-runner)
+- [x] Add tests for fixed-count loop runner — iteration count, fresh session per iteration, progress reporting (spec: loop-runner). Done: 7 tests in `src/loop-runner.test.ts` covering iteration count, fresh sessions, progress callbacks, stream consumption, validation, and output streaming.
 - [ ] Add tests for until-done loop runner — `- [ ]` completion condition, safety limit, progress reporting (spec: loop-runner)
 - [ ] Add tests for hooks loader, executor, retry logic — pass/fail semantics, failure feedback injection, max retry halt (spec: builder-hooks)

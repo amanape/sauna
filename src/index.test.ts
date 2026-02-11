@@ -9,3 +9,7 @@ test("exports createPlanningAgent", () => {
 test("exports createBuilderAgent", () => {
   expect(typeof publicApi.createBuilderAgent).toBe("function");
 });
+
+test("exports runFixedCount", () => {
+  expect(typeof publicApi.runFixedCount).toBe("function");
+});
