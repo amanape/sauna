@@ -4,3 +4,6 @@
 - Support Markdown
 - discovery agent should create jobs in .sauna/jobs
 - Use search engine / tavily MCP instead?
+- Error handling
+- Ability to monitor what builder and planner are doing; figure out best solution to convey some sort of requirement to the agent
+- Break down discovery.md into multiple skills?
