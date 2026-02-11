@@ -9,7 +9,7 @@ import type { Readable, Writable } from "node:stream";
 import { validateApiKey } from "./model-resolution";
 import { createTools, resolveSearchFn } from "./tool-factory";
 import { createWorkspace } from "./workspace-factory";
-import { createDiscoveryAgent } from "./agent-definitions";
+import { createDiscoveryAgent, createResearchAgent } from "./agent-definitions";
 import { SessionRunner } from "./session-runner";
 
 export interface CliArgs {
@@ -110,11 +110,18 @@ export async function main(): Promise<void> {
     resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),
   ).text();
 
+  const researcher = createResearchAgent({
+    model: args.model,
+    tools,
+    workspace,
+  });
+
   const agent = createDiscoveryAgent({
     systemPrompt,
     model: args.model,
     tools,
     workspace,
+    researcher,
     outputPath: args.output,
   });
 

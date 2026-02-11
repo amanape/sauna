@@ -123,6 +123,12 @@ const stubSearchFn = async () => [
   { title: "Stub", snippet: "stub result", url: "https://example.com" },
 ];
 
+function stubResearcher() {
+  const tools = createTools(stubSearchFn);
+  const workspace = createWorkspace("/tmp");
+  return createResearchAgent({ tools, workspace });
+}
+
 describe("createTools", () => {
   test("returns a record with only web_search key", () => {
     const tools = createTools(stubSearchFn);
@@ -320,6 +326,7 @@ describe("createDiscoveryAgent", () => {
       systemPrompt: "You are a test agent.",
       tools,
       workspace,
+      researcher: stubResearcher(),
     });
     expect(agent.model).toBe(DEFAULT_MODEL);
   });
@@ -332,6 +339,7 @@ describe("createDiscoveryAgent", () => {
       model: "openai/gpt-4",
       tools,
       workspace,
+      researcher: stubResearcher(),
     });
     expect(agent.model).toBe("openai/gpt-4");
   });
@@ -343,6 +351,7 @@ describe("createDiscoveryAgent", () => {
       systemPrompt: "You are a JTBD discovery agent.",
       tools,
       workspace,
+      researcher: stubResearcher(),
     });
     const instructions = await agent.getInstructions();
     expect(instructions).toBe("You are a JTBD discovery agent.");
@@ -355,6 +364,7 @@ describe("createDiscoveryAgent", () => {
       systemPrompt: "You are a JTBD discovery agent.",
       tools,
       workspace,
+      researcher: stubResearcher(),
       outputPath: "/my/output",
     });
     const instructions = await agent.getInstructions();
@@ -369,6 +379,7 @@ describe("createDiscoveryAgent", () => {
       systemPrompt: "You are a JTBD discovery agent.",
       tools,
       workspace,
+      researcher: stubResearcher(),
     });
     const instructions = await agent.getInstructions();
     expect(instructions).toBe("You are a JTBD discovery agent.");
@@ -381,6 +392,7 @@ describe("createDiscoveryAgent", () => {
       systemPrompt: "Test",
       tools,
       workspace,
+      researcher: stubResearcher(),
     });
     const agentTools = await agent.listTools();
     const toolIds = Object.keys(agentTools);
@@ -448,23 +460,26 @@ describe("createDiscoveryAgent — sub-agents", () => {
   test("registers researcher as a sub-agent", async () => {
     const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
+    const researcher = stubResearcher();
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
       tools,
       workspace,
+      researcher,
     });
     const agents = await agent.listAgents();
     expect(Object.keys(agents)).toContain("researcher");
   });
 
-  test("researcher agent inherits model from discovery agent config", async () => {
+  test("uses the injected researcher instance", async () => {
     const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
+    const researcher = createResearchAgent({ tools, workspace, model: "openai/gpt-4" });
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
-      model: "openai/gpt-4",
       tools,
       workspace,
+      researcher,
     });
     const agents = await agent.listAgents();
     expect(agents.researcher!.model).toBe("openai/gpt-4");

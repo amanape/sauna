@@ -31,6 +31,7 @@ export interface DiscoveryAgentConfig {
   model?: string;
   tools: ReturnType<typeof createTools>;
   workspace: Workspace;
+  researcher: Agent;
   outputPath?: string;
 }
 
@@ -40,12 +41,6 @@ export function createDiscoveryAgent(config: DiscoveryAgentConfig): Agent {
     instructions += `\n\n## Output Directory\n\nWrite all output files to the \`${config.outputPath}\` directory.`;
   }
 
-  const researcher = createResearchAgent({
-    model: config.model,
-    tools: config.tools,
-    workspace: config.workspace,
-  });
-
   return new Agent({
     id: "discovery",
     name: "discovery",
@@ -53,6 +48,6 @@ export function createDiscoveryAgent(config: DiscoveryAgentConfig): Agent {
     model: config.model ?? DEFAULT_MODEL,
     tools: config.tools,
     workspace: config.workspace,
-    agents: { researcher },
+    agents: { researcher: config.researcher },
   });
 }
