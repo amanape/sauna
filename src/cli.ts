@@ -7,7 +7,7 @@ import { Agent } from "@mastra/core/agent";
 import type { Readable, Writable } from "node:stream";
 
 import { validateApiKey } from "./model-resolution";
-import { createTools, resolveSearchFn } from "./tool-factory";
+import { createMcpClient } from "./mcp-client";
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent } from "./agent-definitions";
 import { SessionRunner } from "./session-runner";
@@ -100,8 +100,8 @@ export async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const searchFn = resolveSearchFn(process.env as Record<string, string | undefined>);
-  const tools = createTools(searchFn);
+  const mcp = createMcpClient(process.env as Record<string, string | undefined>);
+  const tools = await mcp.listTools();
   const workspace = createWorkspace(args.codebase, {
     skillsPaths: [".sauna/skills"],
     outputDir: args.output,
@@ -118,9 +118,13 @@ export async function main(): Promise<void> {
     outputPath: args.output,
   });
 
-  await runConversation({
-    agent,
-    input: process.stdin,
-    output: process.stdout,
-  });
+  try {
+    await runConversation({
+      agent,
+      input: process.stdin,
+      output: process.stdout,
+    });
+  } finally {
+    await mcp.disconnect();
+  }
 }

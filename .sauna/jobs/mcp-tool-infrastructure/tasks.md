@@ -13,8 +13,8 @@
 
 ## P2: CLI Integration
 
-- [ ] Replace `resolveSearchFn()` + `createTools()` in `main()` with MCP client creation and `mcp.listTools()` — _tool-layer-replacement.md_
-- [ ] Add `mcp.disconnect()` in `main()` cleanup path for clean shutdown — _shared-mcp-client.md §Lifecycle_
+- [x] Replace `resolveSearchFn()` + `createTools()` in `main()` with MCP client creation and `mcp.listTools()` — _tool-layer-replacement.md_
+- [x] Add `mcp.disconnect()` in `main()` cleanup path for clean shutdown — _shared-mcp-client.md §Lifecycle_
 - [ ] Verify `TAVILY_API_KEY` validation (`validateApiKey`) still fires at startup after migration — _tool-layer-replacement.md_
 
 ## P3: Cleanup — Remove Old Tool Layer
