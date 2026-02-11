@@ -10,8 +10,9 @@ import type { Readable, Writable } from "node:stream";
 import { validateApiKey } from "./model-resolution";
 import { createTools, resolveSearchFn } from "./tool-factory";
 import { createWorkspace } from "./workspace-factory";
-import { createDiscoveryAgent, createResearchAgent } from "./agent-definitions";
+import { createDiscoveryAgent, createResearchAgent, createPlanningAgent, createBuilderAgent } from "./agent-definitions";
 import { SessionRunner } from "./session-runner";
+import { runJobPipeline } from "./job-pipeline";
 
 export interface CliArgs {
   codebase: string;
@@ -118,15 +119,44 @@ export async function main(): Promise<void> {
   const workspace = createWorkspace(args.codebase, {
     skillsPaths: [".sauna/skills"],
   });
-  const systemPrompt = await Bun.file(
-    resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),
-  ).text();
 
   const researcher = createResearchAgent({
     model: args.model,
     tools,
     workspace,
   });
+
+  if (args.job) {
+    const tasksPath = join(args.codebase, ".sauna", "jobs", args.job, "tasks.md");
+
+    await runJobPipeline({
+      createPlanner: () =>
+        createPlanningAgent({
+          model: args.model,
+          tools,
+          workspace,
+          researcher,
+          jobId: args.job!,
+        }),
+      createBuilder: () =>
+        createBuilderAgent({
+          model: args.model,
+          tools,
+          workspace,
+          researcher,
+          jobId: args.job!,
+        }),
+      readTasksFile: () => Bun.file(tasksPath).text(),
+      output: process.stdout,
+      plannerIterations: 1,
+      jobId: args.job,
+    });
+    return;
+  }
+
+  const systemPrompt = await Bun.file(
+    resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),
+  ).text();
 
   const agent = createDiscoveryAgent({
     systemPrompt,

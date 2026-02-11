@@ -30,3 +30,51 @@ export async function runFixedCount(config: FixedCountConfig): Promise<void> {
     }
   }
 }
+
+const DEFAULT_SAFETY_BUFFER = 5;
+
+export interface UntilDoneConfig {
+  agent: Agent;
+  message: string;
+  readTasksFile: () => Promise<string>;
+  safetyLimit?: number;
+  onProgress?: (iteration: number, remaining: number) => void;
+  onOutput?: (chunk: string) => void;
+}
+
+function countPendingTasks(content: string): number {
+  return content.split("\n").filter((line) => /^- \[ \]/.test(line)).length;
+}
+
+export async function runUntilDone(config: UntilDoneConfig): Promise<void> {
+  const { agent, message, readTasksFile, onProgress, onOutput } = config;
+
+  let content = await readTasksFile();
+  let remaining = countPendingTasks(content);
+
+  if (remaining === 0) return;
+
+  const safetyLimit =
+    config.safetyLimit ?? remaining + DEFAULT_SAFETY_BUFFER;
+
+  for (let i = 1; i <= safetyLimit; i++) {
+    if (remaining === 0) return;
+
+    onProgress?.(i, remaining);
+
+    const session = new SessionRunner({ agent });
+    const result = await session.sendMessage(message);
+
+    if (result) {
+      for await (const chunk of result.textStream) {
+        onOutput?.(chunk);
+      }
+      await result.getFullOutput();
+    }
+
+    content = await readTasksFile();
+    remaining = countPendingTasks(content);
+  }
+
+  throw new Error(`Safety limit reached (${safetyLimit} iterations)`);
+}

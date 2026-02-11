@@ -6,5 +6,6 @@ export { createTools, resolveSearchFn } from "./tool-factory";
 export { createWorkspace, type WorkspaceOptions } from "./workspace-factory";
 export { createDiscoveryAgent, createResearchAgent, createPlanningAgent, createBuilderAgent, type DiscoveryAgentConfig, type ResearchAgentConfig, type PlanningAgentConfig, type BuilderAgentConfig } from "./agent-definitions";
 export { SessionRunner, type SessionRunnerConfig } from "./session-runner";
-export { runFixedCount, type FixedCountConfig } from "./loop-runner";
+export { runFixedCount, runUntilDone, type FixedCountConfig, type UntilDoneConfig } from "./loop-runner";
+export { runJobPipeline, type JobPipelineDeps } from "./job-pipeline";
 export { parseCliArgs, runConversation, type CliArgs, type ConversationDeps } from "./cli";

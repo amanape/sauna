@@ -1,33 +1,22 @@
 # Planning & Building Agents — Tasks
 
-## P0: Agent Definitions (spec: agent-definitions.md)
+## Completed
 
-- [x] Refactor `createDiscoveryAgent()` to accept researcher as a parameter instead of creating its own — currently hardcoded at `src/agent-definitions.ts:43-47` (spec: shared researcher)
-- [x] Remove `OutputConstrainedFilesystem` — delete `src/output-constrained-filesystem.ts` and `src/output-constrained-filesystem.test.ts` (spec: workspace simplification)
-- [x] Remove `outputDir` option from `createWorkspace()` in `src/workspace-factory.ts` and its `OutputConstrainedFilesystem` import (spec: workspace simplification)
-- [x] Update CLI `main()` in `src/cli.ts` to stop passing `outputDir` and to pass researcher to `createDiscoveryAgent()` (spec: workspace simplification + shared researcher)
-- [x] Create `createPlanningAgent()` factory — accepts config with researcher, tools, workspace, jobId; substitutes `${JOB_ID}` in `plan.md` prompt; agent id `"planner"` (spec: agent-definitions)
-- [x] Create `createBuilderAgent()` factory — same pattern; substitutes `${JOB_ID}` in `build.md` prompt; agent id `"builder"`; shell execution via sandbox (spec: agent-definitions)
-- [x] Update `src/index.ts` exports — add new agent factories and their config types (spec: agent-definitions). Done: exported `createPlanningAgent`, `createBuilderAgent`, `PlanningAgentConfig`, `BuilderAgentConfig`; added `src/index.test.ts` verifying exports.
+- [x] Refactor `createDiscoveryAgent()` to accept researcher as parameter (spec: agent-definitions, shared researcher)
+- [x] Remove `OutputConstrainedFilesystem` and clean up workspace factory (spec: agent-definitions, workspace simplification)
+- [x] Update CLI `main()` to stop passing `outputDir` and pass researcher to discovery agent (spec: agent-definitions)
+- [x] Create `createPlanningAgent()` factory with `${JOB_ID}` substitution (spec: agent-definitions)
+- [x] Create `createBuilderAgent()` factory with `${JOB_ID}` substitution (spec: agent-definitions)
+- [x] Export new agent factories and config types from `src/index.ts` (spec: agent-definitions)
+- [x] Add `--job <slug>` CLI flag with directory validation (spec: loop-runner)
+- [x] Implement `runFixedCount()` loop runner with tests (spec: loop-runner)
+- [x] Implement `runUntilDone()` loop runner with tests — uncommitted (spec: loop-runner)
+- [x] Tests for agent definitions, CLI flag, fixed-count runner, until-done runner
+- [x] Wire `--job` into CLI `main()` — `runJobPipeline()` in `src/job-pipeline.ts` orchestrates planner then builder; `main()` branches on `args.job` (spec: loop-runner, jtbd acceptance criteria)
 
-## P1: Loop Runner (spec: loop-runner.md)
-
-- [x] Add `--job <slug>` CLI flag to `parseCliArgs()` — resolves to `.sauna/jobs/<slug>/`; validates directory exists (spec: loop-runner, job resolution). Done: added optional `job` field to `CliArgs`, `--job` option to `parseArgs`, directory existence validation; 6 tests added in `cli.test.ts` (mutation-tested).
-- [x] Implement fixed-count loop runner — runs agent N times with fresh `SessionRunner` per iteration; streams output; reports progress `"Iteration 3/10"` (spec: loop-runner, iteration strategies). Done: `runFixedCount()` in `src/loop-runner.ts`; exported from `src/index.ts`; 7 tests in `src/loop-runner.test.ts`.
-- [ ] Implement until-done loop runner — runs agent until no `- [ ]` lines in `tasks.md`; fresh session per iteration; configurable safety limit (spec: loop-runner, iteration strategies)
-- [ ] Wire loop runners into CLI — `--job` selects planner/builder mode vs current interactive discovery mode (spec: loop-runner)
-
-## P2: Builder Hooks (spec: builder-hooks.md)
-
-- [ ] Implement hooks config loader — reads `.sauna/hooks.json`; gracefully skips if missing/empty (spec: builder-hooks, configuration)
-- [ ] Implement hook executor — runs shell commands sequentially in codebase cwd; captures stdout+stderr; stops at first non-zero exit (spec: builder-hooks, execution)
-- [ ] Integrate hooks into until-done loop — after builder stream finishes, run hooks; on failure feed output back to same session for fix attempt (spec: builder-hooks, failure handling)
-- [ ] Implement retry logic — configurable max retries per task; counter resets per task; halt pipeline when exhausted (spec: builder-hooks, retry semantics)
-
-## P3: Tests
-
-- [x] Update `cli.test.ts` — reflect addition of `--job` flag (spec: loop-runner). Note: `outputDir` constraint tests already removed alongside `OutputConstrainedFilesystem` deletion; researcher parameter change already reflected. Done: 6 tests added covering parsing, directory validation, error cases, and combination with other flags.
-- [x] Add tests for `createPlanningAgent()` and `createBuilderAgent()` — config wiring, `${JOB_ID}` substitution, researcher sub-agent (spec: agent-definitions). Note: both added in `src/agent-definitions.test.ts`; mutation-tested to confirm tests catch breakage.
-- [x] Add tests for fixed-count loop runner — iteration count, fresh session per iteration, progress reporting (spec: loop-runner). Done: 7 tests in `src/loop-runner.test.ts` covering iteration count, fresh sessions, progress callbacks, stream consumption, validation, and output streaming.
-- [ ] Add tests for until-done loop runner — `- [ ]` completion condition, safety limit, progress reporting (spec: loop-runner)
-- [ ] Add tests for hooks loader, executor, retry logic — pass/fail semantics, failure feedback injection, max retry halt (spec: builder-hooks)
+## Remaining — Priority Order
+- [ ] Implement hooks config loader — read `.sauna/hooks.json` from codebase root; parse as array of shell commands; return empty array if file missing or empty (spec: builder-hooks, configuration)
+- [ ] Implement hook executor — run each shell command sequentially in codebase cwd; capture combined stdout+stderr; stop at first non-zero exit and return which command failed plus its output (spec: builder-hooks, execution)
+- [ ] Integrate hooks into `runUntilDone` — after each builder iteration, run hooks; on failure, send hook output back to the same `SessionRunner` session (not a new one) so the builder can fix the issue in-context (spec: builder-hooks, failure handling + retry semantics)
+- [ ] Implement retry logic — configurable max retries per task; retry counter resets when moving to a new task; halt pipeline with descriptive error when retries exhausted (spec: builder-hooks, retry semantics)
+- [ ] Add tests for hooks loader, hook executor, hook-retry integration — cover: missing/empty config, pass/fail execution, failure feedback injection into same session, max retry halt, counter reset between tasks (spec: builder-hooks)
