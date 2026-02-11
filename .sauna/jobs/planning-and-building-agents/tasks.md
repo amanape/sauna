@@ -7,7 +7,7 @@
 - [x] Remove `outputDir` option from `createWorkspace()` in `src/workspace-factory.ts` and its `OutputConstrainedFilesystem` import (spec: workspace simplification)
 - [x] Update CLI `main()` in `src/cli.ts` to stop passing `outputDir` and to pass researcher to `createDiscoveryAgent()` (spec: workspace simplification + shared researcher)
 - [x] Create `createPlanningAgent()` factory — accepts config with researcher, tools, workspace, jobId; substitutes `${JOB_ID}` in `plan.md` prompt; agent id `"planner"` (spec: agent-definitions)
-- [ ] Create `createBuilderAgent()` factory — same pattern; substitutes `${JOB_ID}` in `build.md` prompt; agent id `"builder"`; shell execution via sandbox (spec: agent-definitions)
+- [x] Create `createBuilderAgent()` factory — same pattern; substitutes `${JOB_ID}` in `build.md` prompt; agent id `"builder"`; shell execution via sandbox (spec: agent-definitions)
 - [ ] Update `src/index.ts` exports — add new agent factories and their config types (spec: agent-definitions)
 
 ## P1: Loop Runner (spec: loop-runner.md)
@@ -27,7 +27,7 @@
 ## P3: Tests
 
 - [ ] Update `cli.test.ts` — reflect addition of `--job` flag (spec: loop-runner). Note: `outputDir` constraint tests already removed alongside `OutputConstrainedFilesystem` deletion; researcher parameter change already reflected.
-- [ ] Add tests for `createPlanningAgent()` and `createBuilderAgent()` — config wiring, `${JOB_ID}` substitution, researcher sub-agent (spec: agent-definitions). Note: `createPlanningAgent` tests already added in `src/agent-definitions.test.ts`; `createBuilderAgent` tests still needed.
+- [x] Add tests for `createPlanningAgent()` and `createBuilderAgent()` — config wiring, `${JOB_ID}` substitution, researcher sub-agent (spec: agent-definitions). Note: both added in `src/agent-definitions.test.ts`; mutation-tested to confirm tests catch breakage.
 - [ ] Add tests for fixed-count loop runner — iteration count, fresh session per iteration, progress reporting (spec: loop-runner)
 - [ ] Add tests for until-done loop runner — `- [ ]` completion condition, safety limit, progress reporting (spec: loop-runner)
 - [ ] Add tests for hooks loader, executor, retry logic — pass/fail semantics, failure feedback injection, max retry halt (spec: builder-hooks)

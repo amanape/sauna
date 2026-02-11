@@ -1,8 +1,28 @@
 import { test, expect, describe } from "bun:test";
-import { createPlanningAgent, type PlanningAgentConfig } from "./agent-definitions";
+import { createPlanningAgent, createBuilderAgent, type PlanningAgentConfig, type BuilderAgentConfig } from "./agent-definitions";
 import { createTools } from "./tool-factory";
 import { createWorkspace } from "./workspace-factory";
 import { Agent } from "@mastra/core/agent";
+
+function makeBuilderConfig(overrides?: Partial<BuilderAgentConfig>): BuilderAgentConfig {
+  const workspace = createWorkspace(import.meta.dirname);
+  const tools = createTools({ workspace });
+  const researcher = new Agent({
+    id: "researcher",
+    name: "researcher",
+    instructions: "stub",
+    model: "openai:gpt-4o",
+    tools,
+    workspace,
+  });
+  return {
+    tools,
+    workspace,
+    researcher,
+    jobId: "my-job",
+    ...overrides,
+  };
+}
 
 function makeConfig(overrides?: Partial<PlanningAgentConfig>): PlanningAgentConfig {
   const workspace = createWorkspace(import.meta.dirname);
@@ -42,6 +62,30 @@ describe("createPlanningAgent", () => {
   test("injects the researcher as a sub-agent", async () => {
     const config = makeConfig();
     const agent = await createPlanningAgent(config);
+    const agents = await agent.listAgents({});
+    expect(agents).toHaveProperty("researcher");
+    expect(agents.researcher).toBe(config.researcher);
+  });
+});
+
+describe("createBuilderAgent", () => {
+  test("returns an Agent with id 'builder'", async () => {
+    const agent = await createBuilderAgent(makeBuilderConfig());
+    expect(agent).toBeInstanceOf(Agent);
+    expect(agent.id).toBe("builder");
+    expect(agent.name).toBe("builder");
+  });
+
+  test("substitutes ${JOB_ID} in the system prompt with jobId", async () => {
+    const agent = await createBuilderAgent(makeBuilderConfig({ jobId: "test-job-42" }));
+    const instructions = await agent.getInstructions({});
+    expect(instructions).toContain(".sauna/jobs/test-job-42/");
+    expect(instructions).not.toContain("${JOB_ID}");
+  });
+
+  test("injects the researcher as a sub-agent", async () => {
+    const config = makeBuilderConfig();
+    const agent = await createBuilderAgent(config);
     const agents = await agent.listAgents({});
     expect(agents).toHaveProperty("researcher");
     expect(agents.researcher).toBe(config.researcher);
