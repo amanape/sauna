@@ -9,3 +9,4 @@ export { SessionRunner, type SessionRunnerConfig } from "./session-runner";
 export { runFixedCount, runUntilDone, type FixedCountConfig, type UntilDoneConfig } from "./loop-runner";
 export { runJobPipeline, type JobPipelineDeps } from "./job-pipeline";
 export { parseCliArgs, runConversation, type CliArgs, type ConversationDeps } from "./cli";
+export { loadHooks } from "./hooks-loader";

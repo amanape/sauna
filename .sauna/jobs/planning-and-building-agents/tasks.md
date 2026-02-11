@@ -13,9 +13,9 @@
 - [x] Implement `runUntilDone()` loop runner with tests — uncommitted (spec: loop-runner)
 - [x] Tests for agent definitions, CLI flag, fixed-count runner, until-done runner
 - [x] Wire `--job` into CLI `main()` — `runJobPipeline()` in `src/job-pipeline.ts` orchestrates planner then builder; `main()` branches on `args.job` (spec: loop-runner, jtbd acceptance criteria)
+- [x] Implement hooks config loader — `loadHooks(projectRoot)` in `src/hooks-loader.ts`; reads `.sauna/hooks.json`, parses as `string[]`, returns `[]` if missing; validates array type and string elements; exported from `src/index.ts` (spec: builder-hooks, configuration)
 
 ## Remaining — Priority Order
-- [ ] Implement hooks config loader — read `.sauna/hooks.json` from codebase root; parse as array of shell commands; return empty array if file missing or empty (spec: builder-hooks, configuration)
 - [ ] Implement hook executor — run each shell command sequentially in codebase cwd; capture combined stdout+stderr; stop at first non-zero exit and return which command failed plus its output (spec: builder-hooks, execution)
 - [ ] Integrate hooks into `runUntilDone` — after each builder iteration, run hooks; on failure, send hook output back to the same `SessionRunner` session (not a new one) so the builder can fix the issue in-context (spec: builder-hooks, failure handling + retry semantics)
 - [ ] Implement retry logic — configurable max retries per task; retry counter resets when moving to a new task; halt pipeline with descriptive error when retries exhausted (spec: builder-hooks, retry semantics)
