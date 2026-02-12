@@ -41,9 +41,6 @@ export async function handlePlan(deps: HandlePlanDeps): Promise<void> {
       onProgress: (current, total) => {
         output.write(`Planning iteration ${current}/${total}\n`);
       },
-      onOutput: (chunk) => {
-        output.write(chunk);
-      },
     });
 
     output.write("Planning phase complete.\n");
@@ -89,9 +86,6 @@ export async function handleBuild(deps: HandleBuildDeps): Promise<void> {
       hookCwd: args.codebase,
       onProgress: (iteration, remaining) => {
         output.write(`Build iteration ${iteration} — ${remaining} tasks remaining\n`);
-      },
-      onOutput: (chunk) => {
-        output.write(chunk);
       },
     });
 

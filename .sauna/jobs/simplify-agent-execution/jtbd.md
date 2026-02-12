@@ -10,13 +10,13 @@ Batch agent execution (planning and building) uses Mastra's `agent.generate()`, 
 
 ## Acceptance Criteria
 
-- [ ] `SessionRunner` calls `agent.generate()` instead of `agent.stream()` and returns the complete output directly
-- [ ] The `getFullOutput()` monkey-patch in `SessionRunner` is removed — message history is captured from the generate result
-- [ ] `drainStream()` is deleted from `loop-runner.ts`
-- [ ] `runFixedCount()` and `runUntilDone()` receive the agent's response without dealing with streaming primitives
-- [ ] The `onOutput` streaming callback is removed from `FixedCountConfig` and `UntilDoneConfig`
-- [ ] The interactive discovery REPL (`runConversation` in `cli.ts`) retains streaming for real-time terminal output
-- [ ] All existing tests pass
+- [x] `SessionRunner` calls `agent.generate()` instead of `agent.stream()` and returns the complete output directly
+- [x] The `getFullOutput()` monkey-patch in `SessionRunner` is removed — message history is captured from the generate result
+- [x] `drainStream()` is deleted from `loop-runner.ts`
+- [x] `runFixedCount()` and `runUntilDone()` receive the agent's response without dealing with streaming primitives
+- [x] The `onOutput` streaming callback is removed from `FixedCountConfig` and `UntilDoneConfig`
+- [x] The interactive discovery REPL (`runConversation` in `cli.ts`) retains streaming for real-time terminal output
+- [x] All existing tests pass — 141 pass, 2 skip, 0 fail
 
 ## Out of Scope
 

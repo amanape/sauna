@@ -1,4 +1,4 @@
-import { test, expect, describe, mock, beforeEach } from "bun:test";
+import { test, expect, describe, mock } from "bun:test";
 import { PassThrough } from "node:stream";
 import type { Agent } from "@mastra/core/agent";
 
@@ -6,26 +6,14 @@ import { handlePlan, handleBuild, handleRun } from "./handlers";
 import type { Environment } from "./init-environment";
 import type { PlanArgs, BuildArgs, RunArgs } from "./cli";
 
-/** Create a ReadableStream<string> from an array of chunks */
-function textStreamFrom(chunks: string[]): ReadableStream<string> {
-  return new ReadableStream({
-    start(controller) {
-      for (const chunk of chunks) controller.enqueue(chunk);
-      controller.close();
-    },
-  });
-}
-
 function stubAgent(): Agent {
   return {
-    stream: mock(async () => ({
-      textStream: textStreamFrom(["planning output"]),
-      getFullOutput: async () => ({
-        messages: [
-          { role: "user", content: "Begin planning." },
-          { role: "assistant", content: "planning output" },
-        ],
-      }),
+    generate: mock(async () => ({
+      text: "planning output",
+      messages: [
+        { role: "user", content: "Begin planning." },
+        { role: "assistant", content: "planning output" },
+      ],
     })),
   } as unknown as Agent;
 }
@@ -130,40 +118,6 @@ describe("handlePlan", () => {
     expect(config.workspace).toBe(env.workspace);
     expect(config.researcher).toBe(env.researcher);
     expect(config.jobId).toBe("my-job");
-  });
-
-  test("streams agent output to the output writable", async () => {
-    const { runFixedCount, createPlanningAgent } = makeSpies();
-    createPlanningAgent.mockImplementation(async () => stubAgent());
-
-    // Make runFixedCount invoke its onOutput callback
-    runFixedCount.mockImplementation(async (config: any) => {
-      config.onOutput?.("chunk1");
-      config.onOutput?.("chunk2");
-    });
-
-    const output = new PassThrough();
-    output.setEncoding("utf8");
-    const env = stubEnvironment();
-
-    const args: PlanArgs = {
-      subcommand: "plan",
-      codebase: "/tmp/project",
-      job: "my-job",
-      iterations: 1,
-    };
-
-    await handlePlan({
-      args,
-      env,
-      output,
-      createPlanningAgent: createPlanningAgent as any,
-      runFixedCount,
-    });
-
-    const captured = output.read();
-    expect(captured).toContain("chunk1");
-    expect(captured).toContain("chunk2");
   });
 
   test("reports progress to output", async () => {
@@ -375,33 +329,6 @@ describe("handleBuild", () => {
     // readTasksFile should be a function (we can't call it without Bun.file mocking,
     // but we verify it was passed)
     expect(typeof capturedReadTasksFile).toBe("function");
-  });
-
-  test("streams build output to the output writable", async () => {
-    const spies = makeBuildSpies();
-
-    spies.runUntilDone.mockImplementation(async (config: any) => {
-      config.onOutput?.("build-chunk1");
-      config.onOutput?.("build-chunk2");
-    });
-
-    const output = new PassThrough();
-    output.setEncoding("utf8");
-    const env = stubEnvironment();
-
-    await handleBuild({
-      args: buildArgs(),
-      env,
-      output,
-      createBuilderAgent: spies.createBuilderAgent as any,
-      runUntilDone: spies.runUntilDone,
-      loadHooks: spies.loadHooks,
-      runHooks: spies.runHooks,
-    });
-
-    const captured = output.read() as string;
-    expect(captured).toContain("build-chunk1");
-    expect(captured).toContain("build-chunk2");
   });
 
   test("reports build progress to output", async () => {

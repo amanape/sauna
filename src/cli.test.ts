@@ -17,13 +17,32 @@ import { createDiscoveryAgent, createResearchAgent } from "./agent-definitions";
 /** Extract the stream options type from Agent.stream()'s second parameter */
 type StreamOptions = NonNullable<Parameters<Agent["stream"]>[1]>;
 
-/** Mock stream function signature matching Agent.stream() */
-type MockStreamFn = (messages: MessageInput[], opts: StreamOptions) => ReturnType<Agent["stream"]>;
-
 /** Typed accessor for mock call arguments */
 function mockCallArgs(fn: ReturnType<typeof mock>, index: number) {
   return fn.mock.calls[index] as unknown as [MessageInput[], StreamOptions];
 }
+
+/** Create a mock MastraModelOutput from text and messages */
+function mockStreamResult(text: string, messages: MessageInput[], onStepFinish?: StreamOptions["onStepFinish"]) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<string>({
+    start(controller) {
+      // Emit text in chunks to simulate streaming
+      for (const char of text) {
+        controller.enqueue(char);
+      }
+      controller.close();
+    },
+  });
+
+  return {
+    textStream: stream,
+    getFullOutput: async () => ({ text, messages }),
+  };
+}
+
+/** Mock stream function signature matching Agent.stream() */
+type MockStreamFn = (messages: MessageInput[], opts: StreamOptions) => ReturnType<Agent["stream"]>;
 
 describe("parseCliArgs", () => {
   // --- Help and usage ---
@@ -673,16 +692,6 @@ describe("createDiscoveryAgent — sub-agents", () => {
 });
 
 describe("runConversation", () => {
-  /** Create a ReadableStream<string> from an array of chunks */
-  function textStreamFrom(chunks: string[]): ReadableStream<string> {
-    return new ReadableStream({
-      start(controller) {
-        for (const chunk of chunks) controller.enqueue(chunk);
-        controller.close();
-      },
-    });
-  }
-
   function makeDeps(overrides?: {
     streamImpl?: MockStreamFn;
     onFinish?: OnFinishCallback;
@@ -693,15 +702,13 @@ describe("runConversation", () => {
 
     const mockStream = mock(
       overrides?.streamImpl ??
-      (async () => ({
-        textStream: textStreamFrom(["Hello from AI"]),
-        getFullOutput: async () => ({
-          messages: [
-            { role: "user", content: "Hello" },
-            { role: "assistant", content: "Hello from AI" },
-          ],
-        }),
-      })),
+      (async () => mockStreamResult(
+        "Hello from AI",
+        [
+          { role: "user", content: "Hello" },
+          { role: "assistant", content: "Hello from AI" },
+        ],
+      )),
     );
 
     const mockAgent = { stream: mockStream } as unknown as Agent;
@@ -721,17 +728,15 @@ describe("runConversation", () => {
     };
   }
 
-  test("streams text chunks to output in real time", async () => {
-    const { input, output, mockStream, deps } = makeDeps({
-      streamImpl: async () => ({
-        textStream: textStreamFrom(["Hello", " from", " AI"]),
-        getFullOutput: async () => ({
-          messages: [
-            { role: "user", content: "Hello" },
-            { role: "assistant", content: "Hello from AI" },
-          ],
-        }),
-      }),
+  test("streams agent response text to output in real-time", async () => {
+    const { input, output, deps } = makeDeps({
+      streamImpl: async () => mockStreamResult(
+        "Hello from AI",
+        [
+          { role: "user", content: "Hello" },
+          { role: "assistant", content: "Hello from AI" },
+        ],
+      ),
     });
 
     const done = runConversation(deps);
@@ -741,11 +746,10 @@ describe("runConversation", () => {
     await done;
 
     const captured = output.read();
-    // All chunks should appear in output (streamed, not batched)
     expect(captured).toContain("Hello from AI");
   });
 
-  test("passes user input to agent.stream and writes streamed response", async () => {
+  test("passes user input to agent.stream and writes response", async () => {
     const { input, output, mockStream, deps } = makeDeps();
 
     const done = runConversation(deps);
@@ -767,15 +771,13 @@ describe("runConversation", () => {
       streamImpl: async (msgs: MessageInput[]) => {
         callCount++;
         const text = `Response ${callCount}`;
-        return {
-          textStream: textStreamFrom([text]),
-          getFullOutput: async () => ({
-            messages: [
-              ...msgs,
-              { role: "assistant", content: text },
-            ],
-          }),
-        };
+        return mockStreamResult(
+          text,
+          [
+            ...msgs,
+            { role: "assistant", content: text },
+          ],
+        );
       },
     });
 
@@ -827,15 +829,13 @@ describe("runConversation", () => {
             },
           ],
         } as LLMStepResult);
-        return {
-          textStream: textStreamFrom(["Done writing."]),
-          getFullOutput: async () => ({
-            messages: [
-              ...msgs,
-              { role: "assistant", content: "Done writing." },
-            ],
-          }),
-        };
+        return mockStreamResult(
+          "Done writing.",
+          [
+            ...msgs,
+            { role: "assistant", content: "Done writing." },
+          ],
+        );
       },
     });
 
@@ -863,15 +863,13 @@ describe("runConversation", () => {
             },
           ],
         } as LLMStepResult);
-        return {
-          textStream: textStreamFrom(["Failed."]),
-          getFullOutput: async () => ({
-            messages: [
-              ...msgs,
-              { role: "assistant", content: "Failed." },
-            ],
-          }),
-        };
+        return mockStreamResult(
+          "Failed.",
+          [
+            ...msgs,
+            { role: "assistant", content: "Failed." },
+          ],
+        );
       },
     });
 
@@ -894,15 +892,13 @@ describe("runConversation", () => {
         if (opts.onFinish) {
           opts.onFinish({ text: "Done.", messages: msgs, toolResults: [] } as Parameters<NonNullable<StreamOptions["onFinish"]>>[0]);
         }
-        return {
-          textStream: textStreamFrom(["Done."]),
-          getFullOutput: async () => ({
-            messages: [
-              ...msgs,
-              { role: "assistant", content: "Done." },
-            ],
-          }),
-        };
+        return mockStreamResult(
+          "Done.",
+          [
+            ...msgs,
+            { role: "assistant", content: "Done." },
+          ],
+        );
       },
     });
 
@@ -924,12 +920,10 @@ describe("runConversation", () => {
       onFinish,
       streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
         capturedOpts = opts;
-        return {
-          textStream: textStreamFrom(["Response"]),
-          getFullOutput: async () => ({
-            messages: [...msgs, { role: "assistant", content: "Response" }],
-          }),
-        };
+        return mockStreamResult(
+          "Response",
+          [...msgs, { role: "assistant", content: "Response" }],
+        );
       },
     });
 
@@ -947,12 +941,10 @@ describe("runConversation", () => {
     const { input, output, deps } = makeDeps({
       streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
         capturedOpts = opts;
-        return {
-          textStream: textStreamFrom(["Response"]),
-          getFullOutput: async () => ({
-            messages: [...msgs, { role: "assistant", content: "Response" }],
-          }),
-        };
+        return mockStreamResult(
+          "Response",
+          [...msgs, { role: "assistant", content: "Response" }],
+        );
       },
     });
 

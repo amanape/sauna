@@ -7,11 +7,10 @@ export interface FixedCountConfig {
   iterations: number;
   message: string;
   onProgress?: (current: number, total: number) => void;
-  onOutput?: (chunk: string) => void;
 }
 
 export async function runFixedCount(config: FixedCountConfig): Promise<void> {
-  const { agent, iterations, message, onProgress, onOutput } = config;
+  const { agent, iterations, message, onProgress } = config;
 
   if (iterations < 1) {
     throw new Error("iterations must be at least 1");
@@ -21,14 +20,7 @@ export async function runFixedCount(config: FixedCountConfig): Promise<void> {
     onProgress?.(i, iterations);
 
     const session = new SessionRunner({ agent });
-    const result = await session.sendMessage(message);
-
-    if (result) {
-      for await (const chunk of result.textStream) {
-        onOutput?.(chunk);
-      }
-      await result.getFullOutput();
-    }
+    await session.sendMessage(message);
   }
 }
 
@@ -46,22 +38,11 @@ export interface UntilDoneConfig {
   hookCwd?: string;
   maxHookRetries?: number;
   onProgress?: (iteration: number, remaining: number) => void;
-  onOutput?: (chunk: string) => void;
   onHookFailure?: (failedCommand: string, attempt: number, maxRetries: number) => void;
 }
 
 function countPendingTasks(content: string): number {
   return content.split("\n").filter((line) => /^- \[ \]/.test(line)).length;
-}
-
-async function drainStream(
-  result: { textStream: ReadableStream<string>; getFullOutput: () => Promise<any> },
-  onOutput?: (chunk: string) => void,
-): Promise<void> {
-  for await (const chunk of result.textStream) {
-    onOutput?.(chunk);
-  }
-  await result.getFullOutput();
 }
 
 export async function runUntilDone(config: UntilDoneConfig): Promise<void> {
@@ -70,7 +51,6 @@ export async function runUntilDone(config: UntilDoneConfig): Promise<void> {
     message,
     readTasksFile,
     onProgress,
-    onOutput,
     hooks,
     runHooks: hookRunner,
     hookCwd,
@@ -94,11 +74,7 @@ export async function runUntilDone(config: UntilDoneConfig): Promise<void> {
     onProgress?.(i, remaining);
 
     const session = new SessionRunner({ agent });
-    const result = await session.sendMessage(message);
-
-    if (result) {
-      await drainStream(result, onOutput);
-    }
+    await session.sendMessage(message);
 
     // Run hooks after builder iteration completes
     if (hasHooks) {
@@ -121,11 +97,7 @@ export async function runUntilDone(config: UntilDoneConfig): Promise<void> {
         // Send hook failure output back to the SAME session for the builder to fix
         const feedbackMessage =
           `Hook failed: \`${hookResult.failedCommand}\` (exit code ${hookResult.exitCode})\n\nOutput:\n${hookResult.output}\n\nPlease fix the issue and try again.`;
-        const retryResult = await session.sendMessage(feedbackMessage);
-
-        if (retryResult) {
-          await drainStream(retryResult, onOutput);
-        }
+        await session.sendMessage(feedbackMessage);
       }
     }
 
