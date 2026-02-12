@@ -53,6 +53,52 @@ describe("parseCliArgs", () => {
     expect(result.text).toContain("builder");
   });
 
+  // --- Per-subcommand help ---
+
+  test("discover --help returns help listing discover flags", () => {
+    const result = parseCliArgs(["discover", "--help"]) as HelpResult;
+    expect(result.subcommand).toBe("help");
+    expect(result.text).toContain("--codebase");
+    expect(result.text).toContain("--output");
+    expect(result.text).toContain("--model");
+  });
+
+  test("plan --help returns help listing plan flags", () => {
+    const result = parseCliArgs(["plan", "--help"]) as HelpResult;
+    expect(result.subcommand).toBe("help");
+    expect(result.text).toContain("--codebase");
+    expect(result.text).toContain("--job");
+    expect(result.text).toContain("--iterations");
+    expect(result.text).toContain("--model");
+  });
+
+  test("build --help returns help listing build flags", () => {
+    const result = parseCliArgs(["build", "--help"]) as HelpResult;
+    expect(result.subcommand).toBe("help");
+    expect(result.text).toContain("--codebase");
+    expect(result.text).toContain("--job");
+    expect(result.text).toContain("--model");
+  });
+
+  test("build --help does not list --iterations", () => {
+    const result = parseCliArgs(["build", "--help"]) as HelpResult;
+    expect(result.text).not.toContain("--iterations");
+  });
+
+  test("run --help returns help listing run flags", () => {
+    const result = parseCliArgs(["run", "--help"]) as HelpResult;
+    expect(result.subcommand).toBe("help");
+    expect(result.text).toContain("--codebase");
+    expect(result.text).toContain("--job");
+    expect(result.text).toContain("--iterations");
+    expect(result.text).toContain("--model");
+  });
+
+  test("per-subcommand help includes subcommand name", () => {
+    const result = parseCliArgs(["discover", "--help"]) as HelpResult;
+    expect(result.text).toContain("discover");
+  });
+
   // --- Subcommand extraction ---
 
   test("throws when an unknown subcommand is provided", () => {

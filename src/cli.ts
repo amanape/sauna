@@ -71,6 +71,46 @@ Subcommands:
 
 Run "sauna <subcommand> --help" for subcommand-specific flags.`;
 
+const SUBCOMMAND_HELP: Record<Subcommand, string> = {
+  discover: `Usage: sauna discover [flags]
+
+Run the interactive discovery agent.
+
+Flags:
+  --codebase <path>   Project root to operate on (required)
+  --output <path>     Output directory for jobs (default: ./jobs/)
+  --model <model>     Override the default LLM model`,
+
+  plan: `Usage: sauna plan [flags]
+
+Run the planning agent for a fixed iteration count.
+
+Flags:
+  --codebase <path>   Project root to operate on (required)
+  --job <slug>        Job directory under .sauna/jobs/ (required)
+  --iterations <n>    Number of planning iterations (default: 1)
+  --model <model>     Override the default LLM model`,
+
+  build: `Usage: sauna build [flags]
+
+Run the builder agent until all tasks are done.
+
+Flags:
+  --codebase <path>   Project root to operate on (required)
+  --job <slug>        Job directory under .sauna/jobs/ (required)
+  --model <model>     Override the default LLM model`,
+
+  run: `Usage: sauna run [flags]
+
+Run plan then build sequentially.
+
+Flags:
+  --codebase <path>   Project root to operate on (required)
+  --job <slug>        Job directory under .sauna/jobs/ (required)
+  --iterations <n>    Number of planning iterations (default: 1)
+  --model <model>     Override the default LLM model`,
+};
+
 function validateJobDir(codebase: string, job: string): void {
   const jobDir = join(codebase, ".sauna", "jobs", job);
   if (!existsSync(jobDir)) {
@@ -190,6 +230,10 @@ export function parseCliArgs(argv: string[]): ParseResult {
   }
 
   const flagArgs = argv.slice(1);
+
+  if (flagArgs.includes("--help")) {
+    return { subcommand: "help", text: SUBCOMMAND_HELP[subcommand as Subcommand] };
+  }
 
   switch (subcommand) {
     case "discover": return parseDiscoverArgs(flagArgs);
