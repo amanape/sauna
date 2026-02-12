@@ -4,7 +4,7 @@
 
 - [x] Replace `parseCliArgs()` with subcommand-aware parser that extracts subcommand from first positional arg and delegates flag parsing per subcommand — `parseArgs` from `node:util`, strict mode (spec: subcommand-interface.md § Dispatch, Shared Flags)
 - [x] Add `--iterations <n>` flag accepted by `plan` and `run` subcommands, validated as positive integer; reject zero/negative (spec: jtbd.md § acceptance criteria, subcommand-interface.md § Shared Flags)
-- [ ] Extract shared setup (API key validation, MCP client, workspace, researcher agent) from `main()` into a reusable helper that all subcommand handlers call (spec: subcommand-interface.md § Shared Setup)
+- [x] Extract shared setup (API key validation, MCP client, workspace, researcher agent) from `main()` into a reusable helper that all subcommand handlers call (spec: subcommand-interface.md § Shared Setup) — implemented as `initEnvironment()` in `src/init-environment.ts`; `main()` refactored to use it
 - [ ] Implement `discover` handler: accepts `--codebase`, `--output`, `--model`; creates discovery agent, calls `runConversation()` (spec: subcommand-interface.md § Subcommands, Dispatch)
 - [ ] Implement `plan` handler: accepts `--codebase`, `--job`, `--iterations`, `--model`; creates planner agent, calls `runFixedCount()` directly (spec: subcommand-interface.md § Subcommands, Dispatch)
 - [ ] Implement `build` handler: accepts `--codebase`, `--job`, `--model`; creates builder agent, loads hooks, calls `runUntilDone()` directly (spec: subcommand-interface.md § Subcommands, Dispatch)

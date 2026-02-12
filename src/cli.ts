@@ -8,10 +8,8 @@ import { Agent } from "@mastra/core/agent";
 import type { LLMStepResult } from "@mastra/core/agent";
 import type { Readable, Writable } from "node:stream";
 
-import { validateApiKey } from "./model-resolution";
-import { createMcpClient, validateTavilyApiKey } from "./mcp-client";
-import { createWorkspace } from "./workspace-factory";
-import { createDiscoveryAgent, createResearchAgent, createPlanningAgent, createBuilderAgent } from "./agent-definitions";
+import { createDiscoveryAgent, createPlanningAgent, createBuilderAgent } from "./agent-definitions";
+import { initEnvironment } from "./init-environment";
 import { SessionRunner } from "./session-runner";
 import type { OnFinishCallback } from "./session-runner";
 import { runJobPipeline } from "./job-pipeline";
@@ -229,25 +227,19 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 export async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
 
+  let env;
   try {
-    validateApiKey(process.env, args.model);
-    validateTavilyApiKey(process.env);
+    env = await initEnvironment({
+      codebase: args.codebase,
+      model: args.model,
+      env: process.env as Record<string, string | undefined>,
+    });
   } catch (e: unknown) {
     console.error(e instanceof Error ? e.message : String(e));
     process.exit(1);
   }
 
-  const mcp = createMcpClient(process.env as Record<string, string | undefined>);
-  const tools = await mcp.listTools();
-  const workspace = createWorkspace(args.codebase, {
-    skillsPaths: [".sauna/skills"],
-  });
-
-  const researcher = createResearchAgent({
-    model: args.model,
-    tools,
-    workspace,
-  });
+  const { mcp, tools, workspace, researcher } = env;
 
   switch (args.subcommand) {
     case "discover": {
