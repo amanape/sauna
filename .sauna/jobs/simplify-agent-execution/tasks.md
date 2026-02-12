@@ -4,7 +4,7 @@
 
 ### P1 — Spec compliance
 
-- [ ] Mark acceptance criteria checkboxes in `jtbd.md` as done once all criteria are verified green (jtbd.md)
+*No remaining work — all tasks complete.*
 
 ## Completed
 
@@ -23,3 +23,4 @@
 - [x] Update all test suites to use `generate()` mocks — 141 pass, 2 skip, 0 fail (jtbd.md)
 - [x] Rewrite `runConversation()` in `cli.ts` to call `agent.stream()` directly — iterates `textStream` for real-time output, manages message history via `getFullOutput()`, preserves `onStepFinish` workspace write logging, removes `SessionRunner` dependency (jtbd.md criterion 6)
 - [x] Update CLI tests to mock `agent.stream()` instead of `agent.generate()` — all 10 runConversation tests pass; 141 pass, 2 skip, 0 fail across full suite (jtbd.md criterion 7)
+- [x] Verify all 7 acceptance criteria and mark checkboxes in jtbd.md — all criteria confirmed green (jtbd.md)
