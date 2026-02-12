@@ -1,36 +1,38 @@
-# CLI & Cycle Orchestration
+# CLI Subcommand Interface
 
 ## Problem
 
-There is no CLI interface for running agents independently or in combined cycles. The discovery agent is hardwired as the only entry point in `cli.ts`. Planning and building can only be invoked through the shell script MVP, which lives outside the method6 process and has no integration with the Mastra agent infrastructure.
+The CLI has a single entry point with implicit mode selection: omitting `--job` triggers an interactive discovery REPL, providing `--job` triggers a combined plan+build pipeline. Planning and building cannot be run independently — there is no way to run just the planner to review `tasks.md` before committing to a build, or to run just the builder against an existing task list. The `plannerIterations` count is hardcoded to 1 in `cli.ts` with no way to override it. Discovery being the "no flags" default is surprising — a new user running the CLI with just `--codebase` enters an interactive REPL with no indication that this is a specific mode.
 
 ## Job to Be Done
 
-I can invoke any agent phase independently via a CLI subcommand, or run the plan↔build cycle as a single command — all through the method6 CLI.
+I can invoke any agent phase independently via a CLI subcommand (`discover`, `plan`, `build`) or run the full plan-then-build pipeline as a single command (`run`) — with each subcommand accepting its own relevant flags.
 
 ## Acceptance Criteria
 
-- [ ] `method6 discover` runs the interactive discovery agent (existing behavior, now behind a subcommand)
-- [ ] `method6 plan --job <slug>` runs the planning agent for N iterations (default: 2)
-- [ ] `method6 build --job <slug>` runs the builder agent until all tasks are done (with hooks)
-- [ ] `method6 cycle --job <slug>` runs plan→build cycles (default: 2 cycles, 2 plan iterations each)
-- [ ] `--iterations <n>` overrides the plan iteration count (for `plan` and `cycle`)
-- [ ] `--cycles <n>` overrides the cycle count (for `cycle`)
+- [ ] `sauna discover --codebase <path>` runs the interactive discovery agent (existing behavior, now behind an explicit subcommand)
+- [ ] `sauna plan --codebase <path> --job <slug>` runs the planning agent for N iterations (default: 1, override with `--iterations <n>`)
+- [ ] `sauna build --codebase <path> --job <slug>` runs the builder agent until all tasks are done (with hooks)
+- [ ] `sauna run --codebase <path> --job <slug>` runs plan then build sequentially
 - [ ] `--job <slug>` resolves to `.sauna/jobs/<slug>/` and validates the directory exists
-- [ ] Running any command without required flags produces clear usage help
-- [ ] The existing `parseCliArgs()` is replaced or extended to support subcommands
+- [ ] `--iterations <n>` overrides the plan iteration count (for `plan` and `run`)
+- [ ] `--model <model>` overrides the default LLM model (shared across all subcommands)
+- [ ] Running `sauna` with no subcommand or with `--help` shows usage listing all subcommands
+- [ ] Running a subcommand with invalid or missing required flags produces a clear error message
+- [ ] The existing `parseCliArgs()` is replaced with subcommand-aware parsing
 
 ## Out of Scope
 
-- Discovery→Plan→Build as a single automated pipeline (multiple jobs complicate routing)
+- Multiple plan-then-build cycles in a single invocation (can be added to `run` later with `--cycles`)
 - GUI or TUI for monitoring agent progress
 - Remote execution or server mode
+- Discovery-then-plan-then-build as a single automated pipeline
 
 ## SLC Scope
 
-A subcommand parser in `cli.ts` that dispatches to the appropriate agent and loop runner from JTBD 2. The `cycle` command is a thin wrapper that calls the plan loop followed by the build loop, repeated M times. No new infrastructure beyond CLI argument parsing — the agents, loop runner, and hooks are all provided by JTBD 2.
+A subcommand parser in `cli.ts` that dispatches to the appropriate agent and loop runner. `discover` wraps the existing `runConversation()`. `plan` calls `runFixedCount()` directly with the planner agent. `build` calls `runUntilDone()` directly with the builder agent and hooks. `run` calls both sequentially (the existing `runJobPipeline()` behavior). Shared setup (API key validation, workspace, tools, researcher agent) is extracted into a helper used by all subcommands. No new dependencies — uses `parseArgs` from `node:util`.
 
 ## Related JTBDs
 
 - `.sauna/jobs/planning-and-building-agents/` — depends on — this JTBD provides the CLI interface for the agents and loop runner defined there
-- `.sauna/jobs/mcp-tool-infrastructure/` — shared activity — all subcommands create agents that consume shared MCP tools
+- `.sauna/jobs/simplify-agent-execution/` — shared activity — the simpler SessionRunner makes subcommand handlers cleaner
