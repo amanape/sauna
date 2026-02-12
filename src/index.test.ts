@@ -49,3 +49,7 @@ test("exports createDiscoveryAgent", () => {
 test("exports createResearchAgent", () => {
   expect(typeof publicApi.createResearchAgent).toBe("function");
 });
+
+test("exports initEnvironment", () => {
+  expect(typeof publicApi.initEnvironment).toBe("function");
+});
