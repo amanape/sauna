@@ -13,8 +13,10 @@ import { initEnvironment } from "./init-environment";
 import { SessionRunner } from "./session-runner";
 import type { OnFinishCallback } from "./session-runner";
 import { runJobPipeline } from "./job-pipeline";
+import { runFixedCount } from "./loop-runner";
 import { loadHooks } from "./hooks-loader";
 import { runHooks } from "./hook-executor";
+import { handlePlan } from "./handlers";
 
 export type Subcommand = "discover" | "plan" | "build" | "run";
 
@@ -268,7 +270,17 @@ export async function main(): Promise<void> {
       break;
     }
 
-    case "plan":
+    case "plan": {
+      await handlePlan({
+        args,
+        env,
+        output: process.stdout,
+        createPlanningAgent,
+        runFixedCount,
+      });
+      break;
+    }
+
     case "build":
     case "run": {
       const tasksPath = join(args.codebase, ".sauna", "jobs", args.job, "tasks.md");

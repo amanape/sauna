@@ -12,3 +12,4 @@ export { parseCliArgs, runConversation, type CliArgs, type Subcommand, type Disc
 export { createMcpClient, buildMcpServerConfigs, validateTavilyApiKey, type McpServerConfigs } from "./mcp-client";
 export { loadHooks } from "./hooks-loader";
 export { runHooks, type HookResult, type HookSuccess, type HookFailure } from "./hook-executor";
+export { handlePlan, type HandlePlanDeps } from "./handlers";
