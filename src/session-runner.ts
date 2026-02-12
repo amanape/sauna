@@ -1,25 +1,25 @@
-import type { Agent } from "@mastra/core/agent";
+import type { Agent, LLMStepResult } from "@mastra/core/agent";
 import type { MessageInput } from "@mastra/core/agent/message-list";
 
-// TODO: LLMStepResult is defined in @mastra/core/dist/stream/types but not
-// re-exported from @mastra/core/stream or any public index. Use `any` until
-// Mastra exposes it publicly.
-// TODO: MastraOnFinishCallback is defined in @mastra/core/dist/stream/types
-// but not re-exported from any public index. Use `any` until Mastra exposes it.
+// Derive the onFinish callback type from Agent.stream()'s options parameter.
+// MastraOnFinishCallback is not re-exported from @mastra/core's public API,
+// but we can extract it from the Agent class's own method signature.
+type StreamOptions = NonNullable<Parameters<Agent["stream"]>[1]>;
+export type OnFinishCallback = StreamOptions["onFinish"];
 
 export interface SessionRunnerConfig {
   agent: Agent;
   maxSteps?: number;
-  onStepFinish?: (step: any) => void;
-  onFinish?: (event: any) => Promise<void> | void;
+  onStepFinish?: (step: LLMStepResult) => void;
+  onFinish?: OnFinishCallback;
 }
 
 export class SessionRunner {
   private agent: Agent;
   private messages: MessageInput[] = [];
   private maxSteps: number;
-  private onStepFinish?: (step: any) => void;
-  private onFinish?: (event: any) => Promise<void> | void;
+  private onStepFinish?: (step: LLMStepResult) => void;
+  private onFinish?: OnFinishCallback;
 
   constructor(config: SessionRunnerConfig) {
     this.agent = config.agent;

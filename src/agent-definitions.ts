@@ -1,14 +1,14 @@
 import { resolve } from "node:path";
 
 import { Agent } from "@mastra/core/agent";
+import type { ToolsInput } from "@mastra/core/agent";
 import type { Workspace } from "@mastra/core/workspace";
 
 import { DEFAULT_MODEL } from "./model-resolution";
-import { createTools } from "./tool-factory";
 
 export interface ResearchAgentConfig {
   model?: string;
-  tools: ReturnType<typeof createTools>;
+  tools: ToolsInput;
   workspace: Workspace;
   maxSteps?: number;
 }
@@ -18,7 +18,7 @@ export function createResearchAgent(config: ResearchAgentConfig): Agent {
     id: "researcher",
     name: "researcher",
     description: "Autonomous research sub-agent that investigates codebases, reads files, runs commands, and searches the web to gather information and return a structured summary.",
-    instructions: "You are an autonomous research agent. Investigate the given topic thoroughly using the workspace tools and web search. Read files, explore directories, run commands, and search the web as needed. Return a comprehensive, structured summary of your findings.",
+    instructions: "You are an autonomous research agent. Investigate the given topic thoroughly using the workspace tools, web search, and documentation lookup. Read files, explore directories, run commands, search the web, and look up library documentation as needed. Return a comprehensive, structured summary of your findings.",
     model: config.model ?? DEFAULT_MODEL,
     tools: config.tools,
     workspace: config.workspace,
@@ -31,7 +31,7 @@ export function createResearchAgent(config: ResearchAgentConfig): Agent {
 export interface DiscoveryAgentConfig {
   systemPrompt: string;
   model?: string;
-  tools: ReturnType<typeof createTools>;
+  tools: ToolsInput;
   workspace: Workspace;
   researcher: Agent;
   outputPath?: string;
@@ -56,7 +56,7 @@ export function createDiscoveryAgent(config: DiscoveryAgentConfig): Agent {
 
 export interface PlanningAgentConfig {
   model?: string;
-  tools: ReturnType<typeof createTools>;
+  tools: ToolsInput;
   workspace: Workspace;
   researcher: Agent;
   jobId: string;
@@ -80,7 +80,7 @@ export async function createPlanningAgent(config: PlanningAgentConfig): Promise<
 
 export interface BuilderAgentConfig {
   model?: string;
-  tools: ReturnType<typeof createTools>;
+  tools: ToolsInput;
   workspace: Workspace;
   researcher: Agent;
   jobId: string;

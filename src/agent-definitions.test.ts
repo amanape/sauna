@@ -1,22 +1,32 @@
 import { test, expect, describe } from "bun:test";
 import { createPlanningAgent, createBuilderAgent, type PlanningAgentConfig, type BuilderAgentConfig } from "./agent-definitions";
-import { createTools } from "./tool-factory";
+import { createResearchAgent } from "./agent-definitions";
 import { createWorkspace } from "./workspace-factory";
 import { Agent } from "@mastra/core/agent";
+import { createTool } from "@mastra/core/tools";
+import * as z from "zod";
+
+/** Stub MCP tools record matching ToolsInput for agent definition tests */
+const stubMcpTools = {
+  tavily_web_search: createTool({
+    id: "tavily_web_search",
+    description: "Search the web",
+    inputSchema: z.object({ query: z.string() }),
+    async execute({ query }) { return `results for ${query}`; },
+  }),
+  context7_lookup: createTool({
+    id: "context7_lookup",
+    description: "Look up library documentation",
+    inputSchema: z.object({ library: z.string() }),
+    async execute({ library }) { return `docs for ${library}`; },
+  }),
+};
 
 function makeBuilderConfig(overrides?: Partial<BuilderAgentConfig>): BuilderAgentConfig {
   const workspace = createWorkspace(import.meta.dirname);
-  const tools = createTools({ workspace });
-  const researcher = new Agent({
-    id: "researcher",
-    name: "researcher",
-    instructions: "stub",
-    model: "openai:gpt-4o",
-    tools,
-    workspace,
-  });
+  const researcher = createResearchAgent({ tools: stubMcpTools, workspace });
   return {
-    tools,
+    tools: stubMcpTools,
     workspace,
     researcher,
     jobId: "my-job",
@@ -26,17 +36,9 @@ function makeBuilderConfig(overrides?: Partial<BuilderAgentConfig>): BuilderAgen
 
 function makeConfig(overrides?: Partial<PlanningAgentConfig>): PlanningAgentConfig {
   const workspace = createWorkspace(import.meta.dirname);
-  const tools = createTools({ workspace });
-  const researcher = new Agent({
-    id: "researcher",
-    name: "researcher",
-    instructions: "stub",
-    model: "openai:gpt-4o",
-    tools,
-    workspace,
-  });
+  const researcher = createResearchAgent({ tools: stubMcpTools, workspace });
   return {
-    tools,
+    tools: stubMcpTools,
     workspace,
     researcher,
     jobId: "my-job",

@@ -10,13 +10,13 @@ When I need to give agents access to an external tool (web search, documentation
 
 ## Acceptance Criteria
 
-- [ ] All agents get web search and documentation lookup tools via a shared `MCPClient` instance
-- [ ] `search-backends.ts`, `web-search.ts`, `tool-factory.ts` and their test files are deleted
-- [ ] `@mastra/mcp` is installed as the only new dependency
-- [ ] The `MCPClient` is configured with Tavily MCP (web search) and Context7 MCP (documentation lookup)
-- [ ] The MCP client factory accepts an env record parameter (injectable, testable — consistent with existing codebase patterns)
-- [ ] Agents can still search the web (existing capability preserved)
-- [ ] Agents can look up library documentation (new capability)
+- [x] All agents get web search and documentation lookup tools via a shared `MCPClient` instance
+- [x] `search-backends.ts`, `web-search.ts`, `tool-factory.ts` and their test files are deleted
+- [x] `@mastra/mcp` is installed as the only new dependency
+- [x] The `MCPClient` is configured with Tavily MCP (web search) and Context7 MCP (documentation lookup)
+- [x] The MCP client factory accepts an env record parameter (injectable, testable — consistent with existing codebase patterns)
+- [x] Agents can still search the web (existing capability preserved)
+- [x] Agents can look up library documentation (new capability)
 
 ## Out of Scope
 

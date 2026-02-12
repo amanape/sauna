@@ -1,5 +1,18 @@
 import { test, expect, describe, mock } from "bun:test";
+import type { Agent, LLMStepResult } from "@mastra/core/agent";
+import type { MessageInput } from "@mastra/core/agent/message-list";
 import { SessionRunner } from "./session-runner";
+
+/** Extract the stream options type from Agent.stream()'s second parameter */
+type StreamOptions = NonNullable<Parameters<Agent["stream"]>[1]>;
+
+/** Mock stream function signature matching Agent.stream() */
+type MockStreamFn = (messages: MessageInput[], opts: StreamOptions) => ReturnType<Agent["stream"]>;
+
+/** Typed accessor for mock call arguments */
+function mockCallArgs(fn: ReturnType<typeof mock>, index: number) {
+  return fn.mock.calls[index] as unknown as [MessageInput[], StreamOptions];
+}
 
 /** Create a ReadableStream<string> from an array of chunks */
 function textStreamFrom(chunks: string[]): ReadableStream<string> {
@@ -11,7 +24,7 @@ function textStreamFrom(chunks: string[]): ReadableStream<string> {
   });
 }
 
-function makeMockAgent(streamImpl?: (...args: any[]) => any) {
+function makeMockAgent(streamImpl?: MockStreamFn) {
   const mockStream = mock(
     streamImpl ??
     (async () => ({
@@ -24,7 +37,7 @@ function makeMockAgent(streamImpl?: (...args: any[]) => any) {
       }),
     })),
   );
-  return { stream: mockStream } as any;
+  return { stream: mockStream } as unknown as Agent;
 }
 
 describe("SessionRunner", () => {
@@ -45,13 +58,13 @@ describe("SessionRunner", () => {
 
     await runner.sendMessage("Hello");
 
-    const [messages] = (agent.stream.mock.calls as any)[0];
+    const [messages] = mockCallArgs(agent.stream, 0);
     expect(messages).toContainEqual({ role: "user", content: "Hello" });
   });
 
   test("accumulates messages across multiple turns", async () => {
     let callCount = 0;
-    const agent = makeMockAgent(async (msgs: any[]) => {
+    const agent = makeMockAgent(async (msgs: MessageInput[]) => {
       callCount++;
       return {
         textStream: textStreamFrom([`Response ${callCount}`]),
@@ -71,7 +84,7 @@ describe("SessionRunner", () => {
 
     await runner.sendMessage("Second");
 
-    const [secondMessages] = (agent.stream.mock.calls as any)[1];
+    const [secondMessages] = mockCallArgs(agent.stream, 1);
     expect(secondMessages).toContainEqual({ role: "user", content: "First" });
     expect(secondMessages).toContainEqual({ role: "assistant", content: "Response 1" });
     expect(secondMessages).toContainEqual({ role: "user", content: "Second" });
@@ -93,7 +106,7 @@ describe("SessionRunner", () => {
 
     // Second call should use the canonical messages from getFullOutput, not our raw push
     await runner.sendMessage("Second");
-    const [secondMessages] = (agent.stream.mock.calls as any)[1];
+    const [secondMessages] = mockCallArgs(agent.stream, 1);
     expect(secondMessages[0]).toBe(canonicalMessages[0]);
     expect(secondMessages[1]).toBe(canonicalMessages[1]);
   });
@@ -122,7 +135,7 @@ describe("SessionRunner", () => {
 
     await runner.sendMessage("Hello");
 
-    const [, opts] = (agent.stream.mock.calls as any)[0];
+    const [, opts] = mockCallArgs(agent.stream, 0);
     expect(opts.maxSteps).toBe(25);
   });
 
@@ -132,14 +145,14 @@ describe("SessionRunner", () => {
 
     await runner.sendMessage("Hello");
 
-    const [, opts] = (agent.stream.mock.calls as any)[0];
+    const [, opts] = mockCallArgs(agent.stream, 0);
     expect(opts.maxSteps).toBe(50);
   });
 
   test("passes onStepFinish callback to agent.stream options", async () => {
     const onStepFinish = mock(() => {});
-    const agent = makeMockAgent(async (_msgs: any[], opts: any) => {
-      opts.onStepFinish({ toolResults: [] });
+    const agent = makeMockAgent(async (_msgs: MessageInput[], opts: StreamOptions) => {
+      opts.onStepFinish!({ toolResults: [] } as LLMStepResult);
       return {
         textStream: textStreamFrom(["OK"]),
         getFullOutput: async () => ({ messages: [] }),
@@ -154,8 +167,8 @@ describe("SessionRunner", () => {
 
   test("passes onFinish callback to agent.stream options", async () => {
     const onFinish = mock(() => {});
-    const agent = makeMockAgent(async (_msgs: any[], opts: any) => {
-      opts.onFinish({ text: "Done" });
+    const agent = makeMockAgent(async (_msgs: MessageInput[], opts: StreamOptions) => {
+      opts.onFinish!({ text: "Done" } as Parameters<NonNullable<StreamOptions["onFinish"]>>[0]);
       return {
         textStream: textStreamFrom(["Done"]),
         getFullOutput: async () => ({ messages: [] }),
@@ -169,8 +182,8 @@ describe("SessionRunner", () => {
   });
 
   test("does not include onFinish in stream options when not provided", async () => {
-    let capturedOpts: any = null;
-    const agent = makeMockAgent(async (_msgs: any[], opts: any) => {
+    let capturedOpts: StreamOptions | null = null;
+    const agent = makeMockAgent(async (_msgs: MessageInput[], opts: StreamOptions) => {
       capturedOpts = opts;
       return {
         textStream: textStreamFrom(["OK"]),
@@ -181,7 +194,7 @@ describe("SessionRunner", () => {
 
     await runner.sendMessage("Hello");
 
-    expect(capturedOpts.onFinish).toBeUndefined();
+    expect(capturedOpts!.onFinish).toBeUndefined();
   });
 
   test("module does not import I/O primitives", async () => {

@@ -5,13 +5,15 @@ import { createInterface } from "node:readline/promises";
 import { resolve, join } from "node:path";
 import { existsSync } from "node:fs";
 import { Agent } from "@mastra/core/agent";
+import type { LLMStepResult } from "@mastra/core/agent";
 import type { Readable, Writable } from "node:stream";
 
 import { validateApiKey } from "./model-resolution";
-import { createTools, resolveSearchFn } from "./tool-factory";
+import { createMcpClient, validateTavilyApiKey } from "./mcp-client";
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent, createResearchAgent, createPlanningAgent, createBuilderAgent } from "./agent-definitions";
 import { SessionRunner } from "./session-runner";
+import type { OnFinishCallback } from "./session-runner";
 import { runJobPipeline } from "./job-pipeline";
 import { loadHooks } from "./hooks-loader";
 import { runHooks } from "./hook-executor";
@@ -60,24 +62,21 @@ export interface ConversationDeps {
   agent: Agent;
   input: Readable;
   output: Writable;
-  // TODO: MastraOnFinishCallback is not publicly exported from @mastra/core.
-  // Replace `any` when Mastra exposes it.
-  onFinish?: (event: any) => Promise<void> | void;
+  onFinish?: OnFinishCallback;
 }
 
 export async function runConversation(deps: ConversationDeps): Promise<void> {
   const session = new SessionRunner({
     agent: deps.agent,
     maxSteps: 50,
-    // TODO: LLMStepResult is not publicly exported from @mastra/core.
-    // Replace `any` when Mastra exposes it.
-    onStepFinish(step: any) {
+    onStepFinish(step: LLMStepResult) {
       for (const tr of step.toolResults) {
+        const result = tr.payload.result as Record<string, unknown> | undefined;
         if (
           tr.payload.toolName === "mastra_workspace_write_file" &&
-          tr.payload.result?.success
+          result?.success
         ) {
-          deps.output.write(`Wrote ${tr.payload.result.path}\n`);
+          deps.output.write(`Wrote ${result.path}\n`);
         }
       }
     },
@@ -111,13 +110,14 @@ export async function main(): Promise<void> {
 
   try {
     validateApiKey(process.env, args.model);
+    validateTavilyApiKey(process.env);
   } catch (e: unknown) {
     console.error(e instanceof Error ? e.message : String(e));
     process.exit(1);
   }
 
-  const searchFn = resolveSearchFn(process.env as Record<string, string | undefined>);
-  const tools = createTools(searchFn);
+  const mcp = createMcpClient(process.env as Record<string, string | undefined>);
+  const tools = await mcp.listTools();
   const workspace = createWorkspace(args.codebase, {
     skillsPaths: [".sauna/skills"],
   });
@@ -173,9 +173,13 @@ export async function main(): Promise<void> {
     outputPath: args.output,
   });
 
-  await runConversation({
-    agent,
-    input: process.stdin,
-    output: process.stdout,
-  });
+  try {
+    await runConversation({
+      agent,
+      input: process.stdin,
+      output: process.stdout,
+    });
+  } finally {
+    await mcp.disconnect();
+  }
 }

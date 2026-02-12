@@ -4,11 +4,26 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { realpathSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { Agent, LLMStepResult } from "@mastra/core/agent";
+import type { MessageInput } from "@mastra/core/agent/message-list";
+import { createTool } from "@mastra/core/tools";
+import * as z from "zod";
 import { parseCliArgs, runConversation, type ConversationDeps } from "./cli";
+import type { OnFinishCallback } from "./session-runner";
 import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
-import { createTools, resolveSearchFn } from "./tool-factory";
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent, createResearchAgent } from "./agent-definitions";
+
+/** Extract the stream options type from Agent.stream()'s second parameter */
+type StreamOptions = NonNullable<Parameters<Agent["stream"]>[1]>;
+
+/** Mock stream function signature matching Agent.stream() */
+type MockStreamFn = (messages: MessageInput[], opts: StreamOptions) => ReturnType<Agent["stream"]>;
+
+/** Typed accessor for mock call arguments */
+function mockCallArgs(fn: ReturnType<typeof mock>, index: number) {
+  return fn.mock.calls[index] as unknown as [MessageInput[], StreamOptions];
+}
 
 describe("parseCliArgs", () => {
   test("parses --codebase as required argument", () => {
@@ -171,63 +186,26 @@ describe("validateApiKey", () => {
   });
 });
 
-const stubSearchFn = async () => [
-  { title: "Stub", snippet: "stub result", url: "https://example.com" },
-];
+/** Stub MCP tools record matching ToolsInput for agent definition tests */
+const stubMcpTools = {
+  tavily_web_search: createTool({
+    id: "tavily_web_search",
+    description: "Search the web",
+    inputSchema: z.object({ query: z.string() }),
+    async execute({ query }) { return `results for ${query}`; },
+  }),
+  context7_lookup: createTool({
+    id: "context7_lookup",
+    description: "Look up library documentation",
+    inputSchema: z.object({ library: z.string() }),
+    async execute({ library }) { return `docs for ${library}`; },
+  }),
+};
 
 function stubResearcher() {
-  const tools = createTools(stubSearchFn);
   const workspace = createWorkspace("/tmp");
-  return createResearchAgent({ tools, workspace });
+  return createResearchAgent({ tools: stubMcpTools, workspace });
 }
-
-describe("createTools", () => {
-  test("returns a record with only web_search key", () => {
-    const tools = createTools(stubSearchFn);
-    expect(Object.keys(tools)).toEqual(["web_search"]);
-  });
-
-  test("web_search tool has execute function", () => {
-    const tools = createTools(stubSearchFn);
-    expect(typeof tools.web_search.execute).toBe("function");
-  });
-
-  test("injects custom search function", async () => {
-    const searchFn = async (query: string) => [
-      { title: "Result", snippet: "A result", url: "https://example.com" },
-    ];
-    const tools = createTools(searchFn);
-    const result = await tools.web_search.execute!({ query: "test" }, {} as any);
-    expect(result).toContain("Result");
-  });
-});
-
-describe("resolveSearchFn", () => {
-  test("returns a Tavily-backed search function when TAVILY_API_KEY is set", async () => {
-    const searchFn = resolveSearchFn({ TAVILY_API_KEY: "tvly-test-key" });
-    // The returned function should be callable (not the default error thrower)
-    // We can't call a real API, but we can verify it doesn't throw synchronously
-    expect(typeof searchFn).toBe("function");
-    // Calling it should attempt a fetch (not throw "not configured")
-    // We verify by checking it doesn't throw the default error message
-    try {
-      await searchFn("test query");
-    } catch (e: any) {
-      // Should NOT be the "not configured" error — it should be a network/fetch error
-      expect(e.message).not.toContain("not configured");
-    }
-  });
-
-  test("returns error-throwing function when TAVILY_API_KEY is absent", async () => {
-    const searchFn = resolveSearchFn({});
-    await expect(searchFn("test")).rejects.toThrow("TAVILY_API_KEY");
-  });
-
-  test("error message suggests setting the environment variable", async () => {
-    const searchFn = resolveSearchFn({});
-    await expect(searchFn("test")).rejects.toThrow("TAVILY_API_KEY");
-  });
-});
 
 describe("createWorkspace", () => {
   // Create temp dirs: parent has an outside file, child is the workspace base
@@ -335,11 +313,10 @@ describe("createWorkspace", () => {
 
 describe("createDiscoveryAgent", () => {
   test("defaults model to DEFAULT_MODEL when not specified", () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a test agent.",
-      tools,
+      tools: stubMcpTools,
       workspace,
       researcher: stubResearcher(),
     });
@@ -347,12 +324,11 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("uses provided model when specified", () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a test agent.",
       model: "openai/gpt-4",
-      tools,
+      tools: stubMcpTools,
       workspace,
       researcher: stubResearcher(),
     });
@@ -360,11 +336,10 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("wires system prompt as instructions", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a JTBD discovery agent.",
-      tools,
+      tools: stubMcpTools,
       workspace,
       researcher: stubResearcher(),
     });
@@ -373,11 +348,10 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("appends output directory to system prompt when provided", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a JTBD discovery agent.",
-      tools,
+      tools: stubMcpTools,
       workspace,
       researcher: stubResearcher(),
       outputPath: "/my/output",
@@ -388,11 +362,10 @@ describe("createDiscoveryAgent", () => {
   });
 
   test("does not modify system prompt when outputPath is absent", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a JTBD discovery agent.",
-      tools,
+      tools: stubMcpTools,
       workspace,
       researcher: stubResearcher(),
     });
@@ -400,85 +373,80 @@ describe("createDiscoveryAgent", () => {
     expect(instructions).toBe("You are a JTBD discovery agent.");
   });
 
-  test("includes web_search in agent tools", async () => {
-    const tools = createTools(stubSearchFn);
+  test("exposes MCP tools passed via config", async () => {
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
-      tools,
+      tools: stubMcpTools,
       workspace,
       researcher: stubResearcher(),
     });
     const agentTools = await agent.listTools();
     const toolIds = Object.keys(agentTools);
-    expect(toolIds).toContain("web_search");
+    expect(toolIds).toContain("tavily_web_search");
+    expect(toolIds).toContain("context7_lookup");
   });
 });
 
 describe("createResearchAgent", () => {
   test("defaults model to DEFAULT_MODEL when not specified", () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace });
     expect(agent.model).toBe(DEFAULT_MODEL);
   });
 
   test("uses provided model when specified", () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace, model: "openai/gpt-4" });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace, model: "openai/gpt-4" });
     expect(agent.model).toBe("openai/gpt-4");
   });
 
-  test("has instructions describing autonomous research role", async () => {
-    const tools = createTools(stubSearchFn);
+  test("has instructions referencing research, web search, and documentation lookup", async () => {
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace });
     const instructions = await agent.getInstructions();
     expect(instructions).toContain("research");
+    expect(instructions).toContain("web search");
+    expect(instructions).toContain("documentation lookup");
   });
 
-  test("includes web_search in agent tools", async () => {
-    const tools = createTools(stubSearchFn);
+  test("exposes MCP tools passed via config", async () => {
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace });
     const agentTools = await agent.listTools();
     const toolIds = Object.keys(agentTools);
-    expect(toolIds).toContain("web_search");
+    expect(toolIds).toContain("tavily_web_search");
+    expect(toolIds).toContain("context7_lookup");
   });
 
   test("sets maxSteps via defaultOptions", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace, maxSteps: 25 });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace, maxSteps: 25 });
     const opts = await agent.getDefaultOptions();
     expect(opts?.maxSteps).toBe(25);
   });
 
   test("defaults maxSteps to 30 when not specified", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace });
     const opts = await agent.getDefaultOptions();
     expect(opts?.maxSteps).toBe(30);
   });
 
   test("has a description for parent agent tool exposure", () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
-    const agent = createResearchAgent({ tools, workspace });
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace });
     expect(agent.getDescription()).toBeTruthy();
   });
 });
 
 describe("createDiscoveryAgent — sub-agents", () => {
   test("registers researcher as a sub-agent", async () => {
-    const tools = createTools(stubSearchFn);
     const workspace = createWorkspace("/tmp");
     const researcher = stubResearcher();
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
-      tools,
+      tools: stubMcpTools,
       workspace,
       researcher,
     });
@@ -486,13 +454,13 @@ describe("createDiscoveryAgent — sub-agents", () => {
     expect(Object.keys(agents)).toContain("researcher");
   });
 
-  test("uses the injected researcher instance", async () => {
-    const tools = createTools(stubSearchFn);
+  test("researcher agent inherits model from discovery agent config", async () => {
     const workspace = createWorkspace("/tmp");
-    const researcher = createResearchAgent({ tools, workspace, model: "openai/gpt-4" });
+    const researcher = createResearchAgent({ tools: stubMcpTools, workspace, model: "openai/gpt-4" });
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
-      tools,
+      model: "openai/gpt-4",
+      tools: stubMcpTools,
       workspace,
       researcher,
     });
@@ -513,8 +481,8 @@ describe("runConversation", () => {
   }
 
   function makeDeps(overrides?: {
-    streamImpl?: (...args: any[]) => any;
-    onFinish?: (event: any) => Promise<void> | void;
+    streamImpl?: MockStreamFn;
+    onFinish?: OnFinishCallback;
   }) {
     const input = new PassThrough();
     const output = new PassThrough();
@@ -533,7 +501,7 @@ describe("runConversation", () => {
       })),
     );
 
-    const mockAgent = { stream: mockStream } as any;
+    const mockAgent = { stream: mockStream } as unknown as Agent;
 
     const deps: ConversationDeps = {
       agent: mockAgent,
@@ -586,14 +554,14 @@ describe("runConversation", () => {
     const captured = output.read();
     expect(captured).toContain("Hello from AI");
     expect(mockStream.mock.calls.length).toBeGreaterThanOrEqual(1);
-    const [messages] = (mockStream.mock.calls as any)[0];
+    const [messages] = mockCallArgs(mockStream, 0);
     expect(messages).toContainEqual({ role: "user", content: "Hello" });
   });
 
   test("accumulates messages across multiple turns", async () => {
     let callCount = 0;
     const { input, output, mockStream, deps } = makeDeps({
-      streamImpl: async (msgs: any[]) => {
+      streamImpl: async (msgs: MessageInput[]) => {
         callCount++;
         const text = `Response ${callCount}`;
         return {
@@ -617,7 +585,7 @@ describe("runConversation", () => {
     await done;
 
     expect(callCount).toBe(2);
-    const [secondMessages] = (mockStream.mock.calls as any)[1];
+    const [secondMessages] = mockCallArgs(mockStream, 1);
     expect(secondMessages).toContainEqual({ role: "user", content: "First" });
     expect(secondMessages).toContainEqual({ role: "assistant", content: "Response 1" });
     expect(secondMessages).toContainEqual({ role: "user", content: "Second" });
@@ -639,8 +607,8 @@ describe("runConversation", () => {
 
   test("surfaces workspace write_file results as notifications", async () => {
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: any[], opts: any) => {
-        opts.onStepFinish({
+      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+        opts.onStepFinish!({
           toolResults: [
             {
               payload: {
@@ -655,7 +623,7 @@ describe("runConversation", () => {
               },
             },
           ],
-        });
+        } as LLMStepResult);
         return {
           textStream: textStreamFrom(["Done writing."]),
           getFullOutput: async () => ({
@@ -681,8 +649,8 @@ describe("runConversation", () => {
 
   test("does not surface failed workspace write_file results", async () => {
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: any[], opts: any) => {
-        opts.onStepFinish({
+      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+        opts.onStepFinish!({
           toolResults: [
             {
               payload: {
@@ -691,7 +659,7 @@ describe("runConversation", () => {
               },
             },
           ],
-        });
+        } as LLMStepResult);
         return {
           textStream: textStreamFrom(["Failed."]),
           getFullOutput: async () => ({
@@ -718,10 +686,10 @@ describe("runConversation", () => {
     const onFinish = mock(async () => {});
     const { input, output, deps } = makeDeps({
       onFinish,
-      streamImpl: async (msgs: any[], opts: any) => {
+      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
         // Simulate Mastra calling onFinish after completion
         if (opts.onFinish) {
-          opts.onFinish({ text: "Done.", messages: msgs, toolResults: [] });
+          opts.onFinish({ text: "Done.", messages: msgs, toolResults: [] } as Parameters<NonNullable<StreamOptions["onFinish"]>>[0]);
         }
         return {
           textStream: textStreamFrom(["Done."]),
@@ -742,16 +710,16 @@ describe("runConversation", () => {
     await done;
 
     expect(onFinish).toHaveBeenCalledTimes(1);
-    const [finishEvent] = (onFinish.mock.calls as any)[0];
+    const [finishEvent] = onFinish.mock.calls[0] as unknown as [Parameters<NonNullable<OnFinishCallback>>[0]];
     expect(finishEvent.text).toBe("Done.");
   });
 
   test("passes onFinish to agent.stream options so Mastra invokes it", async () => {
-    let capturedOpts: any = null;
+    let capturedOpts: StreamOptions | null = null;
     const onFinish = mock(async () => {});
     const { input, output, deps } = makeDeps({
       onFinish,
-      streamImpl: async (msgs: any[], opts: any) => {
+      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
         capturedOpts = opts;
         return {
           textStream: textStreamFrom(["Response"]),
@@ -768,13 +736,13 @@ describe("runConversation", () => {
     input.end();
     await done;
 
-    expect(capturedOpts.onFinish).toBe(onFinish);
+    expect(capturedOpts!.onFinish).toBe(onFinish);
   });
 
   test("does not pass onFinish when not provided in deps", async () => {
-    let capturedOpts: any = null;
+    let capturedOpts: StreamOptions | null = null;
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: any[], opts: any) => {
+      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
         capturedOpts = opts;
         return {
           textStream: textStreamFrom(["Response"]),
@@ -791,7 +759,7 @@ describe("runConversation", () => {
     input.end();
     await done;
 
-    expect(capturedOpts.onFinish).toBeUndefined();
+    expect(capturedOpts!.onFinish).toBeUndefined();
   });
 
   test("completes cleanly on EOF", async () => {
@@ -800,5 +768,54 @@ describe("runConversation", () => {
     const done = runConversation(deps);
     input.end();
     await done;
+  });
+});
+
+describe("main() startup validation", () => {
+  test("exits with error when model provider API key is missing", async () => {
+    const entrypoint = resolve(import.meta.dirname, "../index.ts");
+    // Strip all known API keys so validateApiKey fails for the default provider
+    const cleanEnv = Object.fromEntries(
+      Object.entries(process.env).filter(
+        ([k]) => !k.endsWith("_API_KEY"),
+      ),
+    );
+
+    const proc = Bun.spawn(["bun", entrypoint, "--codebase", "/tmp"], {
+      env: cleanEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    const exitCode = await proc.exited;
+    const stderr = await new Response(proc.stderr).text();
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("ANTHROPIC_API_KEY");
+    expect(stderr).toContain("is required");
+  });
+
+  test("exits with error when TAVILY_API_KEY is missing", async () => {
+    const entrypoint = resolve(import.meta.dirname, "../index.ts");
+    // Provide the LLM key so the first validation passes, but strip TAVILY_API_KEY
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(
+        ([k]) => k !== "TAVILY_API_KEY",
+      ),
+    );
+    env.ANTHROPIC_API_KEY = "test-key-for-validation";
+
+    const proc = Bun.spawn(["bun", entrypoint, "--codebase", "/tmp"], {
+      env,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    const exitCode = await proc.exited;
+    const stderr = await new Response(proc.stderr).text();
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("TAVILY_API_KEY");
+    expect(stderr).toContain("is required");
   });
 });
