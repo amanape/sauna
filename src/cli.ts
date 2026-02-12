@@ -8,53 +8,239 @@ import { Agent } from "@mastra/core/agent";
 import type { LLMStepResult } from "@mastra/core/agent";
 import type { Readable, Writable } from "node:stream";
 
-import { validateApiKey } from "./model-resolution";
-import { createMcpClient, validateTavilyApiKey } from "./mcp-client";
-import { createWorkspace } from "./workspace-factory";
-import { createDiscoveryAgent, createResearchAgent, createPlanningAgent, createBuilderAgent } from "./agent-definitions";
+import { createDiscoveryAgent, createPlanningAgent, createBuilderAgent } from "./agent-definitions";
+import { initEnvironment } from "./init-environment";
 import type { OnFinishCallback } from "./session-runner";
 import { runJobPipeline } from "./job-pipeline";
+import { runFixedCount, runUntilDone } from "./loop-runner";
 import { loadHooks } from "./hooks-loader";
 import { runHooks } from "./hook-executor";
+import { handlePlan, handleBuild, handleRun } from "./handlers";
 
-export interface CliArgs {
+export type Subcommand = "discover" | "plan" | "build" | "run";
+
+export interface DiscoverArgs {
+  subcommand: "discover";
   codebase: string;
   output: string;
   model?: string;
-  job?: string;
 }
 
-export function parseCliArgs(argv: string[]): CliArgs {
+export interface PlanArgs {
+  subcommand: "plan";
+  codebase: string;
+  job: string;
+  iterations: number;
+  model?: string;
+}
+
+export interface BuildArgs {
+  subcommand: "build";
+  codebase: string;
+  job: string;
+  model?: string;
+}
+
+export interface RunArgs {
+  subcommand: "run";
+  codebase: string;
+  job: string;
+  iterations: number;
+  model?: string;
+}
+
+export interface HelpResult {
+  subcommand: "help";
+  text: string;
+}
+
+export type CliArgs = DiscoverArgs | PlanArgs | BuildArgs | RunArgs;
+
+export type ParseResult = CliArgs | HelpResult;
+
+const VALID_SUBCOMMANDS: ReadonlySet<string> = new Set(["discover", "plan", "build", "run"]);
+
+const USAGE_TEXT = `Usage: sauna <subcommand> [flags]
+
+Subcommands:
+  discover   Run the interactive discovery agent
+  plan       Run the planning agent for a fixed iteration count
+  build      Run the builder agent until all tasks are done
+  run        Run plan then build sequentially
+
+Run "sauna <subcommand> --help" for subcommand-specific flags.`;
+
+const SUBCOMMAND_HELP: Record<Subcommand, string> = {
+  discover: `Usage: sauna discover [flags]
+
+Run the interactive discovery agent.
+
+Flags:
+  --codebase <path>   Project root to operate on (required)
+  --output <path>     Output directory for jobs (default: ./jobs/)
+  --model <model>     Override the default LLM model`,
+
+  plan: `Usage: sauna plan [flags]
+
+Run the planning agent for a fixed iteration count.
+
+Flags:
+  --codebase <path>   Project root to operate on (required)
+  --job <slug>        Job directory under .sauna/jobs/ (required)
+  --iterations <n>    Number of planning iterations (default: 1)
+  --model <model>     Override the default LLM model`,
+
+  build: `Usage: sauna build [flags]
+
+Run the builder agent until all tasks are done.
+
+Flags:
+  --codebase <path>   Project root to operate on (required)
+  --job <slug>        Job directory under .sauna/jobs/ (required)
+  --model <model>     Override the default LLM model`,
+
+  run: `Usage: sauna run [flags]
+
+Run plan then build sequentially.
+
+Flags:
+  --codebase <path>   Project root to operate on (required)
+  --job <slug>        Job directory under .sauna/jobs/ (required)
+  --iterations <n>    Number of planning iterations (default: 1)
+  --model <model>     Override the default LLM model`,
+};
+
+function validateJobDir(codebase: string, job: string): void {
+  const jobDir = join(codebase, ".sauna", "jobs", job);
+  if (!existsSync(jobDir)) {
+    throw new Error(
+      `Job directory not found: .sauna/jobs/${job}/ (resolved to ${jobDir})`,
+    );
+  }
+}
+
+function validateIterations(raw: string | undefined): number {
+  if (raw === undefined) return 1;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error("--iterations must be a positive integer");
+  }
+  return n;
+}
+
+function requireFlag(values: Record<string, unknown>, flag: string, subcommand: string): string {
+  const val = values[flag];
+  if (!val || typeof val !== "string") {
+    throw new Error(`--${flag} <${flag === "codebase" ? "path" : "slug"}> is required for "${subcommand}"`);
+  }
+  return val;
+}
+
+function parseDiscoverArgs(flagArgs: string[]): DiscoverArgs {
   const { values } = parseArgs({
-    args: argv,
+    args: flagArgs,
     options: {
       codebase: { type: "string" },
       output: { type: "string", default: "./jobs/" },
       model: { type: "string" },
-      job: { type: "string" },
     },
     strict: true,
   });
 
-  if (!values.codebase) {
-    throw new Error("--codebase <path> is required");
-  }
-
-  if (values.job) {
-    const jobDir = join(values.codebase, ".sauna", "jobs", values.job);
-    if (!existsSync(jobDir)) {
-      throw new Error(
-        `Job directory not found: .sauna/jobs/${values.job}/ (resolved to ${jobDir})`,
-      );
-    }
-  }
+  const codebase = requireFlag(values, "codebase", "discover");
 
   return {
-    codebase: values.codebase,
+    subcommand: "discover",
+    codebase,
     output: values.output!,
     model: values.model,
-    job: values.job,
   };
+}
+
+function parsePlanArgs(flagArgs: string[]): PlanArgs {
+  const { values } = parseArgs({
+    args: flagArgs,
+    options: {
+      codebase: { type: "string" },
+      job: { type: "string" },
+      iterations: { type: "string" },
+      model: { type: "string" },
+    },
+    strict: true,
+  });
+
+  const codebase = requireFlag(values, "codebase", "plan");
+  const job = requireFlag(values, "job", "plan");
+  const iterations = validateIterations(values.iterations);
+  validateJobDir(codebase, job);
+
+  return { subcommand: "plan", codebase, job, iterations, model: values.model };
+}
+
+function parseBuildArgs(flagArgs: string[]): BuildArgs {
+  const { values } = parseArgs({
+    args: flagArgs,
+    options: {
+      codebase: { type: "string" },
+      job: { type: "string" },
+      model: { type: "string" },
+    },
+    strict: true,
+  });
+
+  const codebase = requireFlag(values, "codebase", "build");
+  const job = requireFlag(values, "job", "build");
+  validateJobDir(codebase, job);
+
+  return { subcommand: "build", codebase, job, model: values.model };
+}
+
+function parseRunArgs(flagArgs: string[]): RunArgs {
+  const { values } = parseArgs({
+    args: flagArgs,
+    options: {
+      codebase: { type: "string" },
+      job: { type: "string" },
+      iterations: { type: "string" },
+      model: { type: "string" },
+    },
+    strict: true,
+  });
+
+  const codebase = requireFlag(values, "codebase", "run");
+  const job = requireFlag(values, "job", "run");
+  const iterations = validateIterations(values.iterations);
+  validateJobDir(codebase, job);
+
+  return { subcommand: "run", codebase, job, iterations, model: values.model };
+}
+
+export function parseCliArgs(argv: string[]): ParseResult {
+  const subcommand = argv[0];
+
+  if (!subcommand || subcommand === "--help") {
+    return { subcommand: "help", text: USAGE_TEXT };
+  }
+
+  if (!VALID_SUBCOMMANDS.has(subcommand)) {
+    throw new Error(
+      `Unknown subcommand: "${subcommand}". Valid subcommands: discover, plan, build, run`,
+    );
+  }
+
+  const flagArgs = argv.slice(1);
+
+  if (flagArgs.includes("--help")) {
+    return { subcommand: "help", text: SUBCOMMAND_HELP[subcommand as Subcommand] };
+  }
+
+  switch (subcommand) {
+    case "discover": return parseDiscoverArgs(flagArgs);
+    case "plan": return parsePlanArgs(flagArgs);
+    case "build": return parseBuildArgs(flagArgs);
+    case "run": return parseRunArgs(flagArgs);
+    default: throw new Error(`Unknown subcommand: ${subcommand}`);
+  }
 }
 
 export interface ConversationDeps {
@@ -113,78 +299,88 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 export async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
 
+  if (args.subcommand === "help") {
+    console.log(args.text);
+    return;
+  }
+
+  let env;
   try {
-    validateApiKey(process.env, args.model);
-    validateTavilyApiKey(process.env);
+    env = await initEnvironment({
+      codebase: args.codebase,
+      model: args.model,
+      env: process.env as Record<string, string | undefined>,
+    });
   } catch (e: unknown) {
     console.error(e instanceof Error ? e.message : String(e));
     process.exit(1);
   }
 
-  const mcp = createMcpClient(process.env as Record<string, string | undefined>);
-  const tools = await mcp.listTools();
-  const workspace = createWorkspace(args.codebase, {
-    skillsPaths: [".sauna/skills"],
-  });
+  const { mcp, tools, workspace, researcher } = env;
 
-  const researcher = createResearchAgent({
-    model: args.model,
-    tools,
-    workspace,
-  });
+  switch (args.subcommand) {
+    case "discover": {
+      const systemPrompt = await Bun.file(
+        resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),
+      ).text();
 
-  if (args.job) {
-    const tasksPath = join(args.codebase, ".sauna", "jobs", args.job, "tasks.md");
-    const hooks = await loadHooks(args.codebase);
+      const agent = createDiscoveryAgent({
+        systemPrompt,
+        model: args.model,
+        tools,
+        workspace,
+        researcher,
+        outputPath: args.output,
+      });
 
-    await runJobPipeline({
-      createPlanner: () =>
-        createPlanningAgent({
-          model: args.model,
-          tools,
-          workspace,
-          researcher,
-          jobId: args.job!,
-        }),
-      createBuilder: () =>
-        createBuilderAgent({
-          model: args.model,
-          tools,
-          workspace,
-          researcher,
-          jobId: args.job!,
-        }),
-      readTasksFile: () => Bun.file(tasksPath).text(),
-      output: process.stdout,
-      plannerIterations: 1,
-      jobId: args.job,
-      hooks,
-      runHooks,
-      hookCwd: args.codebase,
-    });
-    return;
-  }
+      try {
+        await runConversation({
+          agent,
+          input: process.stdin,
+          output: process.stdout,
+        });
+      } finally {
+        await mcp.disconnect();
+      }
+      break;
+    }
 
-  const systemPrompt = await Bun.file(
-    resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),
-  ).text();
+    case "plan": {
+      await handlePlan({
+        args,
+        env,
+        output: process.stdout,
+        createPlanningAgent,
+        runFixedCount,
+      });
+      break;
+    }
 
-  const agent = createDiscoveryAgent({
-    systemPrompt,
-    model: args.model,
-    tools,
-    workspace,
-    researcher,
-    outputPath: args.output,
-  });
+    case "build": {
+      await handleBuild({
+        args,
+        env,
+        output: process.stdout,
+        createBuilderAgent,
+        runUntilDone,
+        loadHooks,
+        runHooks,
+      });
+      break;
+    }
 
-  try {
-    await runConversation({
-      agent,
-      input: process.stdin,
-      output: process.stdout,
-    });
-  } finally {
-    await mcp.disconnect();
+    case "run": {
+      await handleRun({
+        args,
+        env,
+        output: process.stdout,
+        createPlanningAgent,
+        createBuilderAgent,
+        runJobPipeline,
+        loadHooks,
+        runHooks,
+      });
+      break;
+    }
   }
 }

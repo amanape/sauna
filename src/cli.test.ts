@@ -8,7 +8,7 @@ import type { Agent, LLMStepResult } from "@mastra/core/agent";
 import type { MessageInput } from "@mastra/core/agent/message-list";
 import { createTool } from "@mastra/core/tools";
 import * as z from "zod";
-import { parseCliArgs, runConversation, type ConversationDeps } from "./cli";
+import { parseCliArgs, runConversation, type ConversationDeps, type HelpResult } from "./cli";
 import type { OnFinishCallback } from "./session-runner";
 import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
 import { createWorkspace } from "./workspace-factory";
@@ -45,108 +45,311 @@ function mockStreamResult(text: string, messages: MessageInput[], onStepFinish?:
 type MockStreamFn = (messages: MessageInput[], opts: StreamOptions) => ReturnType<Agent["stream"]>;
 
 describe("parseCliArgs", () => {
-  test("parses --codebase as required argument", () => {
-    const result = parseCliArgs(["--codebase", "/some/path"]);
+  // --- Help and usage ---
+
+  test("returns help result when no subcommand is provided", () => {
+    const result = parseCliArgs([]);
+    expect(result.subcommand).toBe("help");
+  });
+
+  test("returns help result when --help is the only argument", () => {
+    const result = parseCliArgs(["--help"]);
+    expect(result.subcommand).toBe("help");
+  });
+
+  test("root help text lists all four subcommands", () => {
+    const result = parseCliArgs([]) as HelpResult;
+    expect(result.text).toContain("discover");
+    expect(result.text).toContain("plan");
+    expect(result.text).toContain("build");
+    expect(result.text).toContain("run");
+  });
+
+  test("root help text includes subcommand descriptions", () => {
+    const result = parseCliArgs([]) as HelpResult;
+    expect(result.text).toContain("discovery");
+    expect(result.text).toContain("planning");
+    expect(result.text).toContain("builder");
+  });
+
+  // --- Per-subcommand help ---
+
+  test("discover --help returns help listing discover flags", () => {
+    const result = parseCliArgs(["discover", "--help"]) as HelpResult;
+    expect(result.subcommand).toBe("help");
+    expect(result.text).toContain("--codebase");
+    expect(result.text).toContain("--output");
+    expect(result.text).toContain("--model");
+  });
+
+  test("plan --help returns help listing plan flags", () => {
+    const result = parseCliArgs(["plan", "--help"]) as HelpResult;
+    expect(result.subcommand).toBe("help");
+    expect(result.text).toContain("--codebase");
+    expect(result.text).toContain("--job");
+    expect(result.text).toContain("--iterations");
+    expect(result.text).toContain("--model");
+  });
+
+  test("build --help returns help listing build flags", () => {
+    const result = parseCliArgs(["build", "--help"]) as HelpResult;
+    expect(result.subcommand).toBe("help");
+    expect(result.text).toContain("--codebase");
+    expect(result.text).toContain("--job");
+    expect(result.text).toContain("--model");
+  });
+
+  test("build --help does not list --iterations", () => {
+    const result = parseCliArgs(["build", "--help"]) as HelpResult;
+    expect(result.text).not.toContain("--iterations");
+  });
+
+  test("run --help returns help listing run flags", () => {
+    const result = parseCliArgs(["run", "--help"]) as HelpResult;
+    expect(result.subcommand).toBe("help");
+    expect(result.text).toContain("--codebase");
+    expect(result.text).toContain("--job");
+    expect(result.text).toContain("--iterations");
+    expect(result.text).toContain("--model");
+  });
+
+  test("per-subcommand help includes subcommand name", () => {
+    const result = parseCliArgs(["discover", "--help"]) as HelpResult;
+    expect(result.text).toContain("discover");
+  });
+
+  // --- Subcommand extraction ---
+
+  test("throws when an unknown subcommand is provided", () => {
+    expect(() => parseCliArgs(["deploy", "--codebase", "/tmp"])).toThrow();
+  });
+
+  // --- discover subcommand ---
+
+  test("parses discover subcommand with required --codebase", () => {
+    const result = parseCliArgs(["discover", "--codebase", "/some/path"]);
+    expect(result.subcommand).toBe("discover");
     expect(result.codebase).toBe("/some/path");
   });
 
-  test("throws when --codebase is missing", () => {
-    expect(() => parseCliArgs([])).toThrow("--codebase");
+  test("discover defaults --output to ./jobs/", () => {
+    const result = parseCliArgs(["discover", "--codebase", "/some/path"]);
+    if (result.subcommand === "discover") {
+      expect(result.output).toBe("./jobs/");
+    }
   });
 
-  test("defaults --output to ./jobs/", () => {
-    const result = parseCliArgs(["--codebase", "/some/path"]);
-    expect(result.output).toBe("./jobs/");
-  });
-
-  test("parses custom --output", () => {
+  test("discover accepts custom --output", () => {
     const result = parseCliArgs([
-      "--codebase", "/some/path",
-      "--output", "/custom/output",
+      "discover", "--codebase", "/some/path", "--output", "/custom/output",
     ]);
-    expect(result.output).toBe("/custom/output");
+    if (result.subcommand === "discover") {
+      expect(result.output).toBe("/custom/output");
+    }
   });
 
-  test("--provider is not accepted", () => {
-    expect(() =>
-      parseCliArgs(["--codebase", "/some/path", "--provider", "openai"]),
-    ).toThrow();
+  test("discover accepts --model", () => {
+    const result = parseCliArgs([
+      "discover", "--codebase", "/some/path", "--model", "openai/gpt-4",
+    ]);
+    expect(result.model).toBe("openai/gpt-4");
   });
 
-  test("defaults --model to undefined", () => {
-    const result = parseCliArgs(["--codebase", "/some/path"]);
+  test("discover defaults --model to undefined", () => {
+    const result = parseCliArgs(["discover", "--codebase", "/some/path"]);
     expect(result.model).toBeUndefined();
   });
 
-  test("parses custom --model", () => {
-    const result = parseCliArgs([
-      "--codebase", "/some/path",
-      "--model", "claude-opus-4-20250514",
-    ]);
-    expect(result.model).toBe("claude-opus-4-20250514");
+  test("discover throws when --codebase is missing", () => {
+    expect(() => parseCliArgs(["discover"])).toThrow("--codebase");
   });
 
-  test("parses all arguments together", () => {
-    const result = parseCliArgs([
-      "--codebase", "/my/project",
-      "--output", "/my/output",
-      "--model", "gpt-4",
-    ]);
-    expect(result.codebase).toBe("/my/project");
-    expect(result.output).toBe("/my/output");
-    expect(result.model).toBe("gpt-4");
+  test("discover rejects unknown flags", () => {
+    expect(() =>
+      parseCliArgs(["discover", "--codebase", "/tmp", "--provider", "openai"]),
+    ).toThrow();
   });
 
-  test("defaults --job to undefined", () => {
-    const result = parseCliArgs(["--codebase", "/some/path"]);
-    expect(result.job).toBeUndefined();
-  });
+  // --- plan subcommand ---
 
-  test("parses --job and resolves to .sauna/jobs/<slug>/", () => {
-    // Create a temp codebase with a valid job directory
-    const tmp = join(tmpdir(), `method6-job-${Date.now()}`);
+  test("parses plan subcommand with required flags", () => {
+    const tmp = join(tmpdir(), `method6-plan-${Date.now()}`);
     mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
     try {
-      const result = parseCliArgs(["--codebase", tmp, "--job", "my-job"]);
-      expect(result.job).toBe("my-job");
+      const result = parseCliArgs(["plan", "--codebase", tmp, "--job", "my-job"]);
+      expect(result.subcommand).toBe("plan");
+      expect(result.codebase).toBe(tmp);
+      if (result.subcommand === "plan") {
+        expect(result.job).toBe("my-job");
+      }
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
   });
 
-  test("throws when --job directory does not exist", () => {
-    const tmp = join(tmpdir(), `method6-job-nojob-${Date.now()}`);
+  test("plan defaults --iterations to 1", () => {
+    const tmp = join(tmpdir(), `method6-plan-iter-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs(["plan", "--codebase", tmp, "--job", "my-job"]);
+      if (result.subcommand === "plan") {
+        expect(result.iterations).toBe(1);
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("plan accepts custom --iterations", () => {
+    const tmp = join(tmpdir(), `method6-plan-iter2-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs([
+        "plan", "--codebase", tmp, "--job", "my-job", "--iterations", "5",
+      ]);
+      if (result.subcommand === "plan") {
+        expect(result.iterations).toBe(5);
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("plan rejects --iterations of zero", () => {
+    const tmp = join(tmpdir(), `method6-plan-zero-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      expect(() =>
+        parseCliArgs(["plan", "--codebase", tmp, "--job", "my-job", "--iterations", "0"]),
+      ).toThrow("positive integer");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("plan rejects negative --iterations", () => {
+    const tmp = join(tmpdir(), `method6-plan-neg-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      // parseArgs treats "-1" as a flag, producing its own error before our validation
+      expect(() =>
+        parseCliArgs(["plan", "--codebase", tmp, "--job", "my-job", "--iterations=-1"]),
+      ).toThrow("positive integer");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("plan rejects non-numeric --iterations", () => {
+    const tmp = join(tmpdir(), `method6-plan-nan-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      expect(() =>
+        parseCliArgs(["plan", "--codebase", tmp, "--job", "my-job", "--iterations", "abc"]),
+      ).toThrow("positive integer");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("plan throws when --codebase is missing", () => {
+    expect(() => parseCliArgs(["plan", "--job", "my-job"])).toThrow("--codebase");
+  });
+
+  test("plan throws when --job is missing", () => {
+    expect(() => parseCliArgs(["plan", "--codebase", "/tmp"])).toThrow("--job");
+  });
+
+  test("plan throws when --job directory does not exist", () => {
+    const tmp = join(tmpdir(), `method6-plan-nojob-${Date.now()}`);
     mkdirSync(tmp, { recursive: true });
     try {
       expect(() =>
-        parseCliArgs(["--codebase", tmp, "--job", "nonexistent"]),
+        parseCliArgs(["plan", "--codebase", tmp, "--job", "nonexistent"]),
       ).toThrow("nonexistent");
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
   });
 
-  test("--job requires --codebase to resolve path", () => {
-    expect(() => parseCliArgs(["--job", "my-job"])).toThrow("--codebase");
-  });
+  // --- build subcommand ---
 
-  test("parses --job alongside all other arguments", () => {
-    const tmp = join(tmpdir(), `method6-job-all-${Date.now()}`);
-    mkdirSync(join(tmp, ".sauna", "jobs", "test-job"), { recursive: true });
+  test("parses build subcommand with required flags", () => {
+    const tmp = join(tmpdir(), `method6-build-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
     try {
-      const result = parseCliArgs([
-        "--codebase", tmp,
-        "--output", "/custom/out",
-        "--model", "gpt-4",
-        "--job", "test-job",
-      ]);
-      expect(result.codebase).toBe(tmp);
-      expect(result.output).toBe("/custom/out");
-      expect(result.model).toBe("gpt-4");
-      expect(result.job).toBe("test-job");
+      const result = parseCliArgs(["build", "--codebase", tmp, "--job", "my-job"]);
+      expect(result.subcommand).toBe("build");
+      if (result.subcommand === "build") {
+        expect(result.job).toBe("my-job");
+      }
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
+  });
+
+  test("build throws when --job is missing", () => {
+    expect(() => parseCliArgs(["build", "--codebase", "/tmp"])).toThrow("--job");
+  });
+
+  test("build does not accept --iterations", () => {
+    const tmp = join(tmpdir(), `method6-build-iter-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      expect(() =>
+        parseCliArgs(["build", "--codebase", tmp, "--job", "my-job", "--iterations", "3"]),
+      ).toThrow();
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("build does not accept --output", () => {
+    const tmp = join(tmpdir(), `method6-build-out-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      expect(() =>
+        parseCliArgs(["build", "--codebase", tmp, "--job", "my-job", "--output", "/out"]),
+      ).toThrow();
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  // --- run subcommand ---
+
+  test("parses run subcommand with required flags", () => {
+    const tmp = join(tmpdir(), `method6-run-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs(["run", "--codebase", tmp, "--job", "my-job"]);
+      expect(result.subcommand).toBe("run");
+      if (result.subcommand === "run") {
+        expect(result.job).toBe("my-job");
+        expect(result.iterations).toBe(1);
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("run accepts --iterations", () => {
+    const tmp = join(tmpdir(), `method6-run-iter-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs([
+        "run", "--codebase", tmp, "--job", "my-job", "--iterations", "3",
+      ]);
+      if (result.subcommand === "run") {
+        expect(result.iterations).toBe(3);
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("run throws when --job is missing", () => {
+    expect(() => parseCliArgs(["run", "--codebase", "/tmp"])).toThrow("--job");
   });
 });
 
@@ -773,7 +976,7 @@ describe("main() startup validation", () => {
       ),
     );
 
-    const proc = Bun.spawn(["bun", entrypoint, "--codebase", "/tmp"], {
+    const proc = Bun.spawn(["bun", entrypoint, "discover", "--codebase", "/tmp"], {
       env: cleanEnv,
       stdout: "pipe",
       stderr: "pipe",
@@ -797,7 +1000,7 @@ describe("main() startup validation", () => {
     );
     env.ANTHROPIC_API_KEY = "test-key-for-validation";
 
-    const proc = Bun.spawn(["bun", entrypoint, "--codebase", "/tmp"], {
+    const proc = Bun.spawn(["bun", entrypoint, "discover", "--codebase", "/tmp"], {
       env,
       stdout: "pipe",
       stderr: "pipe",
