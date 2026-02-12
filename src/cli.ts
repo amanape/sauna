@@ -2,20 +2,25 @@
 
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
+import { existsSync } from "node:fs";
 import { Agent } from "@mastra/core/agent";
 import type { Readable, Writable } from "node:stream";
 
 import { validateApiKey } from "./model-resolution";
 import { createTools, resolveSearchFn } from "./tool-factory";
 import { createWorkspace } from "./workspace-factory";
-import { createDiscoveryAgent } from "./agent-definitions";
+import { createDiscoveryAgent, createResearchAgent, createPlanningAgent, createBuilderAgent } from "./agent-definitions";
 import { SessionRunner } from "./session-runner";
+import { runJobPipeline } from "./job-pipeline";
+import { loadHooks } from "./hooks-loader";
+import { runHooks } from "./hook-executor";
 
 export interface CliArgs {
   codebase: string;
   output: string;
   model?: string;
+  job?: string;
 }
 
 export function parseCliArgs(argv: string[]): CliArgs {
@@ -25,6 +30,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       codebase: { type: "string" },
       output: { type: "string", default: "./jobs/" },
       model: { type: "string" },
+      job: { type: "string" },
     },
     strict: true,
   });
@@ -33,10 +39,20 @@ export function parseCliArgs(argv: string[]): CliArgs {
     throw new Error("--codebase <path> is required");
   }
 
+  if (values.job) {
+    const jobDir = join(values.codebase, ".sauna", "jobs", values.job);
+    if (!existsSync(jobDir)) {
+      throw new Error(
+        `Job directory not found: .sauna/jobs/${values.job}/ (resolved to ${jobDir})`,
+      );
+    }
+  }
+
   return {
     codebase: values.codebase,
     output: values.output!,
     model: values.model,
+    job: values.job,
   };
 }
 
@@ -104,8 +120,46 @@ export async function main(): Promise<void> {
   const tools = createTools(searchFn);
   const workspace = createWorkspace(args.codebase, {
     skillsPaths: [".sauna/skills"],
-    outputDir: args.output,
   });
+
+  const researcher = createResearchAgent({
+    model: args.model,
+    tools,
+    workspace,
+  });
+
+  if (args.job) {
+    const tasksPath = join(args.codebase, ".sauna", "jobs", args.job, "tasks.md");
+    const hooks = await loadHooks(args.codebase);
+
+    await runJobPipeline({
+      createPlanner: () =>
+        createPlanningAgent({
+          model: args.model,
+          tools,
+          workspace,
+          researcher,
+          jobId: args.job!,
+        }),
+      createBuilder: () =>
+        createBuilderAgent({
+          model: args.model,
+          tools,
+          workspace,
+          researcher,
+          jobId: args.job!,
+        }),
+      readTasksFile: () => Bun.file(tasksPath).text(),
+      output: process.stdout,
+      plannerIterations: 1,
+      jobId: args.job,
+      hooks,
+      runHooks,
+      hookCwd: args.codebase,
+    });
+    return;
+  }
+
   const systemPrompt = await Bun.file(
     resolve(import.meta.dirname, "../.sauna/prompts/discovery.md"),
   ).text();
@@ -115,6 +169,7 @@ export async function main(): Promise<void> {
     model: args.model,
     tools,
     workspace,
+    researcher,
     outputPath: args.output,
   });
 
