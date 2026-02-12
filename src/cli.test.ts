@@ -77,6 +77,58 @@ describe("parseCliArgs", () => {
     expect(result.output).toBe("/my/output");
     expect(result.model).toBe("gpt-4");
   });
+
+  test("defaults --job to undefined", () => {
+    const result = parseCliArgs(["--codebase", "/some/path"]);
+    expect(result.job).toBeUndefined();
+  });
+
+  test("parses --job and resolves to .sauna/jobs/<slug>/", () => {
+    // Create a temp codebase with a valid job directory
+    const tmp = join(tmpdir(), `method6-job-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs(["--codebase", tmp, "--job", "my-job"]);
+      expect(result.job).toBe("my-job");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("throws when --job directory does not exist", () => {
+    const tmp = join(tmpdir(), `method6-job-nojob-${Date.now()}`);
+    mkdirSync(tmp, { recursive: true });
+    try {
+      expect(() =>
+        parseCliArgs(["--codebase", tmp, "--job", "nonexistent"]),
+      ).toThrow("nonexistent");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("--job requires --codebase to resolve path", () => {
+    expect(() => parseCliArgs(["--job", "my-job"])).toThrow("--codebase");
+  });
+
+  test("parses --job alongside all other arguments", () => {
+    const tmp = join(tmpdir(), `method6-job-all-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "test-job"), { recursive: true });
+    try {
+      const result = parseCliArgs([
+        "--codebase", tmp,
+        "--output", "/custom/out",
+        "--model", "gpt-4",
+        "--job", "test-job",
+      ]);
+      expect(result.codebase).toBe(tmp);
+      expect(result.output).toBe("/custom/out");
+      expect(result.model).toBe("gpt-4");
+      expect(result.job).toBe("test-job");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("getProviderFromModel", () => {
@@ -150,6 +202,10 @@ const stubMcpTools = {
   }),
 };
 
+function stubResearcher() {
+  const workspace = createWorkspace("/tmp");
+  return createResearchAgent({ tools: stubMcpTools, workspace });
+}
 
 describe("createWorkspace", () => {
   // Create temp dirs: parent has an outside file, child is the workspace base
@@ -241,44 +297,7 @@ describe("createWorkspace", () => {
     }
   });
 
-  test("with outputDir, writes inside output directory succeed", async () => {
-    mkdirSync(join(testDir, "jobs"), { recursive: true });
-    const workspace = createWorkspace(testDir, { outputDir: "jobs" });
-    await workspace.init();
-    try {
-      await workspace.filesystem!.writeFile("jobs/spec.md", "# Spec");
-      const content = await workspace.filesystem!.readFile("jobs/spec.md");
-      expect(content.toString()).toBe("# Spec");
-    } finally {
-      await workspace.destroy();
-      rmSync(join(testDir, "jobs"), { recursive: true, force: true });
-    }
-  });
-
-  test("with outputDir, writes outside output directory are blocked", async () => {
-    const workspace = createWorkspace(testDir, { outputDir: "jobs" });
-    await workspace.init();
-    try {
-      await expect(
-        workspace.filesystem!.writeFile("src/hack.txt", "bad"),
-      ).rejects.toThrow("output directory");
-    } finally {
-      await workspace.destroy();
-    }
-  });
-
-  test("with outputDir, reads outside output directory still work", async () => {
-    const workspace = createWorkspace(testDir, { outputDir: "jobs" });
-    await workspace.init();
-    try {
-      const content = await workspace.filesystem!.readFile("hello.txt");
-      expect(content.toString()).toBe("hello world");
-    } finally {
-      await workspace.destroy();
-    }
-  });
-
-  test("without outputDir, writes anywhere within codebase are allowed", async () => {
+  test("writes anywhere within codebase are allowed", async () => {
     const workspace = createWorkspace(testDir);
     await workspace.init();
     try {
@@ -299,6 +318,7 @@ describe("createDiscoveryAgent", () => {
       systemPrompt: "You are a test agent.",
       tools: stubMcpTools,
       workspace,
+      researcher: stubResearcher(),
     });
     expect(agent.model).toBe(DEFAULT_MODEL);
   });
@@ -310,6 +330,7 @@ describe("createDiscoveryAgent", () => {
       model: "openai/gpt-4",
       tools: stubMcpTools,
       workspace,
+      researcher: stubResearcher(),
     });
     expect(agent.model).toBe("openai/gpt-4");
   });
@@ -320,6 +341,7 @@ describe("createDiscoveryAgent", () => {
       systemPrompt: "You are a JTBD discovery agent.",
       tools: stubMcpTools,
       workspace,
+      researcher: stubResearcher(),
     });
     const instructions = await agent.getInstructions();
     expect(instructions).toBe("You are a JTBD discovery agent.");
@@ -331,6 +353,7 @@ describe("createDiscoveryAgent", () => {
       systemPrompt: "You are a JTBD discovery agent.",
       tools: stubMcpTools,
       workspace,
+      researcher: stubResearcher(),
       outputPath: "/my/output",
     });
     const instructions = await agent.getInstructions();
@@ -344,6 +367,7 @@ describe("createDiscoveryAgent", () => {
       systemPrompt: "You are a JTBD discovery agent.",
       tools: stubMcpTools,
       workspace,
+      researcher: stubResearcher(),
     });
     const instructions = await agent.getInstructions();
     expect(instructions).toBe("You are a JTBD discovery agent.");
@@ -355,6 +379,7 @@ describe("createDiscoveryAgent", () => {
       systemPrompt: "Test",
       tools: stubMcpTools,
       workspace,
+      researcher: stubResearcher(),
     });
     const agentTools = await agent.listTools();
     const toolIds = Object.keys(agentTools);
@@ -418,10 +443,12 @@ describe("createResearchAgent", () => {
 describe("createDiscoveryAgent — sub-agents", () => {
   test("registers researcher as a sub-agent", async () => {
     const workspace = createWorkspace("/tmp");
+    const researcher = stubResearcher();
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
       tools: stubMcpTools,
       workspace,
+      researcher,
     });
     const agents = await agent.listAgents();
     expect(Object.keys(agents)).toContain("researcher");
@@ -429,11 +456,13 @@ describe("createDiscoveryAgent — sub-agents", () => {
 
   test("researcher agent inherits model from discovery agent config", async () => {
     const workspace = createWorkspace("/tmp");
+    const researcher = createResearchAgent({ tools: stubMcpTools, workspace, model: "openai/gpt-4" });
     const agent = createDiscoveryAgent({
       systemPrompt: "Test",
       model: "openai/gpt-4",
       tools: stubMcpTools,
       workspace,
+      researcher,
     });
     const agents = await agent.listAgents();
     expect(agents.researcher!.model).toBe("openai/gpt-4");

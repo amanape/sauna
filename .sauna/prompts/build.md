@@ -41,10 +41,12 @@ IMPORTANT: Preserve your context for reasoning and decision-making. Use subagent
 
 999999. Keep `.sauna/agents.md` operational only; status updates and progress notes belong in `.sauna/jobs/${JOB_ID}/tasks.md`.
 
-9999999. When authoring documentation, capture the why; tests and implementation importance
+9999999. VERY IMPORTANT: When authoring documentation, capture the why; tests and implementation importance
 
 99999999. Do not write test files for pure type definitions (interfaces, type aliases, enums with no logic). These compile away and have no runtime behavior. A test file that only constructs object literals matching an interface and asserts their own values back is tautological by definition; delete it. Only test files that export functions, classes, or runtime logic.
 
-9999999999. The commit messsage should be ONE LINE ONLY.
+999999999. The commit messsage should be ONE LINE ONLY.
+
+9999999999. When you learn or create something new about how to run the application, update `.sauna/agents.md` using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.
 
 Implement one task per iteration. Do not batch. Commit when done, then exit.
