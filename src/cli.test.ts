@@ -14,35 +14,21 @@ import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } 
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent, createResearchAgent } from "./agent-definitions";
 
-/** Extract the stream options type from Agent.stream()'s second parameter */
-type StreamOptions = NonNullable<Parameters<Agent["stream"]>[1]>;
+/** Extract the generate options type from Agent.generate()'s second parameter */
+type GenerateOptions = NonNullable<Parameters<Agent["generate"]>[1]>;
 
 /** Typed accessor for mock call arguments */
 function mockCallArgs(fn: ReturnType<typeof mock>, index: number) {
-  return fn.mock.calls[index] as unknown as [MessageInput[], StreamOptions];
+  return fn.mock.calls[index] as unknown as [MessageInput[], GenerateOptions];
 }
 
-/** Create a mock MastraModelOutput from text and messages */
-function mockStreamResult(text: string, messages: MessageInput[], onStepFinish?: StreamOptions["onStepFinish"]) {
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<string>({
-    start(controller) {
-      // Emit text in chunks to simulate streaming
-      for (const char of text) {
-        controller.enqueue(char);
-      }
-      controller.close();
-    },
-  });
-
-  return {
-    textStream: stream,
-    getFullOutput: async () => ({ text, messages }),
-  };
+/** Create a mock generate result from text and messages */
+function mockGenerateResult(text: string, messages: MessageInput[]) {
+  return { text, messages };
 }
 
-/** Mock stream function signature matching Agent.stream() */
-type MockStreamFn = (messages: MessageInput[], opts: StreamOptions) => ReturnType<Agent["stream"]>;
+/** Mock generate function — returns only the fields our code uses */
+type MockGenerateFn = (messages: MessageInput[], opts: GenerateOptions) => Promise<{ text: string; messages: MessageInput[] }>;
 
 describe("parseCliArgs", () => {
   // --- Help and usage ---
@@ -693,16 +679,17 @@ describe("createDiscoveryAgent — sub-agents", () => {
 
 describe("runConversation", () => {
   function makeDeps(overrides?: {
-    streamImpl?: MockStreamFn;
+    generateImpl?: MockGenerateFn;
+    onStepFinish?: ConversationDeps["onStepFinish"];
     onFinish?: OnFinishCallback;
   }) {
     const input = new PassThrough();
     const output = new PassThrough();
     output.setEncoding("utf8");
 
-    const mockStream = mock(
-      overrides?.streamImpl ??
-      (async () => mockStreamResult(
+    const mockGenerate = mock(
+      overrides?.generateImpl ??
+      (async () => mockGenerateResult(
         "Hello from AI",
         [
           { role: "user", content: "Hello" },
@@ -711,26 +698,27 @@ describe("runConversation", () => {
       )),
     );
 
-    const mockAgent = { stream: mockStream } as unknown as Agent;
+    const mockAgent = { generate: mockGenerate } as unknown as Agent;
 
     const deps: ConversationDeps = {
       agent: mockAgent,
       input,
       output,
+      ...(overrides?.onStepFinish ? { onStepFinish: overrides.onStepFinish } : {}),
       ...(overrides?.onFinish ? { onFinish: overrides.onFinish } : {}),
     };
 
     return {
       input,
       output,
-      mockStream,
+      mockGenerate,
       deps,
     };
   }
 
-  test("streams agent response text to output in real-time", async () => {
+  test("writes agent response text to output", async () => {
     const { input, output, deps } = makeDeps({
-      streamImpl: async () => mockStreamResult(
+      generateImpl: async () => mockGenerateResult(
         "Hello from AI",
         [
           { role: "user", content: "Hello" },
@@ -749,8 +737,8 @@ describe("runConversation", () => {
     expect(captured).toContain("Hello from AI");
   });
 
-  test("passes user input to agent.stream and writes response", async () => {
-    const { input, output, mockStream, deps } = makeDeps();
+  test("passes user input to agent.generate and writes response", async () => {
+    const { input, output, mockGenerate, deps } = makeDeps();
 
     const done = runConversation(deps);
     input.write("Hello\n");
@@ -760,18 +748,18 @@ describe("runConversation", () => {
 
     const captured = output.read();
     expect(captured).toContain("Hello from AI");
-    expect(mockStream.mock.calls.length).toBeGreaterThanOrEqual(1);
-    const [messages] = mockCallArgs(mockStream, 0);
+    expect(mockGenerate.mock.calls.length).toBeGreaterThanOrEqual(1);
+    const [messages] = mockCallArgs(mockGenerate, 0);
     expect(messages).toContainEqual({ role: "user", content: "Hello" });
   });
 
   test("accumulates messages across multiple turns", async () => {
     let callCount = 0;
-    const { input, output, mockStream, deps } = makeDeps({
-      streamImpl: async (msgs: MessageInput[]) => {
+    const { input, output, mockGenerate, deps } = makeDeps({
+      generateImpl: async (msgs: MessageInput[]) => {
         callCount++;
         const text = `Response ${callCount}`;
-        return mockStreamResult(
+        return mockGenerateResult(
           text,
           [
             ...msgs,
@@ -790,14 +778,14 @@ describe("runConversation", () => {
     await done;
 
     expect(callCount).toBe(2);
-    const [secondMessages] = mockCallArgs(mockStream, 1);
+    const [secondMessages] = mockCallArgs(mockGenerate, 1);
     expect(secondMessages).toContainEqual({ role: "user", content: "First" });
     expect(secondMessages).toContainEqual({ role: "assistant", content: "Response 1" });
     expect(secondMessages).toContainEqual({ role: "user", content: "Second" });
   });
 
   test("skips empty lines", async () => {
-    const { input, output, mockStream, deps } = makeDeps();
+    const { input, output, mockGenerate, deps } = makeDeps();
 
     const done = runConversation(deps);
     input.write("\n");
@@ -807,29 +795,31 @@ describe("runConversation", () => {
     input.end();
     await done;
 
-    expect(mockStream.mock.calls.length).toBe(1);
+    expect(mockGenerate.mock.calls.length).toBe(1);
   });
 
-  test("surfaces workspace write_file results as notifications", async () => {
+  test("invokes onStepFinish callback when provided", async () => {
+    const stepResults: LLMStepResult[] = [];
+    const onStepFinish = (step: LLMStepResult) => { stepResults.push(step); };
+    const fakeStep = {
+      toolResults: [
+        {
+          payload: {
+            toolName: "mastra_workspace_write_file",
+            result: { success: true, path: "specs/my-spec.md", size: 42 },
+          },
+        },
+      ],
+    } as LLMStepResult;
+
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
-        opts.onStepFinish!({
-          toolResults: [
-            {
-              payload: {
-                toolName: "mastra_workspace_write_file",
-                result: { success: true, path: "specs/my-spec.md", size: 42 },
-              },
-            },
-            {
-              payload: {
-                toolName: "mastra_workspace_edit_file",
-                result: { success: true, path: "src/edited.ts", replacements: 1 },
-              },
-            },
-          ],
-        } as LLMStepResult);
-        return mockStreamResult(
+      onStepFinish,
+      generateImpl: async (msgs: MessageInput[], opts: GenerateOptions) => {
+        // Simulate Mastra invoking onStepFinish during generation
+        if (opts.onStepFinish) {
+          opts.onStepFinish(fakeStep);
+        }
+        return mockGenerateResult(
           "Done writing.",
           [
             ...msgs,
@@ -845,54 +835,41 @@ describe("runConversation", () => {
     input.end();
     await done;
 
-    const captured = output.read();
-    expect(captured).toContain("Wrote specs/my-spec.md");
-    expect(captured).not.toContain("src/edited.ts");
+    expect(stepResults).toHaveLength(1);
+    expect(stepResults[0]).toBe(fakeStep);
   });
 
-  test("does not surface failed workspace write_file results", async () => {
+  test("does not pass onStepFinish when not provided in deps", async () => {
+    let capturedOpts: GenerateOptions | null = null;
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
-        opts.onStepFinish!({
-          toolResults: [
-            {
-              payload: {
-                toolName: "mastra_workspace_write_file",
-                result: { success: false, path: "specs/fail.md", size: 0 },
-              },
-            },
-          ],
-        } as LLMStepResult);
-        return mockStreamResult(
-          "Failed.",
-          [
-            ...msgs,
-            { role: "assistant", content: "Failed." },
-          ],
+      generateImpl: async (msgs: MessageInput[], opts: GenerateOptions) => {
+        capturedOpts = opts;
+        return mockGenerateResult(
+          "Response",
+          [...msgs, { role: "assistant", content: "Response" }],
         );
       },
     });
 
     const done = runConversation(deps);
-    input.write("Write a spec\n");
+    input.write("Test\n");
     await new Promise((r) => setTimeout(r, 50));
     input.end();
     await done;
 
-    const captured = output.read();
-    expect(captured).not.toContain("Wrote specs/fail.md");
+    expect(capturedOpts!.onStepFinish).toBeUndefined();
   });
 
-  test("onFinish callback is invokable by Mastra when passed through stream options", async () => {
+  test("onFinish callback is invokable by Mastra when passed through generate options", async () => {
     const onFinish = mock(async () => {});
     const { input, output, deps } = makeDeps({
       onFinish,
-      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+      generateImpl: async (msgs: MessageInput[], opts: GenerateOptions) => {
         // Simulate Mastra calling onFinish after completion
         if (opts.onFinish) {
-          opts.onFinish({ text: "Done.", messages: msgs, toolResults: [] } as Parameters<NonNullable<StreamOptions["onFinish"]>>[0]);
+          opts.onFinish({ text: "Done.", messages: msgs, toolResults: [] } as unknown as Parameters<NonNullable<GenerateOptions["onFinish"]>>[0]);
         }
-        return mockStreamResult(
+        return mockGenerateResult(
           "Done.",
           [
             ...msgs,
@@ -913,14 +890,14 @@ describe("runConversation", () => {
     expect(finishEvent.text).toBe("Done.");
   });
 
-  test("passes onFinish to agent.stream options so Mastra invokes it", async () => {
-    let capturedOpts: StreamOptions | null = null;
+  test("passes onFinish to agent.generate options so Mastra invokes it", async () => {
+    let capturedOpts: GenerateOptions | null = null;
     const onFinish = mock(async () => {});
     const { input, output, deps } = makeDeps({
       onFinish,
-      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+      generateImpl: async (msgs: MessageInput[], opts: GenerateOptions) => {
         capturedOpts = opts;
-        return mockStreamResult(
+        return mockGenerateResult(
           "Response",
           [...msgs, { role: "assistant", content: "Response" }],
         );
@@ -937,11 +914,11 @@ describe("runConversation", () => {
   });
 
   test("does not pass onFinish when not provided in deps", async () => {
-    let capturedOpts: StreamOptions | null = null;
+    let capturedOpts: GenerateOptions | null = null;
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+      generateImpl: async (msgs: MessageInput[], opts: GenerateOptions) => {
         capturedOpts = opts;
-        return mockStreamResult(
+        return mockGenerateResult(
           "Response",
           [...msgs, { role: "assistant", content: "Response" }],
         );

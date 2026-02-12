@@ -10,7 +10,7 @@ import type { Readable, Writable } from "node:stream";
 
 import { createDiscoveryAgent, createPlanningAgent, createBuilderAgent } from "./agent-definitions";
 import { initEnvironment } from "./init-environment";
-import type { OnFinishCallback } from "./session-runner";
+import { SessionRunner, type OnFinishCallback } from "./session-runner";
 import { runJobPipeline } from "./job-pipeline";
 import { runFixedCount, runUntilDone } from "./loop-runner";
 import { loadHooks } from "./hooks-loader";
@@ -247,23 +247,16 @@ export interface ConversationDeps {
   agent: Agent;
   input: Readable;
   output: Writable;
+  onStepFinish?: (step: LLMStepResult) => void;
   onFinish?: OnFinishCallback;
 }
 
 export async function runConversation(deps: ConversationDeps): Promise<void> {
-  let messages: import("@mastra/core/agent/message-list").MessageInput[] = [];
-
-  const onStepFinish = (step: LLMStepResult) => {
-    for (const tr of step.toolResults) {
-      const result = tr.payload.result as Record<string, unknown> | undefined;
-      if (
-        tr.payload.toolName === "mastra_workspace_write_file" &&
-        result?.success
-      ) {
-        deps.output.write(`Wrote ${result.path}\n`);
-      }
-    }
-  };
+  const session = new SessionRunner({
+    agent: deps.agent,
+    ...(deps.onStepFinish ? { onStepFinish: deps.onStepFinish } : {}),
+    ...(deps.onFinish ? { onFinish: deps.onFinish } : {}),
+  });
 
   const rl = createInterface({
     input: deps.input,
@@ -272,24 +265,10 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 
   try {
     for await (const line of rl) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      messages.push({ role: "user", content: trimmed });
-
-      const streamResult = await deps.agent.stream(messages, {
-        maxSteps: 50,
-        onStepFinish,
-        ...(deps.onFinish ? { onFinish: deps.onFinish } : {}),
-      });
-
-      for await (const chunk of streamResult.textStream) {
-        deps.output.write(chunk);
+      const result = await session.sendMessage(line);
+      if (result) {
+        deps.output.write(result.text + "\n");
       }
-      deps.output.write("\n");
-
-      const fullOutput = await streamResult.getFullOutput();
-      messages = [...fullOutput.messages];
     }
   } finally {
     rl.close();
@@ -338,6 +317,17 @@ export async function main(): Promise<void> {
           agent,
           input: process.stdin,
           output: process.stdout,
+          onStepFinish: (step) => {
+            for (const tr of step.toolResults) {
+              const result = tr.payload.result as Record<string, unknown> | undefined;
+              if (
+                tr.payload.toolName === "mastra_workspace_write_file" &&
+                result?.success
+              ) {
+                process.stdout.write(`Wrote ${result.path}\n`);
+              }
+            }
+          },
         });
       } finally {
         await mcp.disconnect();
