@@ -1,0 +1,30 @@
+# CLI Subcommand Interface — Tasks
+
+## P0 — Core subcommand infrastructure
+
+- [x] Replace `parseCliArgs()` with subcommand-aware parser that extracts subcommand from first positional arg and delegates flag parsing per subcommand — `parseArgs` from `node:util`, strict mode (spec: subcommand-interface.md § Dispatch, Shared Flags)
+- [x] Add `--iterations <n>` flag accepted by `plan` and `run` subcommands, validated as positive integer; reject zero/negative (spec: jtbd.md § acceptance criteria, subcommand-interface.md § Shared Flags)
+- [ ] Extract shared setup (API key validation, MCP client, workspace, researcher agent) from `main()` into a reusable helper that all subcommand handlers call (spec: subcommand-interface.md § Shared Setup)
+- [ ] Implement `discover` handler: accepts `--codebase`, `--output`, `--model`; creates discovery agent, calls `runConversation()` (spec: subcommand-interface.md § Subcommands, Dispatch)
+- [ ] Implement `plan` handler: accepts `--codebase`, `--job`, `--iterations`, `--model`; creates planner agent, calls `runFixedCount()` directly (spec: subcommand-interface.md § Subcommands, Dispatch)
+- [ ] Implement `build` handler: accepts `--codebase`, `--job`, `--model`; creates builder agent, loads hooks, calls `runUntilDone()` directly (spec: subcommand-interface.md § Subcommands, Dispatch)
+- [ ] Implement `run` handler: accepts `--codebase`, `--job`, `--iterations`, `--model`; calls plan then build sequentially via `runJobPipeline()` or both handlers (spec: subcommand-interface.md § Subcommands, Dispatch)
+- [x] Update `main()` to parse subcommand from first positional arg and dispatch to the correct handler (spec: subcommand-interface.md § Dispatch)
+
+## P1 — Help and error handling
+
+- [ ] Show usage listing all subcommands when invoked with no subcommand or `--help` (spec: subcommand-interface.md § Help and Errors)
+- [ ] Show per-subcommand flag help when a subcommand is followed by `--help` (spec: subcommand-interface.md § Help and Errors)
+- [ ] Produce clear error message naming the missing flag when required flags are absent — cover `--codebase` for all, `--job` for plan/build/run (spec: subcommand-interface.md § Help and Errors)
+
+## P2 — Tests
+
+- [x] Rewrite `parseCliArgs` tests for subcommand-aware parsing: each subcommand's required/optional flags, unknown flag rejection, `--iterations` validation (spec: subcommand-interface.md § Shared Flags)
+- [ ] Add tests for `--help` output at root level and per-subcommand (spec: subcommand-interface.md § Help and Errors)
+- [ ] Add tests for each subcommand handler dispatching to the correct agent and loop runner (spec: subcommand-interface.md § Dispatch)
+- [x] Update `main()` startup validation tests to work with new subcommand interface — currently tests in `cli.test.ts` invoke `index.ts` with flat flags (spec: subcommand-interface.md § Dispatch)
+
+## P3 — Type and export updates
+
+- [x] Update `CliArgs` type to a discriminated union with subcommand discriminant and per-subcommand flag sets (spec: subcommand-interface.md § Subcommands)
+- [x] Update barrel exports in `src/index.ts` for any new public types or functions added (spec: constraints)
