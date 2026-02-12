@@ -12,7 +12,6 @@ import { validateApiKey } from "./model-resolution";
 import { createMcpClient, validateTavilyApiKey } from "./mcp-client";
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent, createResearchAgent, createPlanningAgent, createBuilderAgent } from "./agent-definitions";
-import { SessionRunner } from "./session-runner";
 import type { OnFinishCallback } from "./session-runner";
 import { runJobPipeline } from "./job-pipeline";
 import { loadHooks } from "./hooks-loader";
@@ -66,22 +65,19 @@ export interface ConversationDeps {
 }
 
 export async function runConversation(deps: ConversationDeps): Promise<void> {
-  const session = new SessionRunner({
-    agent: deps.agent,
-    maxSteps: 50,
-    onStepFinish(step: LLMStepResult) {
-      for (const tr of step.toolResults) {
-        const result = tr.payload.result as Record<string, unknown> | undefined;
-        if (
-          tr.payload.toolName === "mastra_workspace_write_file" &&
-          result?.success
-        ) {
-          deps.output.write(`Wrote ${result.path}\n`);
-        }
+  let messages: import("@mastra/core/agent/message-list").MessageInput[] = [];
+
+  const onStepFinish = (step: LLMStepResult) => {
+    for (const tr of step.toolResults) {
+      const result = tr.payload.result as Record<string, unknown> | undefined;
+      if (
+        tr.payload.toolName === "mastra_workspace_write_file" &&
+        result?.success
+      ) {
+        deps.output.write(`Wrote ${result.path}\n`);
       }
-    },
-    ...(deps.onFinish ? { onFinish: deps.onFinish } : {}),
-  });
+    }
+  };
 
   const rl = createInterface({
     input: deps.input,
@@ -90,11 +86,24 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 
   try {
     for await (const line of rl) {
-      const result = await session.sendMessage(line);
-      if (!result) continue;
+      const trimmed = line.trim();
+      if (!trimmed) continue;
 
-      deps.output.write(result.text);
+      messages.push({ role: "user", content: trimmed });
+
+      const streamResult = await deps.agent.stream(messages, {
+        maxSteps: 50,
+        onStepFinish,
+        ...(deps.onFinish ? { onFinish: deps.onFinish } : {}),
+      });
+
+      for await (const chunk of streamResult.textStream) {
+        deps.output.write(chunk);
+      }
       deps.output.write("\n");
+
+      const fullOutput = await streamResult.getFullOutput();
+      messages = [...fullOutput.messages];
     }
   } finally {
     rl.close();
