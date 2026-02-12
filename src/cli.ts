@@ -16,7 +16,7 @@ import { runJobPipeline } from "./job-pipeline";
 import { runFixedCount, runUntilDone } from "./loop-runner";
 import { loadHooks } from "./hooks-loader";
 import { runHooks } from "./hook-executor";
-import { handlePlan, handleBuild } from "./handlers";
+import { handlePlan, handleBuild, handleRun } from "./handlers";
 
 export type Subcommand = "discover" | "plan" | "build" | "run";
 
@@ -295,33 +295,15 @@ export async function main(): Promise<void> {
     }
 
     case "run": {
-      const tasksPath = join(args.codebase, ".sauna", "jobs", args.job, "tasks.md");
-      const hooks = await loadHooks(args.codebase);
-
-      await runJobPipeline({
-        createPlanner: () =>
-          createPlanningAgent({
-            model: args.model,
-            tools,
-            workspace,
-            researcher,
-            jobId: args.job,
-          }),
-        createBuilder: () =>
-          createBuilderAgent({
-            model: args.model,
-            tools,
-            workspace,
-            researcher,
-            jobId: args.job,
-          }),
-        readTasksFile: () => Bun.file(tasksPath).text(),
+      await handleRun({
+        args,
+        env,
         output: process.stdout,
-        plannerIterations: args.iterations,
-        jobId: args.job,
-        hooks,
+        createPlanningAgent,
+        createBuilderAgent,
+        runJobPipeline,
+        loadHooks,
         runHooks,
-        hookCwd: args.codebase,
       });
       break;
     }

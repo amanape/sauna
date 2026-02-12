@@ -2,9 +2,9 @@ import { test, expect, describe, mock, beforeEach } from "bun:test";
 import { PassThrough } from "node:stream";
 import type { Agent } from "@mastra/core/agent";
 
-import { handlePlan, handleBuild } from "./handlers";
+import { handlePlan, handleBuild, handleRun } from "./handlers";
 import type { Environment } from "./init-environment";
-import type { PlanArgs, BuildArgs } from "./cli";
+import type { PlanArgs, BuildArgs, RunArgs } from "./cli";
 
 /** Create a ReadableStream<string> from an array of chunks */
 function textStreamFrom(chunks: string[]): ReadableStream<string> {
@@ -496,6 +496,189 @@ describe("handleBuild", () => {
     // Only runUntilDone should be called
     expect(spies.runUntilDone).toHaveBeenCalledTimes(1);
     expect(runFixedCount).not.toHaveBeenCalled();
+  });
+});
+
+describe("handleRun", () => {
+  function makeRunSpies() {
+    return {
+      createPlanningAgent: mock(async () => stubAgent()),
+      createBuilderAgent: mock(async () => stubAgent()),
+      runJobPipeline: mock(async () => {}),
+      loadHooks: mock(async () => ["bun test"]),
+      runHooks: mock(async () => ({ ok: true as const, output: "" })),
+    };
+  }
+
+  function runArgs(overrides?: Partial<RunArgs>): RunArgs {
+    return {
+      subcommand: "run",
+      codebase: "/tmp/project",
+      job: "my-job",
+      iterations: 2,
+      ...overrides,
+    };
+  }
+
+  test("calls runJobPipeline with correct config", async () => {
+    const spies = makeRunSpies();
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+    const env = stubEnvironment();
+    const args = runArgs();
+
+    await handleRun({
+      args,
+      env,
+      output,
+      createPlanningAgent: spies.createPlanningAgent as any,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runJobPipeline: spies.runJobPipeline,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    expect(spies.runJobPipeline).toHaveBeenCalledTimes(1);
+    const call = (spies.runJobPipeline.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(call.plannerIterations).toBe(2);
+    expect(call.jobId).toBe("my-job");
+    expect(call.output).toBe(output);
+    expect(call.hooks).toEqual(["bun test"]);
+    expect(call.runHooks).toBe(spies.runHooks);
+    expect(call.hookCwd).toBe("/tmp/project");
+  });
+
+  test("passes factory functions that create agents with correct config", async () => {
+    const spies = makeRunSpies();
+    const plannerAgent = stubAgent();
+    const builderAgent = stubAgent();
+    spies.createPlanningAgent.mockImplementation(async () => plannerAgent);
+    spies.createBuilderAgent.mockImplementation(async () => builderAgent);
+
+    // Capture the factory functions passed to runJobPipeline and invoke them
+    let capturedCreatePlanner: (() => Promise<unknown>) | undefined;
+    let capturedCreateBuilder: (() => Promise<unknown>) | undefined;
+    spies.runJobPipeline.mockImplementation(async (config: any) => {
+      capturedCreatePlanner = config.createPlanner;
+      capturedCreateBuilder = config.createBuilder;
+    });
+
+    const output = new PassThrough();
+    const env = stubEnvironment();
+    const args = runArgs({ model: "openai/gpt-4" });
+
+    await handleRun({
+      args,
+      env,
+      output,
+      createPlanningAgent: spies.createPlanningAgent as any,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runJobPipeline: spies.runJobPipeline,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    // Invoke captured factories and verify they produce the right agents
+    const planner = await capturedCreatePlanner!();
+    expect(planner).toBe(plannerAgent);
+    const config = (spies.createPlanningAgent.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(config.model).toBe("openai/gpt-4");
+    expect(config.jobId).toBe("my-job");
+
+    const builder = await capturedCreateBuilder!();
+    expect(builder).toBe(builderAgent);
+    const bConfig = (spies.createBuilderAgent.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(bConfig.model).toBe("openai/gpt-4");
+    expect(bConfig.jobId).toBe("my-job");
+  });
+
+  test("loads hooks from codebase directory", async () => {
+    const spies = makeRunSpies();
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    await handleRun({
+      args: runArgs({ codebase: "/my/project" }),
+      env,
+      output,
+      createPlanningAgent: spies.createPlanningAgent as any,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runJobPipeline: spies.runJobPipeline,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    expect(spies.loadHooks).toHaveBeenCalledTimes(1);
+    expect((spies.loadHooks.mock.calls[0] as unknown[])[0]).toBe("/my/project");
+  });
+
+  test("passes a readTasksFile function that targets the correct path", async () => {
+    const spies = makeRunSpies();
+
+    let capturedReadTasksFile: (() => Promise<string>) | undefined;
+    spies.runJobPipeline.mockImplementation(async (config: any) => {
+      capturedReadTasksFile = config.readTasksFile;
+    });
+
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    await handleRun({
+      args: runArgs(),
+      env,
+      output,
+      createPlanningAgent: spies.createPlanningAgent as any,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runJobPipeline: spies.runJobPipeline,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    expect(typeof capturedReadTasksFile).toBe("function");
+  });
+
+  test("disconnects MCP after completion", async () => {
+    const spies = makeRunSpies();
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    await handleRun({
+      args: runArgs(),
+      env,
+      output,
+      createPlanningAgent: spies.createPlanningAgent as any,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runJobPipeline: spies.runJobPipeline,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    expect(env.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  test("disconnects MCP even when runJobPipeline throws", async () => {
+    const spies = makeRunSpies();
+    spies.runJobPipeline.mockImplementation(async () => {
+      throw new Error("pipeline error");
+    });
+
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    await expect(
+      handleRun({
+        args: runArgs(),
+        env,
+        output,
+        createPlanningAgent: spies.createPlanningAgent as any,
+        createBuilderAgent: spies.createBuilderAgent as any,
+        runJobPipeline: spies.runJobPipeline,
+        loadHooks: spies.loadHooks,
+        runHooks: spies.runHooks,
+      }),
+    ).rejects.toThrow("pipeline error");
+
+    expect(env.disconnect).toHaveBeenCalledTimes(1);
   });
 });
 

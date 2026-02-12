@@ -8,7 +8,7 @@
 - [x] Implement `discover` handler: accepts `--codebase`, `--output`, `--model`; creates discovery agent, calls `runConversation()` (spec: subcommand-interface.md § Subcommands, Dispatch) — implemented inline in `main()` switch case
 - [x] Implement `plan` handler: accepts `--codebase`, `--job`, `--iterations`, `--model`; creates planner agent, calls `runFixedCount()` directly (spec: subcommand-interface.md § Subcommands, Dispatch) — extracted into `handlePlan()` in `src/handlers.ts`; `main()` dispatches to it; tested in `handlers.test.ts`
 - [x] Implement `build` handler: accepts `--codebase`, `--job`, `--model`; creates builder agent, loads hooks, calls `runUntilDone()` directly (spec: subcommand-interface.md § Subcommands, Dispatch) — extracted into `handleBuild()` in `src/handlers.ts`; `main()` dispatches to it separately from `run`; tested in `handlers.test.ts` (8 tests)
-- [ ] Implement `run` handler: accepts `--codebase`, `--job`, `--iterations`, `--model`; calls plan then build sequentially via `runJobPipeline()` or both handlers (spec: subcommand-interface.md § Subcommands, Dispatch)
+- [x] Implement `run` handler: accepts `--codebase`, `--job`, `--iterations`, `--model`; calls plan then build sequentially via `runJobPipeline()` or both handlers (spec: subcommand-interface.md § Subcommands, Dispatch) — extracted into `handleRun()` in `src/handlers.ts`; `main()` dispatches to it; tested in `handlers.test.ts` (6 tests)
 - [x] Update `main()` to parse subcommand from first positional arg and dispatch to the correct handler (spec: subcommand-interface.md § Dispatch)
 
 ## P1 — Help and error handling
