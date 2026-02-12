@@ -50,9 +50,26 @@ export interface RunArgs {
   model?: string;
 }
 
+export interface HelpResult {
+  subcommand: "help";
+  text: string;
+}
+
 export type CliArgs = DiscoverArgs | PlanArgs | BuildArgs | RunArgs;
 
+export type ParseResult = CliArgs | HelpResult;
+
 const VALID_SUBCOMMANDS: ReadonlySet<string> = new Set(["discover", "plan", "build", "run"]);
+
+const USAGE_TEXT = `Usage: sauna <subcommand> [flags]
+
+Subcommands:
+  discover   Run the interactive discovery agent
+  plan       Run the planning agent for a fixed iteration count
+  build      Run the builder agent until all tasks are done
+  run        Run plan then build sequentially
+
+Run "sauna <subcommand> --help" for subcommand-specific flags.`;
 
 function validateJobDir(codebase: string, job: string): void {
   const jobDir = join(codebase, ".sauna", "jobs", job);
@@ -159,12 +176,16 @@ function parseRunArgs(flagArgs: string[]): RunArgs {
   return { subcommand: "run", codebase, job, iterations, model: values.model };
 }
 
-export function parseCliArgs(argv: string[]): CliArgs {
+export function parseCliArgs(argv: string[]): ParseResult {
   const subcommand = argv[0];
 
-  if (!subcommand || !VALID_SUBCOMMANDS.has(subcommand)) {
+  if (!subcommand || subcommand === "--help") {
+    return { subcommand: "help", text: USAGE_TEXT };
+  }
+
+  if (!VALID_SUBCOMMANDS.has(subcommand)) {
     throw new Error(
-      `Unknown or missing subcommand: "${subcommand ?? ""}". Valid subcommands: discover, plan, build, run`,
+      `Unknown subcommand: "${subcommand}". Valid subcommands: discover, plan, build, run`,
     );
   }
 
@@ -228,6 +249,11 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 
 export async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
+
+  if (args.subcommand === "help") {
+    console.log(args.text);
+    return;
+  }
 
   let env;
   try {

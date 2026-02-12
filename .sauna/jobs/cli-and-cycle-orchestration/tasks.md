@@ -13,14 +13,14 @@
 
 ## P1 — Help and error handling
 
-- [ ] Show usage listing all subcommands when invoked with no subcommand or `--help` (spec: subcommand-interface.md § Help and Errors)
+- [x] Show usage listing all subcommands when invoked with no subcommand or `--help` (spec: subcommand-interface.md § Help and Errors) — `parseCliArgs` returns `HelpResult` with usage text; `main()` prints it and returns; 4 tests in `cli.test.ts`; `ParseResult` and `HelpResult` types exported
 - [ ] Show per-subcommand flag help when a subcommand is followed by `--help` (spec: subcommand-interface.md § Help and Errors)
 - [ ] Produce clear error message naming the missing flag when required flags are absent — cover `--codebase` for all, `--job` for plan/build/run (spec: subcommand-interface.md § Help and Errors)
 
 ## P2 — Tests
 
 - [x] Rewrite `parseCliArgs` tests for subcommand-aware parsing: each subcommand's required/optional flags, unknown flag rejection, `--iterations` validation (spec: subcommand-interface.md § Shared Flags)
-- [ ] Add tests for `--help` output at root level and per-subcommand (spec: subcommand-interface.md § Help and Errors)
+- [ ] Add tests for `--help` output at root level and per-subcommand (spec: subcommand-interface.md § Help and Errors) — root-level tests added; per-subcommand tests still needed
 - [ ] Add tests for each subcommand handler dispatching to the correct agent and loop runner (spec: subcommand-interface.md § Dispatch)
 - [x] Update `main()` startup validation tests to work with new subcommand interface — currently tests in `cli.test.ts` invoke `index.ts` with flat flags (spec: subcommand-interface.md § Dispatch)
 

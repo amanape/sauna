@@ -8,7 +8,7 @@ import type { Agent, LLMStepResult } from "@mastra/core/agent";
 import type { MessageInput } from "@mastra/core/agent/message-list";
 import { createTool } from "@mastra/core/tools";
 import * as z from "zod";
-import { parseCliArgs, runConversation, type ConversationDeps } from "./cli";
+import { parseCliArgs, runConversation, type ConversationDeps, type HelpResult } from "./cli";
 import type { OnFinishCallback } from "./session-runner";
 import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
 import { createWorkspace } from "./workspace-factory";
@@ -26,11 +26,34 @@ function mockCallArgs(fn: ReturnType<typeof mock>, index: number) {
 }
 
 describe("parseCliArgs", () => {
-  // --- Subcommand extraction ---
+  // --- Help and usage ---
 
-  test("throws when no subcommand is provided", () => {
-    expect(() => parseCliArgs([])).toThrow();
+  test("returns help result when no subcommand is provided", () => {
+    const result = parseCliArgs([]);
+    expect(result.subcommand).toBe("help");
   });
+
+  test("returns help result when --help is the only argument", () => {
+    const result = parseCliArgs(["--help"]);
+    expect(result.subcommand).toBe("help");
+  });
+
+  test("root help text lists all four subcommands", () => {
+    const result = parseCliArgs([]) as HelpResult;
+    expect(result.text).toContain("discover");
+    expect(result.text).toContain("plan");
+    expect(result.text).toContain("build");
+    expect(result.text).toContain("run");
+  });
+
+  test("root help text includes subcommand descriptions", () => {
+    const result = parseCliArgs([]) as HelpResult;
+    expect(result.text).toContain("discovery");
+    expect(result.text).toContain("planning");
+    expect(result.text).toContain("builder");
+  });
+
+  // --- Subcommand extraction ---
 
   test("throws when an unknown subcommand is provided", () => {
     expect(() => parseCliArgs(["deploy", "--codebase", "/tmp"])).toThrow();
