@@ -31,9 +31,6 @@ export async function runJobPipeline(deps: JobPipelineDeps): Promise<void> {
     onProgress: (current, total) => {
       output.write(`Planning iteration ${current}/${total}\n`);
     },
-    onOutput: (chunk) => {
-      output.write(chunk);
-    },
   });
 
   output.write("Planning phase complete.\n");
@@ -53,9 +50,6 @@ export async function runJobPipeline(deps: JobPipelineDeps): Promise<void> {
     onHookFailure,
     onProgress: (iteration, remaining) => {
       output.write(`Build iteration ${iteration} — ${remaining} tasks remaining\n`);
-    },
-    onOutput: (chunk) => {
-      output.write(chunk);
     },
   });
 

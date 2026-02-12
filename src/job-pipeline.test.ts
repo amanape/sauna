@@ -2,25 +2,14 @@ import { test, expect, describe, mock } from "bun:test";
 import { runJobPipeline, type JobPipelineDeps } from "./job-pipeline";
 import type { HookResult } from "./hook-executor";
 
-function textStreamFrom(chunks: string[]): ReadableStream<string> {
-  return new ReadableStream({
-    start(controller) {
-      for (const chunk of chunks) controller.enqueue(chunk);
-      controller.close();
-    },
-  });
-}
-
 function makeMockAgent() {
   return {
-    stream: mock(async () => ({
-      textStream: textStreamFrom(["response"]),
-      getFullOutput: async () => ({
-        messages: [
-          { role: "user", content: "msg" },
-          { role: "assistant", content: "response" },
-        ],
-      }),
+    generate: mock(async () => ({
+      text: "response",
+      messages: [
+        { role: "user", content: "msg" },
+        { role: "assistant", content: "response" },
+      ],
     })),
   } as any;
 }
@@ -58,7 +47,7 @@ describe("runJobPipeline", () => {
 
     await runJobPipeline(deps);
 
-    expect(planner.stream).toHaveBeenCalledTimes(3);
+    expect(planner.generate).toHaveBeenCalledTimes(3);
   });
 
   test("runs builder via runUntilDone after planner completes", async () => {
@@ -76,7 +65,7 @@ describe("runJobPipeline", () => {
 
     await runJobPipeline(deps);
 
-    expect(builder.stream).toHaveBeenCalledTimes(2);
+    expect(builder.generate).toHaveBeenCalledTimes(2);
   });
 
   test("prints planner progress to output", async () => {
@@ -124,21 +113,15 @@ describe("runJobPipeline", () => {
   test("runs planner before builder (sequential ordering)", async () => {
     const order: string[] = [];
     const planner = {
-      stream: mock(async () => {
+      generate: mock(async () => {
         order.push("planner");
-        return {
-          textStream: textStreamFrom(["plan"]),
-          getFullOutput: async () => ({ messages: [] }),
-        };
+        return { text: "plan", messages: [] };
       }),
     } as any;
     const builder = {
-      stream: mock(async () => {
+      generate: mock(async () => {
         order.push("builder");
-        return {
-          textStream: textStreamFrom(["build"]),
-          getFullOutput: async () => ({ messages: [] }),
-        };
+        return { text: "build", messages: [] };
       }),
     } as any;
     let callCount = 0;
@@ -159,25 +142,6 @@ describe("runJobPipeline", () => {
 
     expect(order[0]).toBe("planner");
     expect(order.at(-1)).toBe("builder");
-  });
-
-  test("streams agent output to output writable", async () => {
-    const output = { write: mock(() => true) } as any;
-    const planner = {
-      stream: mock(async () => ({
-        textStream: textStreamFrom(["planning output"]),
-        getFullOutput: async () => ({ messages: [] }),
-      })),
-    } as any;
-    const deps = makeDeps({
-      output,
-      createPlanner: mock(async () => planner),
-    });
-
-    await runJobPipeline(deps);
-
-    const writes = (output.write as any).mock.calls.map((c: any) => c[0]);
-    expect(writes).toContain("planning output");
   });
 
   test("passes hooks to runUntilDone when provided", async () => {

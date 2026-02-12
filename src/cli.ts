@@ -90,15 +90,11 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 
   try {
     for await (const line of rl) {
-      const streamResult = await session.sendMessage(line);
-      if (!streamResult) continue;
+      const result = await session.sendMessage(line);
+      if (!result) continue;
 
-      for await (const chunk of streamResult.textStream) {
-        deps.output.write(chunk);
-      }
+      deps.output.write(result.text);
       deps.output.write("\n");
-
-      await streamResult.getFullOutput();
     }
   } finally {
     rl.close();

@@ -2,26 +2,15 @@ import { test, expect, describe, mock } from "bun:test";
 import { runFixedCount, runUntilDone } from "./loop-runner";
 import type { HookResult } from "./hook-executor";
 
-function textStreamFrom(chunks: string[]): ReadableStream<string> {
-  return new ReadableStream({
-    start(controller) {
-      for (const chunk of chunks) controller.enqueue(chunk);
-      controller.close();
-    },
-  });
-}
-
 function makeMockAgent() {
-  const streamMock = mock(async () => ({
-    textStream: textStreamFrom(["response"]),
-    getFullOutput: async () => ({
-      messages: [
-        { role: "user", content: "msg" },
-        { role: "assistant", content: "response" },
-      ],
-    }),
+  const generateMock = mock(async () => ({
+    text: "response",
+    messages: [
+      { role: "user", content: "msg" },
+      { role: "assistant", content: "response" },
+    ],
   }));
-  return { stream: streamMock } as any;
+  return { generate: generateMock } as any;
 }
 
 describe("runFixedCount", () => {
@@ -36,7 +25,7 @@ describe("runFixedCount", () => {
       onProgress,
     });
 
-    expect(agent.stream).toHaveBeenCalledTimes(3);
+    expect(agent.generate).toHaveBeenCalledTimes(3);
   });
 
   test("sends the configured message each iteration", async () => {
@@ -48,7 +37,7 @@ describe("runFixedCount", () => {
       message: "Plan the task",
     });
 
-    for (const call of agent.stream.mock.calls as any[]) {
+    for (const call of agent.generate.mock.calls as any[]) {
       const [messages] = call;
       expect(messages).toContainEqual({ role: "user", content: "Plan the task" });
     }
@@ -81,32 +70,11 @@ describe("runFixedCount", () => {
     });
 
     // Each call should receive exactly one user message (fresh session)
-    for (const call of agent.stream.mock.calls as any[]) {
+    for (const call of agent.generate.mock.calls as any[]) {
       const [messages] = call;
       expect(messages).toHaveLength(1);
       expect(messages[0]).toEqual({ role: "user", content: "Go" });
     }
-  });
-
-  test("consumes the stream for each iteration (drives getFullOutput)", async () => {
-    let getFullOutputCalls = 0;
-    const agent = {
-      stream: mock(async () => ({
-        textStream: textStreamFrom(["chunk"]),
-        getFullOutput: async () => {
-          getFullOutputCalls++;
-          return { messages: [] };
-        },
-      })),
-    } as any;
-
-    await runFixedCount({
-      agent,
-      iterations: 2,
-      message: "Go",
-    });
-
-    expect(getFullOutputCalls).toBe(2);
   });
 
   test("throws if iterations is less than 1", async () => {
@@ -115,27 +83,6 @@ describe("runFixedCount", () => {
     expect(
       runFixedCount({ agent, iterations: 0, message: "Go" }),
     ).rejects.toThrow();
-  });
-
-  test("calls onOutput for each text chunk streamed", async () => {
-    const agent = {
-      stream: mock(async () => ({
-        textStream: textStreamFrom(["Hello ", "world"]),
-        getFullOutput: async () => ({ messages: [] }),
-      })),
-    } as any;
-    const onOutput = mock(() => {});
-
-    await runFixedCount({
-      agent,
-      iterations: 1,
-      message: "Go",
-      onOutput,
-    });
-
-    expect(onOutput).toHaveBeenCalledTimes(2);
-    expect(onOutput.mock.calls[0]).toEqual(["Hello "]);
-    expect(onOutput.mock.calls[1]).toEqual(["world"]);
   });
 });
 
@@ -150,7 +97,7 @@ describe("runUntilDone", () => {
       readTasksFile,
     });
 
-    expect(agent.stream).toHaveBeenCalledTimes(0);
+    expect(agent.generate).toHaveBeenCalledTimes(0);
   });
 
   test("runs agent until no pending tasks remain", async () => {
@@ -170,7 +117,7 @@ describe("runUntilDone", () => {
     });
 
     // Agent runs twice (once per pending check that finds tasks)
-    expect(agent.stream).toHaveBeenCalledTimes(2);
+    expect(agent.generate).toHaveBeenCalledTimes(2);
   });
 
   test("throws when safety limit is exceeded", async () => {
@@ -206,7 +153,7 @@ describe("runUntilDone", () => {
     ).rejects.toThrow("Safety limit reached (7 iterations)");
 
     // Should have run exactly 7 times before throwing
-    expect(agent.stream).toHaveBeenCalledTimes(7);
+    expect(agent.generate).toHaveBeenCalledTimes(7);
   });
 
   test("each iteration uses a fresh session", async () => {
@@ -225,7 +172,7 @@ describe("runUntilDone", () => {
     });
 
     // Each call should receive exactly one user message (fresh session)
-    for (const call of agent.stream.mock.calls as any[]) {
+    for (const call of agent.generate.mock.calls as any[]) {
       const [messages] = call;
       expect(messages).toHaveLength(1);
       expect(messages[0]).toEqual({ role: "user", content: "Build it" });
@@ -257,33 +204,6 @@ describe("runUntilDone", () => {
     expect(onProgress.mock.calls[2]).toEqual([3, 1]); // iteration 3, 1 remaining
   });
 
-  test("calls onOutput for streamed text chunks", async () => {
-    const agent = {
-      stream: mock(async () => ({
-        textStream: textStreamFrom(["chunk1", "chunk2"]),
-        getFullOutput: async () => ({ messages: [] }),
-      })),
-    } as any;
-    let callCount = 0;
-    const readTasksFile = mock(async () => {
-      callCount++;
-      if (callCount === 1) return "- [ ] Task\n";
-      return "- [x] Task\n";
-    });
-    const onOutput = mock(() => {});
-
-    await runUntilDone({
-      agent,
-      message: "Go",
-      readTasksFile,
-      onOutput,
-    });
-
-    expect(onOutput).toHaveBeenCalledTimes(2);
-    expect(onOutput.mock.calls[0]).toEqual(["chunk1"]);
-    expect(onOutput.mock.calls[1]).toEqual(["chunk2"]);
-  });
-
   test("counts only unchecked checkboxes as pending tasks", async () => {
     const agent = makeMockAgent();
     let callCount = 0;
@@ -304,7 +224,7 @@ describe("runUntilDone", () => {
       onProgress,
     });
 
-    expect(agent.stream).toHaveBeenCalledTimes(1);
+    expect(agent.generate).toHaveBeenCalledTimes(1);
     // Only 1 pending task detected
     expect(onProgress.mock.calls[0]).toEqual([1, 1]);
   });
@@ -365,9 +285,9 @@ describe("runUntilDone with hooks", () => {
     });
 
     // Agent called twice: initial message + hook failure feedback (same session)
-    expect(agent.stream).toHaveBeenCalledTimes(2);
+    expect(agent.generate).toHaveBeenCalledTimes(2);
     // The second call should include accumulated messages (same session), not a fresh one
-    const secondCall = agent.stream.mock.calls[1] as any[];
+    const secondCall = agent.generate.mock.calls[1] as any[];
     const [messages] = secondCall;
     // Same session means messages accumulate: user, assistant, user (hook feedback)
     expect(messages.length).toBeGreaterThan(1);
@@ -444,10 +364,6 @@ describe("runUntilDone with hooks", () => {
       if (readCount === 1) return "- [ ] Task\n";
       return "- [x] Task\n";
     });
-    const hookRunner = mock(async (): Promise<HookResult> => ({
-      ok: true,
-      output: "",
-    }));
 
     await runUntilDone({
       agent,
@@ -456,8 +372,7 @@ describe("runUntilDone with hooks", () => {
       // hooks not provided
     });
 
-    // hookRunner should not have been created/called (it wasn't even passed)
-    expect(agent.stream).toHaveBeenCalledTimes(1);
+    expect(agent.generate).toHaveBeenCalledTimes(1);
   });
 
   test("skips hooks when hooks array is empty", async () => {

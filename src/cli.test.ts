@@ -14,15 +14,15 @@ import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } 
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent, createResearchAgent } from "./agent-definitions";
 
-/** Extract the stream options type from Agent.stream()'s second parameter */
-type StreamOptions = NonNullable<Parameters<Agent["stream"]>[1]>;
+/** Extract the generate options type from Agent.generate()'s second parameter */
+type GenerateOptions = NonNullable<Parameters<Agent["generate"]>[1]>;
 
-/** Mock stream function signature matching Agent.stream() */
-type MockStreamFn = (messages: MessageInput[], opts: StreamOptions) => ReturnType<Agent["stream"]>;
+/** Mock generate function signature matching Agent.generate() */
+type MockGenerateFn = (messages: MessageInput[], opts: GenerateOptions) => ReturnType<Agent["generate"]>;
 
 /** Typed accessor for mock call arguments */
 function mockCallArgs(fn: ReturnType<typeof mock>, index: number) {
-  return fn.mock.calls[index] as unknown as [MessageInput[], StreamOptions];
+  return fn.mock.calls[index] as unknown as [MessageInput[], GenerateOptions];
 }
 
 describe("parseCliArgs", () => {
@@ -470,38 +470,26 @@ describe("createDiscoveryAgent — sub-agents", () => {
 });
 
 describe("runConversation", () => {
-  /** Create a ReadableStream<string> from an array of chunks */
-  function textStreamFrom(chunks: string[]): ReadableStream<string> {
-    return new ReadableStream({
-      start(controller) {
-        for (const chunk of chunks) controller.enqueue(chunk);
-        controller.close();
-      },
-    });
-  }
-
   function makeDeps(overrides?: {
-    streamImpl?: MockStreamFn;
+    generateImpl?: MockGenerateFn;
     onFinish?: OnFinishCallback;
   }) {
     const input = new PassThrough();
     const output = new PassThrough();
     output.setEncoding("utf8");
 
-    const mockStream = mock(
-      overrides?.streamImpl ??
+    const mockGenerate = mock(
+      overrides?.generateImpl ??
       (async () => ({
-        textStream: textStreamFrom(["Hello from AI"]),
-        getFullOutput: async () => ({
-          messages: [
-            { role: "user", content: "Hello" },
-            { role: "assistant", content: "Hello from AI" },
-          ],
-        }),
+        text: "Hello from AI",
+        messages: [
+          { role: "user", content: "Hello" },
+          { role: "assistant", content: "Hello from AI" },
+        ],
       })),
     );
 
-    const mockAgent = { stream: mockStream } as unknown as Agent;
+    const mockAgent = { generate: mockGenerate } as unknown as Agent;
 
     const deps: ConversationDeps = {
       agent: mockAgent,
@@ -513,21 +501,19 @@ describe("runConversation", () => {
     return {
       input,
       output,
-      mockStream,
+      mockGenerate,
       deps,
     };
   }
 
-  test("streams text chunks to output in real time", async () => {
-    const { input, output, mockStream, deps } = makeDeps({
-      streamImpl: async () => ({
-        textStream: textStreamFrom(["Hello", " from", " AI"]),
-        getFullOutput: async () => ({
-          messages: [
-            { role: "user", content: "Hello" },
-            { role: "assistant", content: "Hello from AI" },
-          ],
-        }),
+  test("writes agent response text to output", async () => {
+    const { input, output, deps } = makeDeps({
+      generateImpl: async () => ({
+        text: "Hello from AI",
+        messages: [
+          { role: "user", content: "Hello" },
+          { role: "assistant", content: "Hello from AI" },
+        ],
       }),
     });
 
@@ -538,12 +524,11 @@ describe("runConversation", () => {
     await done;
 
     const captured = output.read();
-    // All chunks should appear in output (streamed, not batched)
     expect(captured).toContain("Hello from AI");
   });
 
-  test("passes user input to agent.stream and writes streamed response", async () => {
-    const { input, output, mockStream, deps } = makeDeps();
+  test("passes user input to agent.generate and writes response", async () => {
+    const { input, output, mockGenerate, deps } = makeDeps();
 
     const done = runConversation(deps);
     input.write("Hello\n");
@@ -553,25 +538,23 @@ describe("runConversation", () => {
 
     const captured = output.read();
     expect(captured).toContain("Hello from AI");
-    expect(mockStream.mock.calls.length).toBeGreaterThanOrEqual(1);
-    const [messages] = mockCallArgs(mockStream, 0);
+    expect(mockGenerate.mock.calls.length).toBeGreaterThanOrEqual(1);
+    const [messages] = mockCallArgs(mockGenerate, 0);
     expect(messages).toContainEqual({ role: "user", content: "Hello" });
   });
 
   test("accumulates messages across multiple turns", async () => {
     let callCount = 0;
-    const { input, output, mockStream, deps } = makeDeps({
-      streamImpl: async (msgs: MessageInput[]) => {
+    const { input, output, mockGenerate, deps } = makeDeps({
+      generateImpl: async (msgs: MessageInput[]) => {
         callCount++;
         const text = `Response ${callCount}`;
         return {
-          textStream: textStreamFrom([text]),
-          getFullOutput: async () => ({
-            messages: [
-              ...msgs,
-              { role: "assistant", content: text },
-            ],
-          }),
+          text,
+          messages: [
+            ...msgs,
+            { role: "assistant", content: text },
+          ],
         };
       },
     });
@@ -585,14 +568,14 @@ describe("runConversation", () => {
     await done;
 
     expect(callCount).toBe(2);
-    const [secondMessages] = mockCallArgs(mockStream, 1);
+    const [secondMessages] = mockCallArgs(mockGenerate, 1);
     expect(secondMessages).toContainEqual({ role: "user", content: "First" });
     expect(secondMessages).toContainEqual({ role: "assistant", content: "Response 1" });
     expect(secondMessages).toContainEqual({ role: "user", content: "Second" });
   });
 
   test("skips empty lines", async () => {
-    const { input, output, mockStream, deps } = makeDeps();
+    const { input, output, mockGenerate, deps } = makeDeps();
 
     const done = runConversation(deps);
     input.write("\n");
@@ -602,12 +585,12 @@ describe("runConversation", () => {
     input.end();
     await done;
 
-    expect(mockStream.mock.calls.length).toBe(1);
+    expect(mockGenerate.mock.calls.length).toBe(1);
   });
 
   test("surfaces workspace write_file results as notifications", async () => {
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+      generateImpl: async (msgs: MessageInput[], opts: GenerateOptions) => {
         opts.onStepFinish!({
           toolResults: [
             {
@@ -625,13 +608,11 @@ describe("runConversation", () => {
           ],
         } as LLMStepResult);
         return {
-          textStream: textStreamFrom(["Done writing."]),
-          getFullOutput: async () => ({
-            messages: [
-              ...msgs,
-              { role: "assistant", content: "Done writing." },
-            ],
-          }),
+          text: "Done writing.",
+          messages: [
+            ...msgs,
+            { role: "assistant", content: "Done writing." },
+          ],
         };
       },
     });
@@ -649,7 +630,7 @@ describe("runConversation", () => {
 
   test("does not surface failed workspace write_file results", async () => {
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+      generateImpl: async (msgs: MessageInput[], opts: GenerateOptions) => {
         opts.onStepFinish!({
           toolResults: [
             {
@@ -661,13 +642,11 @@ describe("runConversation", () => {
           ],
         } as LLMStepResult);
         return {
-          textStream: textStreamFrom(["Failed."]),
-          getFullOutput: async () => ({
-            messages: [
-              ...msgs,
-              { role: "assistant", content: "Failed." },
-            ],
-          }),
+          text: "Failed.",
+          messages: [
+            ...msgs,
+            { role: "assistant", content: "Failed." },
+          ],
         };
       },
     });
@@ -682,23 +661,21 @@ describe("runConversation", () => {
     expect(captured).not.toContain("Wrote specs/fail.md");
   });
 
-  test("onFinish callback is invokable by Mastra when passed through stream options", async () => {
+  test("onFinish callback is invokable by Mastra when passed through generate options", async () => {
     const onFinish = mock(async () => {});
     const { input, output, deps } = makeDeps({
       onFinish,
-      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+      generateImpl: async (msgs: MessageInput[], opts: GenerateOptions) => {
         // Simulate Mastra calling onFinish after completion
         if (opts.onFinish) {
-          opts.onFinish({ text: "Done.", messages: msgs, toolResults: [] } as Parameters<NonNullable<StreamOptions["onFinish"]>>[0]);
+          opts.onFinish({ text: "Done.", messages: msgs, toolResults: [] } as Parameters<NonNullable<GenerateOptions["onFinish"]>>[0]);
         }
         return {
-          textStream: textStreamFrom(["Done."]),
-          getFullOutput: async () => ({
-            messages: [
-              ...msgs,
-              { role: "assistant", content: "Done." },
-            ],
-          }),
+          text: "Done.",
+          messages: [
+            ...msgs,
+            { role: "assistant", content: "Done." },
+          ],
         };
       },
     });
@@ -714,18 +691,16 @@ describe("runConversation", () => {
     expect(finishEvent.text).toBe("Done.");
   });
 
-  test("passes onFinish to agent.stream options so Mastra invokes it", async () => {
-    let capturedOpts: StreamOptions | null = null;
+  test("passes onFinish to agent.generate options so Mastra invokes it", async () => {
+    let capturedOpts: GenerateOptions | null = null;
     const onFinish = mock(async () => {});
     const { input, output, deps } = makeDeps({
       onFinish,
-      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+      generateImpl: async (msgs: MessageInput[], opts: GenerateOptions) => {
         capturedOpts = opts;
         return {
-          textStream: textStreamFrom(["Response"]),
-          getFullOutput: async () => ({
-            messages: [...msgs, { role: "assistant", content: "Response" }],
-          }),
+          text: "Response",
+          messages: [...msgs, { role: "assistant", content: "Response" }],
         };
       },
     });
@@ -740,15 +715,13 @@ describe("runConversation", () => {
   });
 
   test("does not pass onFinish when not provided in deps", async () => {
-    let capturedOpts: StreamOptions | null = null;
+    let capturedOpts: GenerateOptions | null = null;
     const { input, output, deps } = makeDeps({
-      streamImpl: async (msgs: MessageInput[], opts: StreamOptions) => {
+      generateImpl: async (msgs: MessageInput[], opts: GenerateOptions) => {
         capturedOpts = opts;
         return {
-          textStream: textStreamFrom(["Response"]),
-          getFullOutput: async () => ({
-            messages: [...msgs, { role: "assistant", content: "Response" }],
-          }),
+          text: "Response",
+          messages: [...msgs, { role: "assistant", content: "Response" }],
         };
       },
     });
