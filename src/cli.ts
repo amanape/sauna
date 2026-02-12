@@ -13,10 +13,10 @@ import { initEnvironment } from "./init-environment";
 import { SessionRunner } from "./session-runner";
 import type { OnFinishCallback } from "./session-runner";
 import { runJobPipeline } from "./job-pipeline";
-import { runFixedCount } from "./loop-runner";
+import { runFixedCount, runUntilDone } from "./loop-runner";
 import { loadHooks } from "./hooks-loader";
 import { runHooks } from "./hook-executor";
-import { handlePlan } from "./handlers";
+import { handlePlan, handleBuild } from "./handlers";
 
 export type Subcommand = "discover" | "plan" | "build" | "run";
 
@@ -281,11 +281,22 @@ export async function main(): Promise<void> {
       break;
     }
 
-    case "build":
+    case "build": {
+      await handleBuild({
+        args,
+        env,
+        output: process.stdout,
+        createBuilderAgent,
+        runUntilDone,
+        loadHooks,
+        runHooks,
+      });
+      break;
+    }
+
     case "run": {
       const tasksPath = join(args.codebase, ".sauna", "jobs", args.job, "tasks.md");
       const hooks = await loadHooks(args.codebase);
-      const plannerIterations = "iterations" in args ? args.iterations : 1;
 
       await runJobPipeline({
         createPlanner: () =>
@@ -306,7 +317,7 @@ export async function main(): Promise<void> {
           }),
         readTasksFile: () => Bun.file(tasksPath).text(),
         output: process.stdout,
-        plannerIterations,
+        plannerIterations: args.iterations,
         jobId: args.job,
         hooks,
         runHooks,

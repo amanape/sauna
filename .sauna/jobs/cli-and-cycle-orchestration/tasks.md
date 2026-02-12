@@ -7,7 +7,7 @@
 - [x] Extract shared setup (API key validation, MCP client, workspace, researcher agent) from `main()` into a reusable helper that all subcommand handlers call (spec: subcommand-interface.md § Shared Setup) — implemented as `initEnvironment()` in `src/init-environment.ts`; `main()` refactored to use it
 - [x] Implement `discover` handler: accepts `--codebase`, `--output`, `--model`; creates discovery agent, calls `runConversation()` (spec: subcommand-interface.md § Subcommands, Dispatch) — implemented inline in `main()` switch case
 - [x] Implement `plan` handler: accepts `--codebase`, `--job`, `--iterations`, `--model`; creates planner agent, calls `runFixedCount()` directly (spec: subcommand-interface.md § Subcommands, Dispatch) — extracted into `handlePlan()` in `src/handlers.ts`; `main()` dispatches to it; tested in `handlers.test.ts`
-- [ ] Implement `build` handler: accepts `--codebase`, `--job`, `--model`; creates builder agent, loads hooks, calls `runUntilDone()` directly (spec: subcommand-interface.md § Subcommands, Dispatch)
+- [x] Implement `build` handler: accepts `--codebase`, `--job`, `--model`; creates builder agent, loads hooks, calls `runUntilDone()` directly (spec: subcommand-interface.md § Subcommands, Dispatch) — extracted into `handleBuild()` in `src/handlers.ts`; `main()` dispatches to it separately from `run`; tested in `handlers.test.ts` (8 tests)
 - [ ] Implement `run` handler: accepts `--codebase`, `--job`, `--iterations`, `--model`; calls plan then build sequentially via `runJobPipeline()` or both handlers (spec: subcommand-interface.md § Subcommands, Dispatch)
 - [x] Update `main()` to parse subcommand from first positional arg and dispatch to the correct handler (spec: subcommand-interface.md § Dispatch)
 

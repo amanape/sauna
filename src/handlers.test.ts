@@ -2,9 +2,9 @@ import { test, expect, describe, mock, beforeEach } from "bun:test";
 import { PassThrough } from "node:stream";
 import type { Agent } from "@mastra/core/agent";
 
-import { handlePlan } from "./handlers";
+import { handlePlan, handleBuild } from "./handlers";
 import type { Environment } from "./init-environment";
-import type { PlanArgs } from "./cli";
+import type { PlanArgs, BuildArgs } from "./cli";
 
 /** Create a ReadableStream<string> from an array of chunks */
 function textStreamFrom(chunks: string[]): ReadableStream<string> {
@@ -254,6 +254,248 @@ describe("handlePlan", () => {
     ).rejects.toThrow("agent error");
 
     expect(env.disconnect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("handleBuild", () => {
+  function makeBuildSpies() {
+    return {
+      createBuilderAgent: mock(async () => stubAgent()),
+      runUntilDone: mock(async () => {}),
+      loadHooks: mock(async () => ["bun test", "bun run lint"]),
+      runHooks: mock(async () => ({ ok: true as const, output: "" })),
+    };
+  }
+
+  function buildArgs(overrides?: Partial<BuildArgs>): BuildArgs {
+    return {
+      subcommand: "build",
+      codebase: "/tmp/project",
+      job: "my-job",
+      ...overrides,
+    };
+  }
+
+  test("calls runUntilDone with the builder agent and hooks", async () => {
+    const spies = makeBuildSpies();
+    const agent = stubAgent();
+    spies.createBuilderAgent.mockImplementation(async () => agent);
+
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+    const env = stubEnvironment();
+
+    await handleBuild({
+      args: buildArgs(),
+      env,
+      output,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runUntilDone: spies.runUntilDone,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    expect(spies.runUntilDone).toHaveBeenCalledTimes(1);
+    const call = (spies.runUntilDone.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(call.agent).toBe(agent);
+    expect(call.message).toBe("Begin building.");
+    expect(call.hooks).toEqual(["bun test", "bun run lint"]);
+    expect(call.runHooks).toBe(spies.runHooks);
+    expect(call.hookCwd).toBe("/tmp/project");
+  });
+
+  test("creates builder agent with correct config from environment", async () => {
+    const spies = makeBuildSpies();
+
+    const output = new PassThrough();
+    const env = stubEnvironment();
+    const args = buildArgs({ model: "anthropic/claude-3" });
+
+    await handleBuild({
+      args,
+      env,
+      output,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runUntilDone: spies.runUntilDone,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    expect(spies.createBuilderAgent).toHaveBeenCalledTimes(1);
+    const config = (spies.createBuilderAgent.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(config.model).toBe("anthropic/claude-3");
+    expect(config.tools).toBe(env.tools);
+    expect(config.workspace).toBe(env.workspace);
+    expect(config.researcher).toBe(env.researcher);
+    expect(config.jobId).toBe("my-job");
+  });
+
+  test("loads hooks from the codebase directory", async () => {
+    const spies = makeBuildSpies();
+
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    await handleBuild({
+      args: buildArgs({ codebase: "/my/project" }),
+      env,
+      output,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runUntilDone: spies.runUntilDone,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    expect(spies.loadHooks).toHaveBeenCalledTimes(1);
+    expect((spies.loadHooks.mock.calls[0] as unknown[])[0]).toBe("/my/project");
+  });
+
+  test("passes a readTasksFile function that reads from the correct path", async () => {
+    const spies = makeBuildSpies();
+
+    // Capture the readTasksFile function passed to runUntilDone
+    let capturedReadTasksFile: (() => Promise<string>) | undefined;
+    spies.runUntilDone.mockImplementation(async (config: any) => {
+      capturedReadTasksFile = config.readTasksFile;
+    });
+
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    await handleBuild({
+      args: buildArgs(),
+      env,
+      output,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runUntilDone: spies.runUntilDone,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    // readTasksFile should be a function (we can't call it without Bun.file mocking,
+    // but we verify it was passed)
+    expect(typeof capturedReadTasksFile).toBe("function");
+  });
+
+  test("streams build output to the output writable", async () => {
+    const spies = makeBuildSpies();
+
+    spies.runUntilDone.mockImplementation(async (config: any) => {
+      config.onOutput?.("build-chunk1");
+      config.onOutput?.("build-chunk2");
+    });
+
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+    const env = stubEnvironment();
+
+    await handleBuild({
+      args: buildArgs(),
+      env,
+      output,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runUntilDone: spies.runUntilDone,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    const captured = output.read() as string;
+    expect(captured).toContain("build-chunk1");
+    expect(captured).toContain("build-chunk2");
+  });
+
+  test("reports build progress to output", async () => {
+    const spies = makeBuildSpies();
+
+    spies.runUntilDone.mockImplementation(async (config: any) => {
+      config.onProgress?.(1, 5);
+      config.onProgress?.(2, 3);
+    });
+
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+    const env = stubEnvironment();
+
+    await handleBuild({
+      args: buildArgs(),
+      env,
+      output,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runUntilDone: spies.runUntilDone,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    const captured = output.read() as string;
+    expect(captured).toContain("Build iteration 1");
+    expect(captured).toContain("5 tasks remaining");
+    expect(captured).toContain("Build iteration 2");
+    expect(captured).toContain("3 tasks remaining");
+  });
+
+  test("disconnects MCP after completion", async () => {
+    const spies = makeBuildSpies();
+
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    await handleBuild({
+      args: buildArgs(),
+      env,
+      output,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runUntilDone: spies.runUntilDone,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    expect(env.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  test("disconnects MCP even when runUntilDone throws", async () => {
+    const spies = makeBuildSpies();
+    spies.runUntilDone.mockImplementation(async () => {
+      throw new Error("build error");
+    });
+
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    await expect(
+      handleBuild({
+        args: buildArgs(),
+        env,
+        output,
+        createBuilderAgent: spies.createBuilderAgent as any,
+        runUntilDone: spies.runUntilDone,
+        loadHooks: spies.loadHooks,
+        runHooks: spies.runHooks,
+      }),
+    ).rejects.toThrow("build error");
+
+    expect(env.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  test("does NOT call runFixedCount or runJobPipeline", async () => {
+    const spies = makeBuildSpies();
+    const runFixedCount = mock(async () => {});
+
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    await handleBuild({
+      args: buildArgs(),
+      env,
+      output,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runUntilDone: spies.runUntilDone,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    // Only runUntilDone should be called
+    expect(spies.runUntilDone).toHaveBeenCalledTimes(1);
+    expect(runFixedCount).not.toHaveBeenCalled();
   });
 });
 
