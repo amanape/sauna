@@ -157,6 +157,23 @@ describe("SessionRunner", () => {
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
 
+  test("passes providerOptions with Anthropic cache control to agent.generate", async () => {
+    let capturedOpts: GenerateOptions | null = null;
+    const agent = makeMockAgent(async (_msgs: MessageInput[], opts: GenerateOptions) => {
+      capturedOpts = opts;
+      return { text: "OK", messages: [] };
+    });
+    const runner = new SessionRunner({ agent });
+
+    await runner.sendMessage("Hello");
+
+    expect(capturedOpts!.providerOptions).toEqual({
+      anthropic: {
+        cacheControl: { type: "ephemeral" },
+      },
+    });
+  });
+
   test("does not include onFinish in generate options when not provided", async () => {
     let capturedOpts: GenerateOptions | null = null;
     const agent = makeMockAgent(async (_msgs: MessageInput[], opts: GenerateOptions) => {

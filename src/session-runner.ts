@@ -34,6 +34,11 @@ export class SessionRunner {
 
     const result = await this.agent.generate(this.messages, {
       maxSteps: this.maxSteps,
+      providerOptions: {
+        anthropic: {
+          cacheControl: { type: "ephemeral" },
+        },
+      },
       ...(this.onStepFinish ? { onStepFinish: this.onStepFinish } : {}),
       ...(this.onFinish ? { onFinish: this.onFinish } : {}),
     });
