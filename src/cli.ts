@@ -24,6 +24,7 @@ export interface DiscoverArgs {
   codebase: string;
   output: string;
   model?: string;
+  verbose: boolean;
 }
 
 export interface PlanArgs {
@@ -32,6 +33,7 @@ export interface PlanArgs {
   job: string;
   iterations: number;
   model?: string;
+  verbose: boolean;
 }
 
 export interface BuildArgs {
@@ -39,6 +41,7 @@ export interface BuildArgs {
   codebase: string;
   job: string;
   model?: string;
+  verbose: boolean;
 }
 
 export interface RunArgs {
@@ -47,6 +50,7 @@ export interface RunArgs {
   job: string;
   iterations: number;
   model?: string;
+  verbose: boolean;
 }
 
 export interface HelpResult {
@@ -78,7 +82,8 @@ Run the interactive discovery agent.
 Flags:
   --codebase <path>   Project root to operate on (required)
   --output <path>     Output directory for jobs (default: ./jobs/)
-  --model <model>     Override the default LLM model`,
+  --model <model>     Override the default LLM model
+  --verbose           Show detailed tool args, results, and reasoning`,
 
   plan: `Usage: sauna plan [flags]
 
@@ -88,7 +93,8 @@ Flags:
   --codebase <path>   Project root to operate on (required)
   --job <slug>        Job directory under .sauna/jobs/ (required)
   --iterations <n>    Number of planning iterations (default: 1)
-  --model <model>     Override the default LLM model`,
+  --model <model>     Override the default LLM model
+  --verbose           Show detailed tool args, results, and reasoning`,
 
   build: `Usage: sauna build [flags]
 
@@ -97,7 +103,8 @@ Run the builder agent until all tasks are done.
 Flags:
   --codebase <path>   Project root to operate on (required)
   --job <slug>        Job directory under .sauna/jobs/ (required)
-  --model <model>     Override the default LLM model`,
+  --model <model>     Override the default LLM model
+  --verbose           Show detailed tool args, results, and reasoning`,
 
   run: `Usage: sauna run [flags]
 
@@ -107,7 +114,8 @@ Flags:
   --codebase <path>   Project root to operate on (required)
   --job <slug>        Job directory under .sauna/jobs/ (required)
   --iterations <n>    Number of planning iterations (default: 1)
-  --model <model>     Override the default LLM model`,
+  --model <model>     Override the default LLM model
+  --verbose           Show detailed tool args, results, and reasoning`,
 };
 
 function validateJobDir(codebase: string, job: string): void {
@@ -143,6 +151,7 @@ function parseDiscoverArgs(flagArgs: string[]): DiscoverArgs {
       codebase: { type: "string" },
       output: { type: "string", default: "./jobs/" },
       model: { type: "string" },
+      verbose: { type: "boolean", default: false },
     },
     strict: true,
   });
@@ -154,6 +163,7 @@ function parseDiscoverArgs(flagArgs: string[]): DiscoverArgs {
     codebase,
     output: values.output!,
     model: values.model,
+    verbose: values.verbose!,
   };
 }
 
@@ -165,6 +175,7 @@ function parsePlanArgs(flagArgs: string[]): PlanArgs {
       job: { type: "string" },
       iterations: { type: "string" },
       model: { type: "string" },
+      verbose: { type: "boolean", default: false },
     },
     strict: true,
   });
@@ -174,7 +185,7 @@ function parsePlanArgs(flagArgs: string[]): PlanArgs {
   const iterations = validateIterations(values.iterations);
   validateJobDir(codebase, job);
 
-  return { subcommand: "plan", codebase, job, iterations, model: values.model };
+  return { subcommand: "plan", codebase, job, iterations, model: values.model, verbose: values.verbose! };
 }
 
 function parseBuildArgs(flagArgs: string[]): BuildArgs {
@@ -184,6 +195,7 @@ function parseBuildArgs(flagArgs: string[]): BuildArgs {
       codebase: { type: "string" },
       job: { type: "string" },
       model: { type: "string" },
+      verbose: { type: "boolean", default: false },
     },
     strict: true,
   });
@@ -192,7 +204,7 @@ function parseBuildArgs(flagArgs: string[]): BuildArgs {
   const job = requireFlag(values, "job", "build");
   validateJobDir(codebase, job);
 
-  return { subcommand: "build", codebase, job, model: values.model };
+  return { subcommand: "build", codebase, job, model: values.model, verbose: values.verbose! };
 }
 
 function parseRunArgs(flagArgs: string[]): RunArgs {
@@ -203,6 +215,7 @@ function parseRunArgs(flagArgs: string[]): RunArgs {
       job: { type: "string" },
       iterations: { type: "string" },
       model: { type: "string" },
+      verbose: { type: "boolean", default: false },
     },
     strict: true,
   });
@@ -212,7 +225,7 @@ function parseRunArgs(flagArgs: string[]): RunArgs {
   const iterations = validateIterations(values.iterations);
   validateJobDir(codebase, job);
 
-  return { subcommand: "run", codebase, job, iterations, model: values.model };
+  return { subcommand: "run", codebase, job, iterations, model: values.model, verbose: values.verbose! };
 }
 
 export function parseCliArgs(argv: string[]): ParseResult {

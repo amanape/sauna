@@ -66,6 +66,7 @@ describe("parseCliArgs", () => {
     expect(result.text).toContain("--codebase");
     expect(result.text).toContain("--output");
     expect(result.text).toContain("--model");
+    expect(result.text).toContain("--verbose");
   });
 
   test("plan --help returns help listing plan flags", () => {
@@ -75,6 +76,7 @@ describe("parseCliArgs", () => {
     expect(result.text).toContain("--job");
     expect(result.text).toContain("--iterations");
     expect(result.text).toContain("--model");
+    expect(result.text).toContain("--verbose");
   });
 
   test("build --help returns help listing build flags", () => {
@@ -83,6 +85,7 @@ describe("parseCliArgs", () => {
     expect(result.text).toContain("--codebase");
     expect(result.text).toContain("--job");
     expect(result.text).toContain("--model");
+    expect(result.text).toContain("--verbose");
   });
 
   test("build --help does not list --iterations", () => {
@@ -97,6 +100,7 @@ describe("parseCliArgs", () => {
     expect(result.text).toContain("--job");
     expect(result.text).toContain("--iterations");
     expect(result.text).toContain("--model");
+    expect(result.text).toContain("--verbose");
   });
 
   test("per-subcommand help includes subcommand name", () => {
@@ -148,6 +152,20 @@ describe("parseCliArgs", () => {
 
   test("discover throws when --codebase is missing", () => {
     expect(() => parseCliArgs(["discover"])).toThrow("--codebase");
+  });
+
+  test("discover accepts --verbose flag", () => {
+    const result = parseCliArgs(["discover", "--codebase", "/some/path", "--verbose"]);
+    if (result.subcommand === "discover") {
+      expect(result.verbose).toBe(true);
+    }
+  });
+
+  test("discover defaults verbose to false", () => {
+    const result = parseCliArgs(["discover", "--codebase", "/some/path"]);
+    if (result.subcommand === "discover") {
+      expect(result.verbose).toBe(false);
+    }
   });
 
   test("discover rejects unknown flags", () => {
@@ -246,6 +264,32 @@ describe("parseCliArgs", () => {
     expect(() => parseCliArgs(["plan", "--codebase", "/tmp"])).toThrow("--job");
   });
 
+  test("plan accepts --verbose flag", () => {
+    const tmp = join(tmpdir(), `method6-plan-verbose-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs(["plan", "--codebase", tmp, "--job", "my-job", "--verbose"]);
+      if (result.subcommand === "plan") {
+        expect(result.verbose).toBe(true);
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("plan defaults verbose to false", () => {
+    const tmp = join(tmpdir(), `method6-plan-noverbose-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs(["plan", "--codebase", tmp, "--job", "my-job"]);
+      if (result.subcommand === "plan") {
+        expect(result.verbose).toBe(false);
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   test("plan throws when --job directory does not exist", () => {
     const tmp = join(tmpdir(), `method6-plan-nojob-${Date.now()}`);
     mkdirSync(tmp, { recursive: true });
@@ -290,6 +334,32 @@ describe("parseCliArgs", () => {
     }
   });
 
+  test("build accepts --verbose flag", () => {
+    const tmp = join(tmpdir(), `method6-build-verbose-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs(["build", "--codebase", tmp, "--job", "my-job", "--verbose"]);
+      if (result.subcommand === "build") {
+        expect(result.verbose).toBe(true);
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("build defaults verbose to false", () => {
+    const tmp = join(tmpdir(), `method6-build-noverbose-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs(["build", "--codebase", tmp, "--job", "my-job"]);
+      if (result.subcommand === "build") {
+        expect(result.verbose).toBe(false);
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   test("build does not accept --output", () => {
     const tmp = join(tmpdir(), `method6-build-out-${Date.now()}`);
     mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
@@ -328,6 +398,32 @@ describe("parseCliArgs", () => {
       ]);
       if (result.subcommand === "run") {
         expect(result.iterations).toBe(3);
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("run accepts --verbose flag", () => {
+    const tmp = join(tmpdir(), `method6-run-verbose-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs(["run", "--codebase", tmp, "--job", "my-job", "--verbose"]);
+      if (result.subcommand === "run") {
+        expect(result.verbose).toBe(true);
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("run defaults verbose to false", () => {
+    const tmp = join(tmpdir(), `method6-run-noverbose-${Date.now()}`);
+    mkdirSync(join(tmp, ".sauna", "jobs", "my-job"), { recursive: true });
+    try {
+      const result = parseCliArgs(["run", "--codebase", tmp, "--job", "my-job"]);
+      if (result.subcommand === "run") {
+        expect(result.verbose).toBe(false);
       }
     } finally {
       rmSync(tmp, { recursive: true, force: true });

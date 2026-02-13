@@ -17,7 +17,7 @@
 
 ## Priority 3: CLI Integration
 
-- [ ] Add `--verbose` boolean flag to DiscoverArgs, PlanArgs, BuildArgs, RunArgs in `src/cli.ts` parseArgs — verbosity-control.md
+- [x] Add `--verbose` boolean flag to DiscoverArgs, PlanArgs, BuildArgs, RunArgs in `src/cli.ts` parseArgs — verbosity-control.md
 - [ ] Wire activity reporter + metrics into `runConversation` (discover) via existing `onStepFinish`/`onFinish` callbacks — agent-activity-visibility.md
 - [ ] Wire activity reporter + metrics into plan/build/run handlers via callbacks in loop-runner and job-pipeline — agent-activity-visibility.md
 
@@ -32,5 +32,5 @@
 - [x] Tests for terminal formatting module: color helpers, symbol constants, duration formatting, graceful degradation — terminal-formatting.md
 - [x] Tests for execution metrics module: token accumulation, timing, missing data handling — execution-metrics.md
 - [x] Tests for activity reporter: normal vs verbose output, tool-type summaries, tool name cleaning, sub-agent display, stream injection — agent-activity-visibility.md
-- [ ] Tests for `--verbose` flag parsing across all four subcommands — verbosity-control.md
+- [x] Tests for `--verbose` flag parsing across all four subcommands — verbosity-control.md
 - [ ] Tests for SessionRunner streaming mode: fullStream iteration, message history via getFullOutput, error handling — discover-streaming.md

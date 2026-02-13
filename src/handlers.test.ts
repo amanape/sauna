@@ -45,6 +45,7 @@ describe("handlePlan", () => {
       job: "my-job",
       iterations: 3,
       model: undefined,
+      verbose: false,
     };
 
     await handlePlan({
@@ -74,6 +75,7 @@ describe("handlePlan", () => {
       codebase: "/tmp/project",
       job: "my-job",
       iterations: 1,
+      verbose: false,
     };
 
     await handlePlan({
@@ -101,6 +103,7 @@ describe("handlePlan", () => {
       job: "my-job",
       iterations: 1,
       model: "openai/gpt-4",
+      verbose: false,
     };
 
     await handlePlan({
@@ -139,6 +142,7 @@ describe("handlePlan", () => {
       codebase: "/tmp/project",
       job: "my-job",
       iterations: 3,
+      verbose: false,
     };
 
     await handlePlan({
@@ -167,6 +171,7 @@ describe("handlePlan", () => {
       codebase: "/tmp/project",
       job: "my-job",
       iterations: 1,
+      verbose: false,
     };
 
     await handlePlan({
@@ -195,6 +200,7 @@ describe("handlePlan", () => {
       codebase: "/tmp/project",
       job: "my-job",
       iterations: 1,
+      verbose: false,
     };
 
     await expect(
@@ -226,6 +232,7 @@ describe("handleBuild", () => {
       subcommand: "build",
       codebase: "/tmp/project",
       job: "my-job",
+      verbose: false,
       ...overrides,
     };
   }
@@ -443,6 +450,7 @@ describe("handleRun", () => {
       codebase: "/tmp/project",
       job: "my-job",
       iterations: 2,
+      verbose: false,
       ...overrides,
     };
   }
