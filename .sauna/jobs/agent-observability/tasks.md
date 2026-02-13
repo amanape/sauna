@@ -34,7 +34,7 @@
 ## Remaining — Priority 2 (visual polish per spec)
 
 - [x] Use `colors.yellow` instead of `colors.cyan` for sub-agent/researcher tool calls in both `onStepFinish` and `onChunk` paths — agent-activity-visibility.md, terminal-formatting.md
-- [ ] Show "Researcher investigating…" spinner text while researcher sub-agent is active — agent-activity-visibility.md
+- [x] Show "Researcher investigating…" spinner text while researcher sub-agent is active — agent-activity-visibility.md
 - [ ] Use `colors.error` (bold red) for tool error messages instead of plain `colors.red` in both `summarizeToolResult` and the `onChunk` tool-error handler — agent-activity-visibility.md
 
 ## Remaining — Priority 3 (tests for new work)
@@ -42,4 +42,4 @@
 - [x] Tests for stream error display in `handleStreamingTurn` — discover-streaming.md
 - [x] Tests for spinner text updates on tool-call chunks — terminal-formatting.md, agent-activity-visibility.md
 - [x] Tests for yellow sub-agent coloring — agent-activity-visibility.md
-- [ ] Tests for researcher active indicator — agent-activity-visibility.md
+- [x] Tests for researcher active indicator — agent-activity-visibility.md

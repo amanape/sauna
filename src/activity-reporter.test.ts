@@ -1012,6 +1012,106 @@ describe("activity reporter — onChunk handler", () => {
   });
 });
 
+// ── Researcher active spinner indicator ──────────────────────────────────────
+
+describe("activity reporter — researcher active spinner indicator", () => {
+  test("spinner shows 'Researcher investigating…' for researcher tool-call chunk", () => {
+    const { stream } = createCapture();
+
+    const updateCalls: string[] = [];
+    const spinner = {
+      start(_text: string) {},
+      update(text: string) { updateCalls.push(text); },
+      success(_text?: string) {},
+      error(_text?: string) {},
+      stop() {},
+      isSpinning() { return true; },
+      withPause(fn: () => void) { fn(); },
+    };
+
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      spinner,
+    });
+
+    reporter.onChunk(
+      makeChunk("tool-call", {
+        toolCallId: "tc1",
+        toolName: "researcher",
+        args: { message: "find docs for streaming API" },
+      }),
+    );
+
+    expect(updateCalls.length).toBeGreaterThan(0);
+    expect(updateCalls[0]).toBe("Researcher investigating…");
+  });
+
+  test("spinner shows generic 'Calling <tool>…' for non-researcher tool-call chunk", () => {
+    const { stream } = createCapture();
+
+    const updateCalls: string[] = [];
+    const spinner = {
+      start(_text: string) {},
+      update(text: string) { updateCalls.push(text); },
+      success(_text?: string) {},
+      error(_text?: string) {},
+      stop() {},
+      isSpinning() { return true; },
+      withPause(fn: () => void) { fn(); },
+    };
+
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      spinner,
+    });
+
+    reporter.onChunk(
+      makeChunk("tool-call", {
+        toolCallId: "tc1",
+        toolName: "tavily_web_search",
+        args: { query: "bun runtime" },
+      }),
+    );
+
+    expect(updateCalls.length).toBeGreaterThan(0);
+    expect(updateCalls[0]).toBe("Calling web_search…");
+  });
+
+  test("researcher spinner text does not contain generic 'Calling' prefix", () => {
+    const { stream } = createCapture();
+
+    const updateCalls: string[] = [];
+    const spinner = {
+      start(_text: string) {},
+      update(text: string) { updateCalls.push(text); },
+      success(_text?: string) {},
+      error(_text?: string) {},
+      stop() {},
+      isSpinning() { return true; },
+      withPause(fn: () => void) { fn(); },
+    };
+
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      spinner,
+    });
+
+    reporter.onChunk(
+      makeChunk("tool-call", {
+        toolCallId: "tc1",
+        toolName: "researcher",
+        args: { message: "look up error handling patterns" },
+      }),
+    );
+
+    expect(updateCalls.length).toBeGreaterThan(0);
+    expect(updateCalls[0]).not.toContain("Calling");
+  });
+});
+
 // ── Sub-agent yellow coloring ────────────────────────────────────────────────
 
 describe("activity reporter — sub-agent yellow coloring", () => {

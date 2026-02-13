@@ -261,7 +261,10 @@ export function createActivityReporter(
 
         // Update spinner text so the user sees which tool is being called
         if (spinner) {
-          spinner.update(`Calling ${cleanToolName(toolName)}…`);
+          const spinnerText = isSubAgentTool(toolName)
+            ? "Researcher investigating…"
+            : `Calling ${cleanToolName(toolName)}…`;
+          spinner.update(spinnerText);
         }
 
         // Start timing this tool call
