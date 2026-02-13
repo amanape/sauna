@@ -4,7 +4,7 @@
 export { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
 export { createWorkspace, type WorkspaceOptions } from "./workspace-factory";
 export { createDiscoveryAgent, createResearchAgent, createPlanningAgent, createBuilderAgent, type DiscoveryAgentConfig, type ResearchAgentConfig, type PlanningAgentConfig, type BuilderAgentConfig } from "./agent-definitions";
-export { SessionRunner, type SessionRunnerConfig, type OnFinishCallback } from "./session-runner";
+export { SessionRunner, type SessionRunnerConfig, type OnFinishCallback, type StreamingResult } from "./session-runner";
 export { runFixedCount, runUntilDone, type FixedCountConfig, type UntilDoneConfig } from "./loop-runner";
 export { runJobPipeline, type JobPipelineDeps } from "./job-pipeline";
 export { initEnvironment, type InitEnvironmentConfig, type Environment } from "./init-environment";

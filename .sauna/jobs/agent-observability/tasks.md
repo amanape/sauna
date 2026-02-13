@@ -23,7 +23,7 @@
 
 ## Priority 4: Discover Streaming
 
-- [ ] Add streaming mode to `SessionRunner`: call `agent.stream()`, iterate `fullStream`, call `getFullOutput()` for message history — discover-streaming.md
+- [x] Add streaming mode to `SessionRunner`: call `agent.stream()`, iterate `fullStream`, call `getFullOutput()` for message history — discover-streaming.md
 - [ ] Update `runConversation` to handle streaming: write `text-delta` chunks immediately, route tool chunks to activity reporter, extract usage from `step-finish`/`finish` — discover-streaming.md
 - [ ] Handle text/tool interleaving during streaming: insert newline before tool activity if mid-line, resume text on new line — discover-streaming.md
 
@@ -33,4 +33,4 @@
 - [x] Tests for execution metrics module: token accumulation, timing, missing data handling — execution-metrics.md
 - [x] Tests for activity reporter: normal vs verbose output, tool-type summaries, tool name cleaning, sub-agent display, stream injection — agent-activity-visibility.md
 - [x] Tests for `--verbose` flag parsing across all four subcommands — verbosity-control.md
-- [ ] Tests for SessionRunner streaming mode: fullStream iteration, message history via getFullOutput, error handling — discover-streaming.md
+- [x] Tests for SessionRunner streaming mode: fullStream iteration, message history via getFullOutput, error handling — discover-streaming.md
