@@ -5,7 +5,15 @@
 import type { Writable } from "node:stream";
 import type { LLMStepResult } from "@mastra/core/agent";
 
-import { colors, symbols, indent, indentVerbose } from "./terminal-formatting";
+import type { ExecutionMetrics, TokenUsage } from "./execution-metrics";
+import {
+  colors,
+  symbols,
+  indent,
+  indentVerbose,
+  formatDuration,
+  formatNumber,
+} from "./terminal-formatting";
 
 // ── Tool name cleaning ──────────────────────────────────────────────────────
 
@@ -87,6 +95,7 @@ function summarizeToolResult(
 export interface ActivityReporterConfig {
   output: Writable;
   verbose: boolean;
+  metrics?: ExecutionMetrics;
 }
 
 export interface ActivityReporter {
@@ -96,7 +105,7 @@ export interface ActivityReporter {
 export function createActivityReporter(
   config: ActivityReporterConfig,
 ): ActivityReporter {
-  const { output, verbose } = config;
+  const { output, verbose, metrics } = config;
 
   function write(line: string): void {
     try {
@@ -148,6 +157,36 @@ export function createActivityReporter(
           if (verbose && result.payload.result !== undefined) {
             write(indentVerbose(colors.dim(truncateJson(result.payload.result))));
           }
+        }
+      }
+
+      // Token usage and turn duration
+      if (metrics) {
+        const usage = step.usage as TokenUsage | undefined;
+        metrics.recordTurnUsage(usage);
+
+        if (usage) {
+          // Per-turn tokens: "tokens: 1,247 in / 523 out / 1,770 total"
+          let tokenLine = `tokens: ${formatNumber(usage.inputTokens)} in / ${formatNumber(usage.outputTokens)} out / ${formatNumber(usage.totalTokens)} total`;
+
+          if (usage.reasoningTokens) {
+            tokenLine += ` (reasoning: ${formatNumber(usage.reasoningTokens)})`;
+          }
+          if (usage.cachedInputTokens) {
+            tokenLine += ` (cached: ${formatNumber(usage.cachedInputTokens)})`;
+          }
+
+          // Cumulative total
+          const cumulative = metrics.getCumulativeUsage();
+          tokenLine += ` | cumulative: ${formatNumber(cumulative.totalTokens)}`;
+
+          // Turn duration (if a turn was timed)
+          const turnDuration = metrics.getLastTurnDuration();
+          if (turnDuration > 0) {
+            tokenLine += ` | ${formatDuration(turnDuration)}`;
+          }
+
+          write(indent(colors.dim(tokenLine)));
         }
       }
 

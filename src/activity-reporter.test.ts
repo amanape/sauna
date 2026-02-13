@@ -3,6 +3,7 @@ import { Writable } from "node:stream";
 import type { LLMStepResult } from "@mastra/core/agent";
 
 import { createActivityReporter, cleanToolName } from "./activity-reporter";
+import { ExecutionMetrics } from "./execution-metrics";
 import { stripAnsi } from "./terminal-formatting";
 
 // ── Test helpers ────────────────────────────────────────────────────────────
@@ -390,5 +391,235 @@ describe("activity reporter — stream injection", () => {
     reporter.onStepFinish(step);
     // Output captured from the injected stream should have content
     expect(output().length).toBeGreaterThan(0);
+  });
+});
+
+// ── Token usage and duration display ────────────────────────────────────────
+
+function makeClock() {
+  let now = 0;
+  return {
+    now: () => now,
+    advance: (ms: number) => {
+      now += ms;
+    },
+  };
+}
+
+describe("activity reporter — token usage display", () => {
+  test("displays per-turn token counts when metrics provided", () => {
+    const { stream, output } = createCapture();
+    const metrics = new ExecutionMetrics();
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      metrics,
+    });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" })],
+      usage: { inputTokens: 1247, outputTokens: 523, totalTokens: 1770 },
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const text = stripAnsi(output());
+    expect(text).toContain("1,247");
+    expect(text).toContain("523");
+    expect(text).toContain("1,770");
+  });
+
+  test("displays cumulative totals across multiple steps", () => {
+    const { stream, output } = createCapture();
+    const metrics = new ExecutionMetrics();
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      metrics,
+    });
+
+    const step1 = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "a.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "a" })],
+      usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+      finishReason: "tool-calls",
+    });
+    reporter.onStepFinish(step1);
+
+    const step2 = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "b.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "b" })],
+      usage: { inputTokens: 200, outputTokens: 100, totalTokens: 300 },
+      finishReason: "tool-calls",
+    });
+    reporter.onStepFinish(step2);
+
+    const text = stripAnsi(output());
+    // After step2, cumulative should be 450
+    expect(text).toContain("450");
+  });
+
+  test("shows reasoning tokens when non-zero", () => {
+    const { stream, output } = createCapture();
+    const metrics = new ExecutionMetrics();
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      metrics,
+    });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" })],
+      usage: {
+        inputTokens: 500,
+        outputTokens: 200,
+        totalTokens: 700,
+        reasoningTokens: 150,
+      },
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const text = stripAnsi(output());
+    expect(text).toContain("reasoning");
+    expect(text).toContain("150");
+  });
+
+  test("shows cached tokens when non-zero", () => {
+    const { stream, output } = createCapture();
+    const metrics = new ExecutionMetrics();
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      metrics,
+    });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" })],
+      usage: {
+        inputTokens: 500,
+        outputTokens: 200,
+        totalTokens: 700,
+        cachedInputTokens: 300,
+      },
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const text = stripAnsi(output());
+    expect(text).toContain("cached");
+    expect(text).toContain("300");
+  });
+
+  test("omits reasoning tokens when zero", () => {
+    const { stream, output } = createCapture();
+    const metrics = new ExecutionMetrics();
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      metrics,
+    });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" })],
+      usage: { inputTokens: 500, outputTokens: 200, totalTokens: 700 },
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const text = stripAnsi(output());
+    expect(text).not.toContain("reasoning");
+  });
+
+  test("does not display tokens when metrics not provided", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+    });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" })],
+      usage: { inputTokens: 500, outputTokens: 200, totalTokens: 700 },
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const text = stripAnsi(output());
+    expect(text).not.toContain("500");
+    expect(text).not.toContain("tokens");
+  });
+
+  test("does not crash when step has no usage data", () => {
+    const { stream, output } = createCapture();
+    const metrics = new ExecutionMetrics();
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      metrics,
+    });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" })],
+      finishReason: "tool-calls",
+    });
+
+    expect(() => reporter.onStepFinish(step)).not.toThrow();
+  });
+});
+
+describe("activity reporter — turn duration display", () => {
+  test("displays turn duration when metrics has timing", () => {
+    const clock = makeClock();
+    const { stream, output } = createCapture();
+    const metrics = new ExecutionMetrics(clock.now);
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      metrics,
+    });
+
+    metrics.startTurn();
+    clock.advance(2500);
+    metrics.endTurn();
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" })],
+      usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const text = stripAnsi(output());
+    expect(text).toContain("2.5s");
+  });
+
+  test("does not display duration when no turn was timed", () => {
+    const { stream, output } = createCapture();
+    const metrics = new ExecutionMetrics();
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      metrics,
+    });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" })],
+      usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const text = stripAnsi(output());
+    // Should have token info but not a duration of "0ms"
+    expect(text).not.toMatch(/\b0ms\b/);
   });
 });

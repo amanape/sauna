@@ -9,10 +9,10 @@
 ## Priority 2: Core Observability
 
 - [x] Create `src/activity-reporter.ts`: accepts `Writable` stream + verbosity flag, consumes `onStepFinish` data, writes formatted lines via terminal formatting module — agent-activity-visibility.md
-- [ ] Implement tool-type-specific one-line summaries: file read/write → path, directory listing → path, web search → query, MCP tools → name + args, sub-agent → status + one-line result — agent-activity-visibility.md
-- [ ] Implement tool name cleaning as a pure function (strip `mastra_workspace_` and similar prefixes) — agent-activity-visibility.md
-- [ ] Implement verbose mode in activity reporter: full tool args/results as truncated JSON (~500 chars), reasoning text, per-step finish reason — verbosity-control.md
-- [ ] Display per-turn and cumulative token usage after each agent turn, and per-tool-call duration inline — execution-metrics.md
+- [x] Implement tool-type-specific one-line summaries: file read/write → path, directory listing → path, web search → query, MCP tools → name + args, sub-agent → status + one-line result — agent-activity-visibility.md
+- [x] Implement tool name cleaning as a pure function (strip `mastra_workspace_` and similar prefixes) — agent-activity-visibility.md
+- [x] Implement verbose mode in activity reporter: full tool args/results as truncated JSON (~500 chars), reasoning text, per-step finish reason — verbosity-control.md
+- [x] Display per-turn and cumulative token usage after each agent turn, and per-tool-call duration inline — execution-metrics.md
 - [ ] Add spinner (nanospinner) that activates during blocking agent operations, updates text with current activity, stops before other output — terminal-formatting.md
 
 ## Priority 3: CLI Integration
