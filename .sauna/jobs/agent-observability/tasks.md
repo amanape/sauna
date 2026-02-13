@@ -4,7 +4,7 @@
 
 - [x] Install `ansis`, `nanospinner`, and `figures` as dependencies — terminal-formatting.md
 - [x] Create `src/terminal-formatting.ts`: color helpers (cyan/green/red/yellow/dim), symbol constants (tick/cross/pointer/spinner), indentation utilities, duration formatter (ms/s/m rules), graceful ANSI degradation — terminal-formatting.md
-- [ ] Create `src/execution-metrics.ts`: per-turn token tracking (input/output/total/reasoning/cached), cumulative session totals, `performance.now()` wall-clock timing, formatted display strings — execution-metrics.md
+- [x] Create `src/execution-metrics.ts`: per-turn token tracking (input/output/total/reasoning/cached), cumulative session totals, `performance.now()` wall-clock timing, formatted display strings — execution-metrics.md
 
 ## Priority 2: Core Observability
 
@@ -30,7 +30,7 @@
 ## Priority 5: Testing
 
 - [x] Tests for terminal formatting module: color helpers, symbol constants, duration formatting, graceful degradation — terminal-formatting.md
-- [ ] Tests for execution metrics module: token accumulation, timing, missing data handling — execution-metrics.md
+- [x] Tests for execution metrics module: token accumulation, timing, missing data handling — execution-metrics.md
 - [ ] Tests for activity reporter: normal vs verbose output, tool-type summaries, tool name cleaning, sub-agent display, stream injection — agent-activity-visibility.md
 - [ ] Tests for `--verbose` flag parsing across all four subcommands — verbosity-control.md
 - [ ] Tests for SessionRunner streaming mode: fullStream iteration, message history via getFullOutput, error handling — discover-streaming.md
