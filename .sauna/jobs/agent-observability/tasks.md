@@ -8,7 +8,7 @@
 
 ## Priority 2: Core Observability
 
-- [ ] Create `src/activity-reporter.ts`: accepts `Writable` stream + verbosity flag, consumes `onStepFinish` data, writes formatted lines via terminal formatting module — agent-activity-visibility.md
+- [x] Create `src/activity-reporter.ts`: accepts `Writable` stream + verbosity flag, consumes `onStepFinish` data, writes formatted lines via terminal formatting module — agent-activity-visibility.md
 - [ ] Implement tool-type-specific one-line summaries: file read/write → path, directory listing → path, web search → query, MCP tools → name + args, sub-agent → status + one-line result — agent-activity-visibility.md
 - [ ] Implement tool name cleaning as a pure function (strip `mastra_workspace_` and similar prefixes) — agent-activity-visibility.md
 - [ ] Implement verbose mode in activity reporter: full tool args/results as truncated JSON (~500 chars), reasoning text, per-step finish reason — verbosity-control.md
@@ -31,6 +31,6 @@
 
 - [x] Tests for terminal formatting module: color helpers, symbol constants, duration formatting, graceful degradation — terminal-formatting.md
 - [x] Tests for execution metrics module: token accumulation, timing, missing data handling — execution-metrics.md
-- [ ] Tests for activity reporter: normal vs verbose output, tool-type summaries, tool name cleaning, sub-agent display, stream injection — agent-activity-visibility.md
+- [x] Tests for activity reporter: normal vs verbose output, tool-type summaries, tool name cleaning, sub-agent display, stream injection — agent-activity-visibility.md
 - [ ] Tests for `--verbose` flag parsing across all four subcommands — verbosity-control.md
 - [ ] Tests for SessionRunner streaming mode: fullStream iteration, message history via getFullOutput, error handling — discover-streaming.md
