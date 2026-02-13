@@ -1030,6 +1030,157 @@ describe("runConversation", () => {
     expect(capturedOpts!.onFinish).toBeUndefined();
   });
 
+  test("calls onTurnStart before agent.generate and onTurnEnd after", async () => {
+    const events: string[] = [];
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+
+    const mockGenerate = mock(async () => {
+      events.push("generate");
+      return mockGenerateResult("OK", [
+        { role: "user", content: "Hi" },
+        { role: "assistant", content: "OK" },
+      ]);
+    });
+
+    const deps: ConversationDeps = {
+      agent: { generate: mockGenerate } as unknown as Agent,
+      input,
+      output,
+      onTurnStart: () => { events.push("turnStart"); },
+      onTurnEnd: () => { events.push("turnEnd"); },
+    };
+
+    const done = runConversation(deps);
+    input.write("Hi\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    expect(events).toEqual(["turnStart", "generate", "turnEnd"]);
+  });
+
+  test("calls onTurnStart and onTurnEnd for each turn in multi-turn conversation", async () => {
+    const events: string[] = [];
+    let callCount = 0;
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+
+    const mockGenerate = mock(async (msgs: MessageInput[]) => {
+      callCount++;
+      events.push(`generate${callCount}`);
+      return mockGenerateResult(`R${callCount}`, [
+        ...msgs,
+        { role: "assistant", content: `R${callCount}` },
+      ]);
+    });
+
+    const deps: ConversationDeps = {
+      agent: { generate: mockGenerate } as unknown as Agent,
+      input,
+      output,
+      onTurnStart: () => { events.push("turnStart"); },
+      onTurnEnd: () => { events.push("turnEnd"); },
+    };
+
+    const done = runConversation(deps);
+    input.write("First\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.write("Second\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    expect(events).toEqual([
+      "turnStart", "generate1", "turnEnd",
+      "turnStart", "generate2", "turnEnd",
+    ]);
+  });
+
+  test("does not call turn hooks when they are not provided", async () => {
+    let capturedOpts: GenerateOptions | null = null;
+    const { input, output, deps } = makeDeps({
+      generateImpl: async (msgs: MessageInput[], opts: GenerateOptions) => {
+        capturedOpts = opts;
+        return mockGenerateResult("Response", [
+          ...msgs,
+          { role: "assistant", content: "Response" },
+        ]);
+      },
+    });
+
+    const done = runConversation(deps);
+    input.write("Test\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    // No error thrown — turn hooks gracefully absent
+    expect(capturedOpts).toBeTruthy();
+  });
+
+  test("does not call turn hooks for empty/whitespace-only lines", async () => {
+    const events: string[] = [];
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+
+    const mockGenerate = mock(async (msgs: MessageInput[]) => {
+      events.push("generate");
+      return mockGenerateResult("OK", [
+        ...msgs,
+        { role: "assistant", content: "OK" },
+      ]);
+    });
+
+    const deps: ConversationDeps = {
+      agent: { generate: mockGenerate } as unknown as Agent,
+      input,
+      output,
+      onTurnStart: () => { events.push("turnStart"); },
+      onTurnEnd: () => { events.push("turnEnd"); },
+    };
+
+    const done = runConversation(deps);
+    input.write("\n");
+    input.write("   \n");
+    input.write("Real\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    // Only one turn for "Real", empty lines are skipped
+    expect(events).toEqual(["turnStart", "generate", "turnEnd"]);
+  });
+
+  test("calls onTurnEnd even when agent.generate rejects", async () => {
+    const onTurnEnd = mock(() => {});
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+
+    const mockGenerate = mock(async () => {
+      throw new Error("Agent failed");
+    });
+
+    const deps: ConversationDeps = {
+      agent: { generate: mockGenerate } as unknown as Agent,
+      input,
+      output,
+      onTurnStart: () => {},
+      onTurnEnd,
+    };
+
+    input.write("Hi\n");
+    input.end();
+
+    try { await runConversation(deps); } catch { /* expected */ }
+
+    expect(onTurnEnd).toHaveBeenCalledTimes(1);
+  });
+
   test("completes cleanly on EOF", async () => {
     const { input, deps } = makeDeps();
 

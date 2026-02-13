@@ -16,6 +16,9 @@ import { runFixedCount, runUntilDone } from "./loop-runner";
 import { loadHooks } from "./hooks-loader";
 import { runHooks } from "./hook-executor";
 import { handlePlan, handleBuild, handleRun } from "./handlers";
+import { createActivityReporter } from "./activity-reporter";
+import { ExecutionMetrics } from "./execution-metrics";
+import { createActivitySpinner } from "./terminal-formatting";
 
 export type Subcommand = "discover" | "plan" | "build" | "run";
 
@@ -262,6 +265,8 @@ export interface ConversationDeps {
   output: Writable;
   onStepFinish?: (step: LLMStepResult) => void;
   onFinish?: OnFinishCallback;
+  onTurnStart?: () => void;
+  onTurnEnd?: () => void;
 }
 
 export async function runConversation(deps: ConversationDeps): Promise<void> {
@@ -278,9 +283,17 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 
   try {
     for await (const line of rl) {
-      const result = await session.sendMessage(line);
-      if (result) {
-        deps.output.write(result.text + "\n");
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      deps.onTurnStart?.();
+      try {
+        const result = await session.sendMessage(trimmed);
+        if (result) {
+          deps.output.write(result.text + "\n");
+        }
+      } finally {
+        deps.onTurnEnd?.();
       }
     }
   } finally {
@@ -325,24 +338,33 @@ export async function main(): Promise<void> {
         outputPath: args.output,
       });
 
+      const metrics = new ExecutionMetrics();
+      const spinner = createActivitySpinner(process.stderr);
+      const reporter = createActivityReporter({
+        output: process.stderr,
+        verbose: args.verbose,
+        metrics,
+        spinner,
+      });
+
       try {
+        spinner.start("Agent thinking…");
         await runConversation({
           agent,
           input: process.stdin,
           output: process.stdout,
-          onStepFinish: (step) => {
-            for (const tr of step.toolResults) {
-              const result = tr.payload.result as Record<string, unknown> | undefined;
-              if (
-                tr.payload.toolName === "mastra_workspace_write_file" &&
-                result?.success
-              ) {
-                process.stdout.write(`Wrote ${result.path}\n`);
-              }
-            }
+          onStepFinish: reporter.onStepFinish,
+          onTurnStart: () => {
+            metrics.startTurn();
+            spinner.start("Agent thinking…");
+          },
+          onTurnEnd: () => {
+            metrics.endTurn();
+            spinner.stop();
           },
         });
       } finally {
+        spinner.stop();
         await mcp.disconnect();
       }
       break;
