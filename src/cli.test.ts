@@ -613,9 +613,26 @@ describe("createResearchAgent", () => {
     const workspace = createWorkspace("/tmp");
     const agent = createResearchAgent({ tools: stubMcpTools, workspace });
     const instructions = await agent.getInstructions();
-    expect(instructions).toContain("research");
-    expect(instructions).toContain("web search");
-    expect(instructions).toContain("documentation lookup");
+    expect(instructions).toHaveProperty("content");
+    const content = (instructions as { content: string }).content;
+    expect(content).toContain("research");
+    expect(content).toContain("web search");
+    expect(content).toContain("documentation lookup");
+  });
+
+  test("wraps instructions in an instruction object with Anthropic cache control", async () => {
+    const workspace = createWorkspace("/tmp");
+    const agent = createResearchAgent({ tools: stubMcpTools, workspace });
+    const instructions = await agent.getInstructions();
+    expect(instructions).toEqual({
+      role: "system",
+      content: expect.any(String),
+      providerOptions: {
+        anthropic: {
+          cacheControl: { type: "ephemeral" },
+        },
+      },
+    });
   });
 
   test("exposes MCP tools passed via config", async () => {

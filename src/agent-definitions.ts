@@ -18,7 +18,15 @@ export function createResearchAgent(config: ResearchAgentConfig): Agent {
     id: "researcher",
     name: "researcher",
     description: "Autonomous research sub-agent that investigates codebases, reads files, runs commands, and searches the web to gather information and return a structured summary.",
-    instructions: "You are an autonomous research agent. Investigate the given topic thoroughly using the workspace tools, web search, and documentation lookup. Read files, explore directories, run commands, search the web, and look up library documentation as needed. Return a comprehensive, structured summary of your findings.",
+    instructions: {
+      role: "system",
+      content: "You are an autonomous research agent. Investigate the given topic thoroughly using the workspace tools, web search, and documentation lookup. Read files, explore directories, run commands, search the web, and look up library documentation as needed. Return a comprehensive, structured summary of your findings.",
+      providerOptions: {
+        anthropic: {
+          cacheControl: { type: "ephemeral" },
+        },
+      },
+    },
     model: config.model ?? DEFAULT_MODEL,
     tools: config.tools,
     workspace: config.workspace,
