@@ -543,7 +543,7 @@ describe("createDiscoveryAgent", () => {
     expect(agent.model).toBe("openai/gpt-4");
   });
 
-  test("wires system prompt as instructions", async () => {
+  test("wires system prompt as instructions content", async () => {
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a JTBD discovery agent.",
@@ -552,10 +552,30 @@ describe("createDiscoveryAgent", () => {
       researcher: stubResearcher(),
     });
     const instructions = await agent.getInstructions();
-    expect(instructions).toBe("You are a JTBD discovery agent.");
+    expect((instructions as { content: string }).content).toBe("You are a JTBD discovery agent.");
   });
 
-  test("appends output directory to system prompt when provided", async () => {
+  test("wraps instructions in an instruction object with Anthropic cache control", async () => {
+    const workspace = createWorkspace("/tmp");
+    const agent = createDiscoveryAgent({
+      systemPrompt: "You are a JTBD discovery agent.",
+      tools: stubMcpTools,
+      workspace,
+      researcher: stubResearcher(),
+    });
+    const instructions = await agent.getInstructions();
+    expect(instructions).toEqual({
+      role: "system",
+      content: expect.any(String),
+      providerOptions: {
+        anthropic: {
+          cacheControl: { type: "ephemeral" },
+        },
+      },
+    });
+  });
+
+  test("appends output directory to instructions content when provided", async () => {
     const workspace = createWorkspace("/tmp");
     const agent = createDiscoveryAgent({
       systemPrompt: "You are a JTBD discovery agent.",
@@ -565,8 +585,9 @@ describe("createDiscoveryAgent", () => {
       outputPath: "/my/output",
     });
     const instructions = await agent.getInstructions();
-    expect(instructions).toContain("/my/output");
-    expect(instructions).toContain("You are a JTBD discovery agent.");
+    const content = (instructions as { content: string }).content;
+    expect(content).toContain("/my/output");
+    expect(content).toContain("You are a JTBD discovery agent.");
   });
 
   test("does not modify system prompt when outputPath is absent", async () => {
@@ -578,7 +599,7 @@ describe("createDiscoveryAgent", () => {
       researcher: stubResearcher(),
     });
     const instructions = await agent.getInstructions();
-    expect(instructions).toBe("You are a JTBD discovery agent.");
+    expect((instructions as { content: string }).content).toBe("You are a JTBD discovery agent.");
   });
 
   test("exposes MCP tools passed via config", async () => {

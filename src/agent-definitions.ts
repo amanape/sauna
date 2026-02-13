@@ -46,15 +46,23 @@ export interface DiscoveryAgentConfig {
 }
 
 export function createDiscoveryAgent(config: DiscoveryAgentConfig): Agent {
-  let instructions = config.systemPrompt;
+  let content = config.systemPrompt;
   if (config.outputPath) {
-    instructions += `\n\n## Output Directory\n\nWrite all output files to the \`${config.outputPath}\` directory.`;
+    content += `\n\n## Output Directory\n\nWrite all output files to the \`${config.outputPath}\` directory.`;
   }
 
   return new Agent({
     id: "discovery",
     name: "discovery",
-    instructions,
+    instructions: {
+      role: "system",
+      content,
+      providerOptions: {
+        anthropic: {
+          cacheControl: { type: "ephemeral" },
+        },
+      },
+    },
     model: config.model ?? DEFAULT_MODEL,
     tools: config.tools,
     workspace: config.workspace,
