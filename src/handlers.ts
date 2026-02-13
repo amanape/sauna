@@ -10,6 +10,9 @@ import type { FixedCountConfig, UntilDoneConfig } from "./loop-runner";
 import type { PlanningAgentConfig, BuilderAgentConfig } from "./agent-definitions";
 import type { HookResult } from "./hook-executor";
 import type { JobPipelineDeps } from "./job-pipeline";
+import { createActivityReporter } from "./activity-reporter";
+import { ExecutionMetrics } from "./execution-metrics";
+import { createActivitySpinner } from "./terminal-formatting";
 
 export interface HandlePlanDeps {
   args: PlanArgs;
@@ -31,13 +34,32 @@ export async function handlePlan(deps: HandlePlanDeps): Promise<void> {
     jobId: args.job,
   });
 
+  const metrics = new ExecutionMetrics();
+  const spinner = createActivitySpinner(output);
+  const reporter = createActivityReporter({
+    output,
+    verbose: args.verbose,
+    metrics,
+    spinner,
+  });
+
   output.write(`Starting planning phase for job "${args.job}"...\n`);
 
   try {
+    spinner.start("Agent thinking…");
     await runFixedCount({
       agent,
       iterations: args.iterations,
       message: "Begin planning.",
+      onStepFinish: reporter.onStepFinish,
+      onTurnStart: () => {
+        metrics.startTurn();
+        spinner.start("Agent thinking…");
+      },
+      onTurnEnd: () => {
+        metrics.endTurn();
+        spinner.stop();
+      },
       onProgress: (current, total) => {
         output.write(`Planning iteration ${current}/${total}\n`);
       },
@@ -45,6 +67,7 @@ export async function handlePlan(deps: HandlePlanDeps): Promise<void> {
 
     output.write("Planning phase complete.\n");
   } finally {
+    spinner.stop();
     await mcp.disconnect();
   }
 }
@@ -74,9 +97,19 @@ export async function handleBuild(deps: HandleBuildDeps): Promise<void> {
   const hooks = await loadHooks(args.codebase);
   const tasksPath = join(args.codebase, ".sauna", "jobs", args.job, "tasks.md");
 
+  const metrics = new ExecutionMetrics();
+  const spinner = createActivitySpinner(output);
+  const reporter = createActivityReporter({
+    output,
+    verbose: args.verbose,
+    metrics,
+    spinner,
+  });
+
   output.write(`Starting build phase for job "${args.job}"...\n`);
 
   try {
+    spinner.start("Agent thinking…");
     await runUntilDone({
       agent,
       message: "Begin building.",
@@ -84,6 +117,15 @@ export async function handleBuild(deps: HandleBuildDeps): Promise<void> {
       hooks,
       runHooks,
       hookCwd: args.codebase,
+      onStepFinish: reporter.onStepFinish,
+      onTurnStart: () => {
+        metrics.startTurn();
+        spinner.start("Agent thinking…");
+      },
+      onTurnEnd: () => {
+        metrics.endTurn();
+        spinner.stop();
+      },
       onProgress: (iteration, remaining) => {
         output.write(`Build iteration ${iteration} — ${remaining} tasks remaining\n`);
       },
@@ -91,6 +133,7 @@ export async function handleBuild(deps: HandleBuildDeps): Promise<void> {
 
     output.write("Build phase complete.\n");
   } finally {
+    spinner.stop();
     await mcp.disconnect();
   }
 }
@@ -113,7 +156,17 @@ export async function handleRun(deps: HandleRunDeps): Promise<void> {
   const hooks = await loadHooks(args.codebase);
   const tasksPath = join(args.codebase, ".sauna", "jobs", args.job, "tasks.md");
 
+  const metrics = new ExecutionMetrics();
+  const spinner = createActivitySpinner(output);
+  const reporter = createActivityReporter({
+    output,
+    verbose: args.verbose,
+    metrics,
+    spinner,
+  });
+
   try {
+    spinner.start("Agent thinking…");
     await runJobPipeline({
       createPlanner: () =>
         createPlanningAgent({
@@ -138,8 +191,18 @@ export async function handleRun(deps: HandleRunDeps): Promise<void> {
       hooks,
       runHooks,
       hookCwd: args.codebase,
+      onStepFinish: reporter.onStepFinish,
+      onTurnStart: () => {
+        metrics.startTurn();
+        spinner.start("Agent thinking…");
+      },
+      onTurnEnd: () => {
+        metrics.endTurn();
+        spinner.stop();
+      },
     });
   } finally {
+    spinner.stop();
     await mcp.disconnect();
   }
 }

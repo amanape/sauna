@@ -19,7 +19,7 @@
 
 - [x] Add `--verbose` boolean flag to DiscoverArgs, PlanArgs, BuildArgs, RunArgs in `src/cli.ts` parseArgs — verbosity-control.md
 - [x] Wire activity reporter + metrics into `runConversation` (discover) via existing `onStepFinish`/`onFinish` callbacks — agent-activity-visibility.md
-- [ ] Wire activity reporter + metrics into plan/build/run handlers via callbacks in loop-runner and job-pipeline — agent-activity-visibility.md
+- [x] Wire activity reporter + metrics into plan/build/run handlers via callbacks in loop-runner and job-pipeline — agent-activity-visibility.md
 
 ## Priority 4: Discover Streaming
 

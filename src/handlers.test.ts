@@ -185,6 +185,35 @@ describe("handlePlan", () => {
     expect(env.disconnect).toHaveBeenCalledTimes(1);
   });
 
+  test("passes onStepFinish, onTurnStart, and onTurnEnd callbacks to runFixedCount", async () => {
+    const { runFixedCount, createPlanningAgent } = makeSpies();
+    createPlanningAgent.mockImplementation(async () => stubAgent());
+
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    const args: PlanArgs = {
+      subcommand: "plan",
+      codebase: "/tmp/project",
+      job: "my-job",
+      iterations: 1,
+      verbose: false,
+    };
+
+    await handlePlan({
+      args,
+      env,
+      output,
+      createPlanningAgent: createPlanningAgent as any,
+      runFixedCount,
+    });
+
+    const call = (runFixedCount.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(typeof call.onStepFinish).toBe("function");
+    expect(typeof call.onTurnStart).toBe("function");
+    expect(typeof call.onTurnEnd).toBe("function");
+  });
+
   test("disconnects MCP even when runFixedCount throws", async () => {
     const { runFixedCount, createPlanningAgent } = makeSpies();
     createPlanningAgent.mockImplementation(async () => stubAgent());
@@ -384,6 +413,28 @@ describe("handleBuild", () => {
     });
 
     expect(env.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  test("passes onStepFinish, onTurnStart, and onTurnEnd callbacks to runUntilDone", async () => {
+    const spies = makeBuildSpies();
+
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    await handleBuild({
+      args: buildArgs(),
+      env,
+      output,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runUntilDone: spies.runUntilDone,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    const call = (spies.runUntilDone.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(typeof call.onStepFinish).toBe("function");
+    expect(typeof call.onTurnStart).toBe("function");
+    expect(typeof call.onTurnEnd).toBe("function");
   });
 
   test("disconnects MCP even when runUntilDone throws", async () => {
@@ -589,6 +640,28 @@ describe("handleRun", () => {
     });
 
     expect(env.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  test("passes onStepFinish, onTurnStart, and onTurnEnd callbacks to runJobPipeline", async () => {
+    const spies = makeRunSpies();
+    const output = new PassThrough();
+    const env = stubEnvironment();
+
+    await handleRun({
+      args: runArgs(),
+      env,
+      output,
+      createPlanningAgent: spies.createPlanningAgent as any,
+      createBuilderAgent: spies.createBuilderAgent as any,
+      runJobPipeline: spies.runJobPipeline,
+      loadHooks: spies.loadHooks,
+      runHooks: spies.runHooks,
+    });
+
+    const call = (spies.runJobPipeline.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(typeof call.onStepFinish).toBe("function");
+    expect(typeof call.onTurnStart).toBe("function");
+    expect(typeof call.onTurnEnd).toBe("function");
   });
 
   test("disconnects MCP even when runJobPipeline throws", async () => {

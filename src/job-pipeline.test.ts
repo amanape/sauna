@@ -186,6 +186,84 @@ describe("runJobPipeline", () => {
     await runJobPipeline(deps);
   });
 
+  test("passes onStepFinish to both runFixedCount and runUntilDone", async () => {
+    const onStepFinish = mock(() => {});
+    const planner = {
+      generate: mock(async (_msgs: any, opts: any) => {
+        opts?.onStepFinish?.({ toolCalls: [] });
+        return { text: "plan", messages: [] };
+      }),
+    } as any;
+    const builder = {
+      generate: mock(async (_msgs: any, opts: any) => {
+        opts?.onStepFinish?.({ toolCalls: [] });
+        return { text: "build", messages: [] };
+      }),
+    } as any;
+    let taskReadCount = 0;
+    const readTasksFile = mock(async () => {
+      taskReadCount++;
+      if (taskReadCount <= 2) return "- [ ] Task\n";
+      return "- [x] Task\n";
+    });
+
+    await runJobPipeline({
+      createPlanner: mock(async () => planner),
+      createBuilder: mock(async () => builder),
+      readTasksFile,
+      output: { write: mock(() => true) } as any,
+      plannerIterations: 1,
+      jobId: "test-job",
+      onStepFinish,
+    });
+
+    // planner calls once, builder calls twice
+    expect(onStepFinish).toHaveBeenCalledTimes(3);
+  });
+
+  test("calls onTurnStart/onTurnEnd around each agent turn", async () => {
+    const order: string[] = [];
+    const onTurnStart = mock(() => { order.push("start"); });
+    const onTurnEnd = mock(() => { order.push("end"); });
+    const planner = {
+      generate: mock(async () => {
+        order.push("plan");
+        return { text: "plan", messages: [] };
+      }),
+    } as any;
+    const builder = {
+      generate: mock(async () => {
+        order.push("build");
+        return { text: "build", messages: [] };
+      }),
+    } as any;
+    let taskReadCount = 0;
+    const readTasksFile = mock(async () => {
+      taskReadCount++;
+      if (taskReadCount <= 2) return "- [ ] Task\n";
+      return "- [x] Task\n";
+    });
+
+    await runJobPipeline({
+      createPlanner: mock(async () => planner),
+      createBuilder: mock(async () => builder),
+      readTasksFile,
+      output: { write: mock(() => true) } as any,
+      plannerIterations: 1,
+      jobId: "test-job",
+      onTurnStart,
+      onTurnEnd,
+    });
+
+    // 1 planner turn + 2 builder turns = 3 starts and 3 ends
+    expect(onTurnStart).toHaveBeenCalledTimes(3);
+    expect(onTurnEnd).toHaveBeenCalledTimes(3);
+    // Each turn should be: start, generate, end
+    expect(order[0]).toBe("start");
+    expect(order[1]).toBe("plan");
+    expect(order[2]).toBe("end");
+  });
+
   test("passes onHookFailure callback through to runUntilDone", async () => {
     const onHookFailure = mock(() => {});
     let hookCallCount = 0;

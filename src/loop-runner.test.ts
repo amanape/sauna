@@ -84,6 +84,75 @@ describe("runFixedCount", () => {
       runFixedCount({ agent, iterations: 0, message: "Go" }),
     ).rejects.toThrow();
   });
+
+  test("passes onStepFinish callback to SessionRunner", async () => {
+    const onStepFinish = mock(() => {});
+    const agent = {
+      generate: mock(async (_messages: any, options: any) => {
+        // Simulate Mastra calling the onStepFinish callback
+        options?.onStepFinish?.({ toolCalls: [], usage: {} });
+        return {
+          text: "response",
+          messages: [{ role: "user", content: "msg" }, { role: "assistant", content: "response" }],
+        };
+      }),
+    } as any;
+
+    await runFixedCount({
+      agent,
+      iterations: 2,
+      message: "Go",
+      onStepFinish,
+    });
+
+    expect(onStepFinish).toHaveBeenCalledTimes(2);
+  });
+
+  test("calls onTurnStart before and onTurnEnd after each iteration", async () => {
+    const order: string[] = [];
+    const onTurnStart = mock(() => { order.push("start"); });
+    const onTurnEnd = mock(() => { order.push("end"); });
+    const agent = {
+      generate: mock(async () => {
+        order.push("generate");
+        return { text: "ok", messages: [] };
+      }),
+    } as any;
+
+    await runFixedCount({
+      agent,
+      iterations: 2,
+      message: "Go",
+      onTurnStart,
+      onTurnEnd,
+    });
+
+    expect(onTurnStart).toHaveBeenCalledTimes(2);
+    expect(onTurnEnd).toHaveBeenCalledTimes(2);
+    // Order: start, generate, end, start, generate, end
+    expect(order).toEqual(["start", "generate", "end", "start", "generate", "end"]);
+  });
+
+  test("calls onTurnEnd even when agent.generate throws", async () => {
+    const onTurnStart = mock(() => {});
+    const onTurnEnd = mock(() => {});
+    const agent = {
+      generate: mock(async () => { throw new Error("agent exploded"); }),
+    } as any;
+
+    await expect(
+      runFixedCount({
+        agent,
+        iterations: 1,
+        message: "Go",
+        onTurnStart,
+        onTurnEnd,
+      }),
+    ).rejects.toThrow("agent exploded");
+
+    expect(onTurnStart).toHaveBeenCalledTimes(1);
+    expect(onTurnEnd).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("runUntilDone", () => {
@@ -202,6 +271,86 @@ describe("runUntilDone", () => {
     expect(onProgress.mock.calls[0]).toEqual([1, 3]); // iteration 1, 3 remaining
     expect(onProgress.mock.calls[1]).toEqual([2, 2]); // iteration 2, 2 remaining
     expect(onProgress.mock.calls[2]).toEqual([3, 1]); // iteration 3, 1 remaining
+  });
+
+  test("passes onStepFinish callback to SessionRunner", async () => {
+    const onStepFinish = mock(() => {});
+    let readCount = 0;
+    const readTasksFile = mock(async () => {
+      readCount++;
+      if (readCount <= 2) return "- [ ] Task\n";
+      return "- [x] Task\n";
+    });
+    const agent = {
+      generate: mock(async (_messages: any, options: any) => {
+        options?.onStepFinish?.({ toolCalls: [], usage: {} });
+        return {
+          text: "response",
+          messages: [{ role: "user", content: "msg" }, { role: "assistant", content: "response" }],
+        };
+      }),
+    } as any;
+
+    await runUntilDone({
+      agent,
+      message: "Go",
+      readTasksFile,
+      onStepFinish,
+    });
+
+    expect(onStepFinish).toHaveBeenCalledTimes(2);
+  });
+
+  test("calls onTurnStart before and onTurnEnd after each iteration", async () => {
+    const order: string[] = [];
+    const onTurnStart = mock(() => { order.push("start"); });
+    const onTurnEnd = mock(() => { order.push("end"); });
+    let readCount = 0;
+    const readTasksFile = mock(async () => {
+      readCount++;
+      if (readCount <= 2) return "- [ ] Task\n";
+      return "- [x] Task\n";
+    });
+    const agent = {
+      generate: mock(async () => {
+        order.push("generate");
+        return { text: "ok", messages: [{ role: "user", content: "msg" }, { role: "assistant", content: "ok" }] };
+      }),
+    } as any;
+
+    await runUntilDone({
+      agent,
+      message: "Go",
+      readTasksFile,
+      onTurnStart,
+      onTurnEnd,
+    });
+
+    expect(onTurnStart).toHaveBeenCalledTimes(2);
+    expect(onTurnEnd).toHaveBeenCalledTimes(2);
+    expect(order).toEqual(["start", "generate", "end", "start", "generate", "end"]);
+  });
+
+  test("calls onTurnEnd even when agent.generate throws", async () => {
+    const onTurnStart = mock(() => {});
+    const onTurnEnd = mock(() => {});
+    const readTasksFile = mock(async () => "- [ ] Task\n");
+    const agent = {
+      generate: mock(async () => { throw new Error("boom"); }),
+    } as any;
+
+    await expect(
+      runUntilDone({
+        agent,
+        message: "Go",
+        readTasksFile,
+        onTurnStart,
+        onTurnEnd,
+      }),
+    ).rejects.toThrow("boom");
+
+    expect(onTurnStart).toHaveBeenCalledTimes(1);
+    expect(onTurnEnd).toHaveBeenCalledTimes(1);
   });
 
   test("counts only unchecked checkboxes as pending tasks", async () => {

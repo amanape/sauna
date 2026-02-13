@@ -1,4 +1,4 @@
-import type { Agent } from "@mastra/core/agent";
+import type { Agent, LLMStepResult } from "@mastra/core/agent";
 import type { HookResult } from "./hook-executor";
 import { SessionRunner } from "./session-runner";
 
@@ -7,10 +7,13 @@ export interface FixedCountConfig {
   iterations: number;
   message: string;
   onProgress?: (current: number, total: number) => void;
+  onStepFinish?: (step: LLMStepResult) => void;
+  onTurnStart?: () => void;
+  onTurnEnd?: () => void;
 }
 
 export async function runFixedCount(config: FixedCountConfig): Promise<void> {
-  const { agent, iterations, message, onProgress } = config;
+  const { agent, iterations, message, onProgress, onStepFinish, onTurnStart, onTurnEnd } = config;
 
   if (iterations < 1) {
     throw new Error("iterations must be at least 1");
@@ -19,8 +22,16 @@ export async function runFixedCount(config: FixedCountConfig): Promise<void> {
   for (let i = 1; i <= iterations; i++) {
     onProgress?.(i, iterations);
 
-    const session = new SessionRunner({ agent });
-    await session.sendMessage(message);
+    const session = new SessionRunner({
+      agent,
+      ...(onStepFinish ? { onStepFinish } : {}),
+    });
+    onTurnStart?.();
+    try {
+      await session.sendMessage(message);
+    } finally {
+      onTurnEnd?.();
+    }
   }
 }
 
@@ -39,6 +50,9 @@ export interface UntilDoneConfig {
   maxHookRetries?: number;
   onProgress?: (iteration: number, remaining: number) => void;
   onHookFailure?: (failedCommand: string, attempt: number, maxRetries: number) => void;
+  onStepFinish?: (step: LLMStepResult) => void;
+  onTurnStart?: () => void;
+  onTurnEnd?: () => void;
 }
 
 function countPendingTasks(content: string): number {
@@ -55,6 +69,9 @@ export async function runUntilDone(config: UntilDoneConfig): Promise<void> {
     runHooks: hookRunner,
     hookCwd,
     onHookFailure,
+    onStepFinish,
+    onTurnStart,
+    onTurnEnd,
   } = config;
 
   const maxHookRetries = config.maxHookRetries ?? DEFAULT_MAX_HOOK_RETRIES;
@@ -73,8 +90,18 @@ export async function runUntilDone(config: UntilDoneConfig): Promise<void> {
 
     onProgress?.(i, remaining);
 
-    const session = new SessionRunner({ agent });
-    await session.sendMessage(message);
+    const session = new SessionRunner({
+      agent,
+      ...(onStepFinish ? { onStepFinish } : {}),
+    });
+    onTurnStart?.();
+    try {
+      await session.sendMessage(message);
+    } catch (e) {
+      onTurnEnd?.();
+      throw e;
+    }
+    onTurnEnd?.();
 
     // Run hooks after builder iteration completes
     if (hasHooks) {
