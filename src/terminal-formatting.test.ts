@@ -160,3 +160,110 @@ describe("stripAnsi", () => {
     expect(stripAnsi("")).toBe("");
   });
 });
+
+// ── ActivitySpinner ─────────────────────────────────────────────────────────
+
+import { createActivitySpinner } from "./terminal-formatting";
+import { Writable } from "node:stream";
+
+function createWritableCapture(): { stream: Writable & { fd?: number }; output: () => string } {
+  const chunks: string[] = [];
+  const stream = new Writable({
+    write(chunk, _encoding, callback) {
+      chunks.push(chunk.toString());
+      callback();
+    },
+  });
+  // nanospinner checks isTTY; we use a non-TTY stream so spinner renders
+  // in non-interactive mode (appends newlines instead of cursor control).
+  return { stream, output: () => chunks.join("") };
+}
+
+describe("createActivitySpinner", () => {
+  test("start makes isSpinning return true", () => {
+    const { stream } = createWritableCapture();
+    const spinner = createActivitySpinner(stream);
+    spinner.start("Working...");
+    expect(spinner.isSpinning()).toBe(true);
+    spinner.stop();
+  });
+
+  test("stop makes isSpinning return false", () => {
+    const { stream } = createWritableCapture();
+    const spinner = createActivitySpinner(stream);
+    spinner.start("Working...");
+    spinner.stop();
+    expect(spinner.isSpinning()).toBe(false);
+  });
+
+  test("success stops the spinner", () => {
+    const { stream } = createWritableCapture();
+    const spinner = createActivitySpinner(stream);
+    spinner.start("Working...");
+    spinner.success("Done");
+    expect(spinner.isSpinning()).toBe(false);
+  });
+
+  test("error stops the spinner", () => {
+    const { stream } = createWritableCapture();
+    const spinner = createActivitySpinner(stream);
+    spinner.start("Working...");
+    spinner.error("Failed");
+    expect(spinner.isSpinning()).toBe(false);
+  });
+
+  test("update changes spinner text without stopping it", () => {
+    const { stream } = createWritableCapture();
+    const spinner = createActivitySpinner(stream);
+    spinner.start("First");
+    spinner.update("Second");
+    expect(spinner.isSpinning()).toBe(true);
+    spinner.stop();
+  });
+
+  test("withPause stops spinner, runs callback, then restarts", () => {
+    const { stream, output } = createWritableCapture();
+    const spinner = createActivitySpinner(stream);
+    spinner.start("Working...");
+    expect(spinner.isSpinning()).toBe(true);
+
+    let calledWhileStopped = false;
+    spinner.withPause(() => {
+      calledWhileStopped = !spinner.isSpinning();
+    });
+
+    expect(calledWhileStopped).toBe(true);
+    expect(spinner.isSpinning()).toBe(true);
+    spinner.stop();
+  });
+
+  test("withPause runs callback without restart if spinner was not spinning", () => {
+    const { stream } = createWritableCapture();
+    const spinner = createActivitySpinner(stream);
+
+    let callbackRan = false;
+    spinner.withPause(() => {
+      callbackRan = true;
+    });
+
+    expect(callbackRan).toBe(true);
+    expect(spinner.isSpinning()).toBe(false);
+  });
+
+  test("stop is safe to call when not spinning", () => {
+    const { stream } = createWritableCapture();
+    const spinner = createActivitySpinner(stream);
+    // Should not throw
+    expect(() => spinner.stop()).not.toThrow();
+  });
+
+  test("start is safe to call when already spinning", () => {
+    const { stream } = createWritableCapture();
+    const spinner = createActivitySpinner(stream);
+    spinner.start("First");
+    // Second start should not throw
+    expect(() => spinner.start("Second")).not.toThrow();
+    expect(spinner.isSpinning()).toBe(true);
+    spinner.stop();
+  });
+});

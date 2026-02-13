@@ -4,6 +4,7 @@
 
 import ansis from "ansis";
 import figures from "figures";
+import { createSpinner, type Spinner } from "nanospinner";
 
 // ── Colors ──────────────────────────────────────────────────────────────────
 
@@ -79,4 +80,80 @@ const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
 /** Remove ANSI escape codes from a string. */
 export function stripAnsi(text: string): string {
   return text.replace(ANSI_REGEX, "");
+}
+
+// ── Spinner ─────────────────────────────────────────────────────────────────
+
+export interface ActivitySpinner {
+  /** Start the spinner with the given text (e.g. "Agent thinking..."). */
+  start(text: string): void;
+  /** Update the displayed text while the spinner keeps running. */
+  update(text: string): void;
+  /** Stop the spinner with a success symbol and optional text. */
+  success(text?: string): void;
+  /** Stop the spinner with a failure symbol and optional text. */
+  error(text?: string): void;
+  /** Stop the spinner silently (no final symbol). */
+  stop(): void;
+  /** Whether the spinner is currently animating. */
+  isSpinning(): boolean;
+  /**
+   * Pause the spinner, run `fn`, then restart.
+   * If the spinner is not running, just runs `fn` directly.
+   * This prevents corrupted terminal lines when writing output
+   * while the spinner is active.
+   */
+  withPause(fn: () => void): void;
+}
+
+/**
+ * Create an activity spinner backed by nanospinner.
+ * The spinner writes to the provided stream (defaults to process.stderr).
+ */
+export function createActivitySpinner(
+  stream?: NodeJS.WritableStream,
+): ActivitySpinner {
+  const opts = stream ? { stream: stream as NodeJS.WriteStream } : {};
+  const spinner: Spinner = createSpinner("", opts);
+  let lastText = "";
+
+  return {
+    start(text: string) {
+      lastText = text;
+      spinner.start({ text });
+    },
+
+    update(text: string) {
+      lastText = text;
+      spinner.update({ text });
+    },
+
+    success(text?: string) {
+      spinner.success(text ? { text } : undefined);
+    },
+
+    error(text?: string) {
+      spinner.error(text ? { text } : undefined);
+    },
+
+    stop() {
+      if (spinner.isSpinning()) {
+        spinner.stop();
+      }
+    },
+
+    isSpinning() {
+      return spinner.isSpinning();
+    },
+
+    withPause(fn: () => void) {
+      if (!spinner.isSpinning()) {
+        fn();
+        return;
+      }
+      spinner.stop();
+      fn();
+      spinner.start({ text: lastText });
+    },
+  };
 }

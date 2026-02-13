@@ -13,7 +13,7 @@
 - [x] Implement tool name cleaning as a pure function (strip `mastra_workspace_` and similar prefixes) — agent-activity-visibility.md
 - [x] Implement verbose mode in activity reporter: full tool args/results as truncated JSON (~500 chars), reasoning text, per-step finish reason — verbosity-control.md
 - [x] Display per-turn and cumulative token usage after each agent turn, and per-tool-call duration inline — execution-metrics.md
-- [ ] Add spinner (nanospinner) that activates during blocking agent operations, updates text with current activity, stops before other output — terminal-formatting.md
+- [x] Add spinner (nanospinner) that activates during blocking agent operations, updates text with current activity, stops before other output — terminal-formatting.md
 
 ## Priority 3: CLI Integration
 

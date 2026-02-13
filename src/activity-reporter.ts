@@ -6,6 +6,7 @@ import type { Writable } from "node:stream";
 import type { LLMStepResult } from "@mastra/core/agent";
 
 import type { ExecutionMetrics, TokenUsage } from "./execution-metrics";
+import type { ActivitySpinner } from "./terminal-formatting";
 import {
   colors,
   symbols,
@@ -96,6 +97,7 @@ export interface ActivityReporterConfig {
   output: Writable;
   verbose: boolean;
   metrics?: ExecutionMetrics;
+  spinner?: ActivitySpinner;
 }
 
 export interface ActivityReporter {
@@ -105,9 +107,9 @@ export interface ActivityReporter {
 export function createActivityReporter(
   config: ActivityReporterConfig,
 ): ActivityReporter {
-  const { output, verbose, metrics } = config;
+  const { output, verbose, metrics, spinner } = config;
 
-  function write(line: string): void {
+  function writeLine(line: string): void {
     try {
       output.write(line + "\n");
     } catch {
@@ -115,11 +117,30 @@ export function createActivityReporter(
     }
   }
 
+  /** Collect lines, then flush inside a single spinner pause. */
+  function flushLines(lines: string[]): void {
+    if (lines.length === 0) return;
+
+    const doWrite = () => {
+      for (const line of lines) {
+        writeLine(line);
+      }
+    };
+
+    if (spinner) {
+      spinner.withPause(doWrite);
+    } else {
+      doWrite();
+    }
+  }
+
   function onStepFinish(step: LLMStepResult): void {
     try {
+      const lines: string[] = [];
+
       // Reasoning text (verbose only)
       if (verbose && step.reasoningText) {
-        write(indent(colors.dim(`Reasoning: ${step.reasoningText}`)));
+        lines.push(indent(colors.dim(`Reasoning: ${step.reasoningText}`)));
       }
 
       // Process tool calls paired with results
@@ -135,11 +156,11 @@ export function createActivityReporter(
 
         // Tool call line
         const summary = summarizeToolCall(toolName, args);
-        write(indent(`${colors.cyan(symbols.pointer)} ${summary}`));
+        lines.push(indent(`${colors.cyan(symbols.pointer)} ${summary}`));
 
         // Verbose: full args
         if (verbose && args) {
-          write(indentVerbose(colors.dim(truncateJson(args))));
+          lines.push(indentVerbose(colors.dim(truncateJson(args))));
         }
 
         // Matching result (by index — Mastra pairs them positionally)
@@ -151,11 +172,11 @@ export function createActivityReporter(
             result.payload.result,
             isError,
           );
-          write(indent(resultSummary));
+          lines.push(indent(resultSummary));
 
           // Verbose: full result
           if (verbose && result.payload.result !== undefined) {
-            write(indentVerbose(colors.dim(truncateJson(result.payload.result))));
+            lines.push(indentVerbose(colors.dim(truncateJson(result.payload.result))));
           }
         }
       }
@@ -186,14 +207,16 @@ export function createActivityReporter(
             tokenLine += ` | ${formatDuration(turnDuration)}`;
           }
 
-          write(indent(colors.dim(tokenLine)));
+          lines.push(indent(colors.dim(tokenLine)));
         }
       }
 
       // Verbose: finish reason
       if (verbose && step.finishReason) {
-        write(indent(colors.dim(`finish: ${step.finishReason}`)));
+        lines.push(indent(colors.dim(`finish: ${step.finishReason}`)));
       }
+
+      flushLines(lines);
     } catch {
       // Never throw — swallow display errors silently.
     }

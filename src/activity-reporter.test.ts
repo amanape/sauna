@@ -4,7 +4,7 @@ import type { LLMStepResult } from "@mastra/core/agent";
 
 import { createActivityReporter, cleanToolName } from "./activity-reporter";
 import { ExecutionMetrics } from "./execution-metrics";
-import { stripAnsi } from "./terminal-formatting";
+import { stripAnsi, createActivitySpinner } from "./terminal-formatting";
 
 // ── Test helpers ────────────────────────────────────────────────────────────
 
@@ -621,5 +621,93 @@ describe("activity reporter — turn duration display", () => {
     const text = stripAnsi(output());
     // Should have token info but not a duration of "0ms"
     expect(text).not.toMatch(/\b0ms\b/);
+  });
+});
+
+// ── Spinner integration ──────────────────────────────────────────────────────
+
+describe("activity reporter — spinner integration", () => {
+  /** Create a fake spinner that tracks withPause calls. */
+  function createFakeSpinner() {
+    let spinning = false;
+    let pauseCount = 0;
+    return {
+      spinner: {
+        start(_text: string) { spinning = true; },
+        update(_text: string) {},
+        success(_text?: string) { spinning = false; },
+        error(_text?: string) { spinning = false; },
+        stop() { spinning = false; },
+        isSpinning() { return spinning; },
+        withPause(fn: () => void) {
+          pauseCount++;
+          const was = spinning;
+          spinning = false;
+          fn();
+          spinning = was;
+        },
+      },
+      getPauseCount: () => pauseCount,
+    };
+  }
+
+  test("calls withPause on spinner when writing step output", () => {
+    const { stream, output } = createCapture();
+    const { spinner, getPauseCount } = createFakeSpinner();
+    spinner.start("Agent thinking...");
+
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      spinner,
+    });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" })],
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+
+    expect(getPauseCount()).toBeGreaterThan(0);
+    const text = stripAnsi(output());
+    expect(text).toContain("read_file");
+  });
+
+  test("writes output without issue when no spinner provided", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+    });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" })],
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const text = stripAnsi(output());
+    expect(text).toContain("read_file");
+  });
+
+  test("does not call withPause when step has no tool calls", () => {
+    const { stream } = createCapture();
+    const { spinner, getPauseCount } = createFakeSpinner();
+    spinner.start("Agent thinking...");
+
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      spinner,
+    });
+
+    const step = makeStep({ finishReason: "stop" });
+    reporter.onStepFinish(step);
+
+    // No tool calls and no metrics means no output — no need to pause
+    expect(getPauseCount()).toBe(0);
   });
 });
