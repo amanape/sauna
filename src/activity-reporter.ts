@@ -90,7 +90,7 @@ function summarizeToolResult(
       result && typeof result === "object" && "error" in result
         ? String((result as Record<string, unknown>).error)
         : "error";
-    return `${icon} ${name} ${colors.red(msg)}`;
+    return `${icon} ${name} ${colors.error(msg)}`;
   }
 
   return `${icon} ${name}`;
@@ -304,7 +304,7 @@ export function createActivityReporter(
         const errorMsg = payload.error != null ? String(payload.error) : "error";
         const lines: string[] = [];
 
-        lines.push(indent(`${symbols.failure} ${cleanToolName(toolName)} ${colors.red(errorMsg)}`));
+        lines.push(indent(`${symbols.failure} ${cleanToolName(toolName)} ${colors.error(errorMsg)}`));
 
         // End timing if tracked
         const toolCallId = payload.toolCallId as string | undefined;

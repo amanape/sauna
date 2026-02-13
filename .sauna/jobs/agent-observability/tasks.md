@@ -35,7 +35,7 @@
 
 - [x] Use `colors.yellow` instead of `colors.cyan` for sub-agent/researcher tool calls in both `onStepFinish` and `onChunk` paths — agent-activity-visibility.md, terminal-formatting.md
 - [x] Show "Researcher investigating…" spinner text while researcher sub-agent is active — agent-activity-visibility.md
-- [ ] Use `colors.error` (bold red) for tool error messages instead of plain `colors.red` in both `summarizeToolResult` and the `onChunk` tool-error handler — agent-activity-visibility.md
+- [x] Use `colors.error` (bold red) for tool error messages instead of plain `colors.red` in both `summarizeToolResult` and the `onChunk` tool-error handler — agent-activity-visibility.md
 
 ## Remaining — Priority 3 (tests for new work)
 

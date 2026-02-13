@@ -1208,6 +1208,65 @@ describe("activity reporter — sub-agent yellow coloring", () => {
   });
 });
 
+// ── Tool error bold red formatting ───────────────────────────────────────────
+
+describe("activity reporter — tool error bold red formatting", () => {
+  const BOLD = "\x1b[1m";
+
+  test("summarizeToolResult error uses bold red (colors.error), not plain red", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "missing.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { error: "File not found" }, true)],
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const raw = output();
+    // The error message "File not found" should be wrapped in bold styling
+    expect(raw).toContain(BOLD);
+    const text = stripAnsi(raw);
+    expect(text).toContain("File not found");
+  });
+
+  test("onChunk tool-error uses bold red (colors.error), not plain red", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onChunk(
+      makeChunk("tool-error", {
+        toolCallId: "tc1",
+        toolName: "mastra_workspace_write_file",
+        error: "Permission denied",
+      }),
+    );
+
+    const raw = output();
+    // The error message "Permission denied" should be wrapped in bold styling
+    expect(raw).toContain(BOLD);
+    const text = stripAnsi(raw);
+    expect(text).toContain("Permission denied");
+  });
+
+  test("successful tool result does NOT use bold styling", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" }, false)],
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const raw = output();
+    // Success line should not contain bold escape
+    expect(raw).not.toContain(BOLD);
+  });
+});
+
 // ── onFinish handler — generation-level error display ────────────────────────
 
 describe("activity reporter — onFinish handler", () => {
