@@ -920,3 +920,115 @@ describe("activity reporter — onChunk handler", () => {
     ).not.toThrow();
   });
 });
+
+// ── onFinish handler — generation-level error display ────────────────────────
+
+describe("activity reporter — onFinish handler", () => {
+  test("displays generation-level error message with bold red formatting", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onFinish({
+      error: new Error("Context window exceeded"),
+      steps: [],
+      totalUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    });
+
+    const text = stripAnsi(output());
+    expect(text).toContain("Context window exceeded");
+  });
+
+  test("displays string error in onFinish", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onFinish({
+      error: "Rate limit reached",
+      steps: [],
+      totalUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    });
+
+    const text = stripAnsi(output());
+    expect(text).toContain("Rate limit reached");
+  });
+
+  test("displays error object with message property", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onFinish({
+      error: { message: "API timeout", stack: "" },
+      steps: [],
+      totalUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    });
+
+    const text = stripAnsi(output());
+    expect(text).toContain("API timeout");
+  });
+
+  test("does not output anything when there is no error", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onFinish({
+      steps: [],
+      totalUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    });
+
+    expect(output()).toBe("");
+  });
+
+  test("never throws even with malformed onFinish data", () => {
+    const { stream } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    expect(() => reporter.onFinish({} as any)).not.toThrow();
+    expect(() => reporter.onFinish(null as any)).not.toThrow();
+    expect(() => reporter.onFinish(undefined as any)).not.toThrow();
+  });
+
+  test("pauses spinner when displaying error", () => {
+    const { stream } = createCapture();
+    let pauseCount = 0;
+    const spinner = {
+      start(_text: string) {},
+      update(_text: string) {},
+      success(_text?: string) {},
+      error(_text?: string) {},
+      stop() {},
+      isSpinning() { return true; },
+      withPause(fn: () => void) {
+        pauseCount++;
+        fn();
+      },
+    };
+
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      spinner,
+    });
+
+    reporter.onFinish({
+      error: new Error("something broke"),
+      steps: [],
+      totalUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    });
+
+    expect(pauseCount).toBeGreaterThan(0);
+  });
+
+  test("includes failure symbol in error output", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onFinish({
+      error: new Error("generation failed"),
+      steps: [],
+      totalUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    });
+
+    const text = stripAnsi(output());
+    expect(text).toMatch(/✖|✗|✘|×|x/i);
+  });
+});

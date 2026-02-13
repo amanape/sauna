@@ -52,6 +52,7 @@ export async function handlePlan(deps: HandlePlanDeps): Promise<void> {
       iterations: args.iterations,
       message: "Begin planning.",
       onStepFinish: reporter.onStepFinish,
+      onFinish: reporter.onFinish,
       onTurnStart: () => {
         metrics.startTurn();
         spinner.start("Agent thinking…");
@@ -118,6 +119,7 @@ export async function handleBuild(deps: HandleBuildDeps): Promise<void> {
       runHooks,
       hookCwd: args.codebase,
       onStepFinish: reporter.onStepFinish,
+      onFinish: reporter.onFinish,
       onTurnStart: () => {
         metrics.startTurn();
         spinner.start("Agent thinking…");
@@ -192,6 +194,7 @@ export async function handleRun(deps: HandleRunDeps): Promise<void> {
       runHooks,
       hookCwd: args.codebase,
       onStepFinish: reporter.onStepFinish,
+      onFinish: reporter.onFinish,
       onTurnStart: () => {
         metrics.startTurn();
         spinner.start("Agent thinking…");

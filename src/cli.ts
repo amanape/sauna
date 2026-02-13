@@ -415,6 +415,7 @@ export async function main(): Promise<void> {
           output: process.stdout,
           streaming: true,
           onStepFinish: reporter.onStepFinish,
+          onFinish: reporter.onFinish,
           onChunk: reporter.onChunk,
           onTurnStart: () => {
             metrics.startTurn();

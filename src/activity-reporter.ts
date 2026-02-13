@@ -105,9 +105,16 @@ export interface StreamingChunk {
   payload: Record<string, unknown>;
 }
 
+/** The subset of the Mastra onFinish event we inspect for display. */
+export interface FinishEvent {
+  error?: Error | string | { message: string; stack: string };
+  [key: string]: unknown;
+}
+
 export interface ActivityReporter {
   onStepFinish: (step: LLMStepResult) => void;
   onChunk: (chunk: StreamingChunk) => void;
+  onFinish: (event: FinishEvent) => void;
 }
 
 export function createActivityReporter(
@@ -298,5 +305,25 @@ export function createActivityReporter(
     }
   }
 
-  return { onStepFinish, onChunk };
+  function onFinish(event: FinishEvent): void {
+    try {
+      if (!event?.error) return;
+
+      const errorMsg =
+        event.error instanceof Error
+          ? event.error.message
+          : typeof event.error === "string"
+            ? event.error
+            : event.error.message;
+
+      const lines = [
+        indent(`${symbols.failure} ${colors.error(errorMsg)}`),
+      ];
+      flushLines(lines);
+    } catch {
+      // Never throw — swallow display errors silently.
+    }
+  }
+
+  return { onStepFinish, onChunk, onFinish };
 }

@@ -1,6 +1,7 @@
 import type { Agent, LLMStepResult } from "@mastra/core/agent";
 import type { Writable } from "node:stream";
 import type { HookResult } from "./hook-executor";
+import type { OnFinishCallback } from "./session-runner";
 import { runFixedCount, runUntilDone } from "./loop-runner";
 
 export interface JobPipelineDeps {
@@ -16,12 +17,13 @@ export interface JobPipelineDeps {
   maxHookRetries?: number;
   onHookFailure?: (failedCommand: string, attempt: number, maxRetries: number) => void;
   onStepFinish?: (step: LLMStepResult) => void;
+  onFinish?: OnFinishCallback;
   onTurnStart?: () => void;
   onTurnEnd?: () => void;
 }
 
 export async function runJobPipeline(deps: JobPipelineDeps): Promise<void> {
-  const { createPlanner, createBuilder, readTasksFile, output, plannerIterations, jobId, hooks, runHooks, hookCwd, maxHookRetries, onHookFailure, onStepFinish, onTurnStart, onTurnEnd } = deps;
+  const { createPlanner, createBuilder, readTasksFile, output, plannerIterations, jobId, hooks, runHooks, hookCwd, maxHookRetries, onHookFailure, onStepFinish, onFinish, onTurnStart, onTurnEnd } = deps;
 
   // Phase 1: Planning
   const planner = await createPlanner();
@@ -32,6 +34,7 @@ export async function runJobPipeline(deps: JobPipelineDeps): Promise<void> {
     iterations: plannerIterations,
     message: "Begin planning.",
     onStepFinish,
+    onFinish,
     onTurnStart,
     onTurnEnd,
     onProgress: (current, total) => {
@@ -55,6 +58,7 @@ export async function runJobPipeline(deps: JobPipelineDeps): Promise<void> {
     maxHookRetries,
     onHookFailure,
     onStepFinish,
+    onFinish,
     onTurnStart,
     onTurnEnd,
     onProgress: (iteration, remaining) => {

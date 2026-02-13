@@ -1,6 +1,6 @@
 import type { Agent, LLMStepResult } from "@mastra/core/agent";
 import type { HookResult } from "./hook-executor";
-import { SessionRunner } from "./session-runner";
+import { SessionRunner, type OnFinishCallback } from "./session-runner";
 
 export interface FixedCountConfig {
   agent: Agent;
@@ -8,12 +8,13 @@ export interface FixedCountConfig {
   message: string;
   onProgress?: (current: number, total: number) => void;
   onStepFinish?: (step: LLMStepResult) => void;
+  onFinish?: OnFinishCallback;
   onTurnStart?: () => void;
   onTurnEnd?: () => void;
 }
 
 export async function runFixedCount(config: FixedCountConfig): Promise<void> {
-  const { agent, iterations, message, onProgress, onStepFinish, onTurnStart, onTurnEnd } = config;
+  const { agent, iterations, message, onProgress, onStepFinish, onFinish, onTurnStart, onTurnEnd } = config;
 
   if (iterations < 1) {
     throw new Error("iterations must be at least 1");
@@ -25,6 +26,7 @@ export async function runFixedCount(config: FixedCountConfig): Promise<void> {
     const session = new SessionRunner({
       agent,
       ...(onStepFinish ? { onStepFinish } : {}),
+      ...(onFinish ? { onFinish } : {}),
     });
     onTurnStart?.();
     try {
@@ -51,6 +53,7 @@ export interface UntilDoneConfig {
   onProgress?: (iteration: number, remaining: number) => void;
   onHookFailure?: (failedCommand: string, attempt: number, maxRetries: number) => void;
   onStepFinish?: (step: LLMStepResult) => void;
+  onFinish?: OnFinishCallback;
   onTurnStart?: () => void;
   onTurnEnd?: () => void;
 }
@@ -70,6 +73,7 @@ export async function runUntilDone(config: UntilDoneConfig): Promise<void> {
     hookCwd,
     onHookFailure,
     onStepFinish,
+    onFinish,
     onTurnStart,
     onTurnEnd,
   } = config;
@@ -93,6 +97,7 @@ export async function runUntilDone(config: UntilDoneConfig): Promise<void> {
     const session = new SessionRunner({
       agent,
       ...(onStepFinish ? { onStepFinish } : {}),
+      ...(onFinish ? { onFinish } : {}),
     });
     onTurnStart?.();
     try {
