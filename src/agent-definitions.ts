@@ -113,12 +113,20 @@ export interface BuilderAgentConfig {
 export async function createBuilderAgent(config: BuilderAgentConfig): Promise<Agent> {
   const promptPath = resolve(import.meta.dirname, "../.sauna/prompts/build.md");
   const raw = await Bun.file(promptPath).text();
-  const instructions = raw.replaceAll("${JOB_ID}", config.jobId);
+  const content = raw.replaceAll("${JOB_ID}", config.jobId);
 
   return new Agent({
     id: "builder",
     name: "builder",
-    instructions,
+    instructions: {
+      role: "system",
+      content,
+      providerOptions: {
+        anthropic: {
+          cacheControl: { type: "ephemeral" },
+        },
+      },
+    },
     model: config.model ?? DEFAULT_MODEL,
     tools: config.tools,
     workspace: config.workspace,

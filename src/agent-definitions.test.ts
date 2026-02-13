@@ -97,8 +97,24 @@ describe("createBuilderAgent", () => {
   test("substitutes ${JOB_ID} in the system prompt with jobId", async () => {
     const agent = await createBuilderAgent(makeBuilderConfig({ jobId: "test-job-42" }));
     const instructions = await agent.getInstructions({});
-    expect(instructions).toContain(".sauna/jobs/test-job-42/");
-    expect(instructions).not.toContain("${JOB_ID}");
+    expect(instructions).toHaveProperty("content");
+    const content = (instructions as { content: string }).content;
+    expect(content).toContain(".sauna/jobs/test-job-42/");
+    expect(content).not.toContain("${JOB_ID}");
+  });
+
+  test("wraps instructions in an instruction object with Anthropic cache control", async () => {
+    const agent = await createBuilderAgent(makeBuilderConfig());
+    const instructions = await agent.getInstructions({});
+    expect(instructions).toEqual({
+      role: "system",
+      content: expect.any(String),
+      providerOptions: {
+        anthropic: {
+          cacheControl: { type: "ephemeral" },
+        },
+      },
+    });
   });
 
   test("injects the researcher as a sub-agent", async () => {
