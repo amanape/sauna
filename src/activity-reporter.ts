@@ -252,6 +252,11 @@ export function createActivityReporter(
           lines.push(indentVerbose(colors.dim(truncateJson(args))));
         }
 
+        // Update spinner text so the user sees which tool is being called
+        if (spinner) {
+          spinner.update(`Calling ${cleanToolName(toolName)}…`);
+        }
+
         // Start timing this tool call
         const toolCallId = payload.toolCallId as string | undefined;
         if (metrics && toolCallId) {

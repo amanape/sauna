@@ -919,6 +919,97 @@ describe("activity reporter — onChunk handler", () => {
       reporter.onChunk(makeChunk("tool-error", {})),
     ).not.toThrow();
   });
+
+  test("updates spinner text with tool name on tool-call chunk", () => {
+    const { stream } = createCapture();
+
+    const updateCalls: string[] = [];
+    const spinner = {
+      start(_text: string) {},
+      update(text: string) { updateCalls.push(text); },
+      success(_text?: string) {},
+      error(_text?: string) {},
+      stop() {},
+      isSpinning() { return true; },
+      withPause(fn: () => void) { fn(); },
+    };
+
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      spinner,
+    });
+
+    reporter.onChunk(
+      makeChunk("tool-call", {
+        toolCallId: "tc1",
+        toolName: "tavily_web_search",
+        args: { query: "bun runtime" },
+      }),
+    );
+
+    expect(updateCalls.length).toBeGreaterThan(0);
+    expect(updateCalls[0]).toContain("web_search");
+  });
+
+  test("does not update spinner text on tool-result or tool-error chunks", () => {
+    const { stream } = createCapture();
+
+    const updateCalls: string[] = [];
+    const spinner = {
+      start(_text: string) {},
+      update(text: string) { updateCalls.push(text); },
+      success(_text?: string) {},
+      error(_text?: string) {},
+      stop() {},
+      isSpinning() { return true; },
+      withPause(fn: () => void) { fn(); },
+    };
+
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      spinner,
+    });
+
+    reporter.onChunk(
+      makeChunk("tool-result", {
+        toolCallId: "tc1",
+        toolName: "read_file",
+        result: { content: "ok" },
+      }),
+    );
+
+    reporter.onChunk(
+      makeChunk("tool-error", {
+        toolCallId: "tc2",
+        toolName: "write_file",
+        error: "permission denied",
+      }),
+    );
+
+    expect(updateCalls.length).toBe(0);
+  });
+
+  test("does not call spinner.update when no spinner is provided", () => {
+    const { stream } = createCapture();
+
+    // No spinner — should not crash
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+    });
+
+    expect(() =>
+      reporter.onChunk(
+        makeChunk("tool-call", {
+          toolCallId: "tc1",
+          toolName: "read_file",
+          args: { path: "f.ts" },
+        }),
+      ),
+    ).not.toThrow();
+  });
 });
 
 // ── onFinish handler — generation-level error display ────────────────────────

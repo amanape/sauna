@@ -29,7 +29,7 @@
 - [x] Display stream errors to the user (formatted, not swallowed) in `handleStreamingTurn`'s catch block in `cli.ts` — discover-streaming.md
 
 ## Remaining — Priority 1 (spec compliance gaps)
-- [ ] Call `spinner.update()` from the reporter's `onChunk` handler when `tool-call` chunks arrive (e.g. "Calling web_search…") — terminal-formatting.md
+- [x] Call `spinner.update()` from the reporter's `onChunk` handler when `tool-call` chunks arrive (e.g. "Calling web_search…") — terminal-formatting.md
 
 ## Remaining — Priority 2 (visual polish per spec)
 
@@ -40,5 +40,5 @@
 ## Remaining — Priority 3 (tests for new work)
 
 - [x] Tests for stream error display in `handleStreamingTurn` — discover-streaming.md
-- [ ] Tests for spinner text updates on tool-call chunks — terminal-formatting.md, agent-activity-visibility.md
+- [x] Tests for spinner text updates on tool-call chunks — terminal-formatting.md, agent-activity-visibility.md
 - [ ] Tests for yellow sub-agent coloring and researcher active indicator — agent-activity-visibility.md
