@@ -26,10 +26,9 @@
 - [x] Tests for SessionRunner streaming mode — discover-streaming.md
 - [x] Add `onFinish` handler to ActivityReporter interface and implementation; display generation-level errors with `colors.error` (bold red); hook it up in discover's `runConversation` call and in plan/build/run handlers — agent-activity-visibility.md
 - [x] Tests for `onFinish` handler: generation-level error display (Error, string, object with message), no-error happy path, error swallowing on malformed data, spinner pause during error display, failure symbol in output — agent-activity-visibility.md
+- [x] Display stream errors to the user (formatted, not swallowed) in `handleStreamingTurn`'s catch block in `cli.ts` — discover-streaming.md
 
 ## Remaining — Priority 1 (spec compliance gaps)
-
-- [ ] Display stream errors to the user (formatted, not swallowed) in `handleStreamingTurn`'s catch block in `cli.ts` — discover-streaming.md
 - [ ] Call `spinner.update()` from the reporter's `onChunk` handler when `tool-call` chunks arrive (e.g. "Calling web_search…") — terminal-formatting.md
 
 ## Remaining — Priority 2 (visual polish per spec)
@@ -40,6 +39,6 @@
 
 ## Remaining — Priority 3 (tests for new work)
 
-- [ ] Tests for stream error display in `handleStreamingTurn` — discover-streaming.md
+- [x] Tests for stream error display in `handleStreamingTurn` — discover-streaming.md
 - [ ] Tests for spinner text updates on tool-call chunks — terminal-formatting.md, agent-activity-visibility.md
 - [ ] Tests for yellow sub-agent coloring and researcher active indicator — agent-activity-visibility.md

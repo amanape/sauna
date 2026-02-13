@@ -10,6 +10,7 @@ import { createTool } from "@mastra/core/tools";
 import * as z from "zod";
 import { parseCliArgs, runConversation, type ConversationDeps, type StreamingChunkCallback, type HelpResult } from "./cli";
 import type { OnFinishCallback } from "./session-runner";
+import { stripAnsi } from "./terminal-formatting";
 import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
 import { createWorkspace } from "./workspace-factory";
 import { createDiscoveryAgent, createResearchAgent } from "./agent-definitions";
@@ -1522,6 +1523,236 @@ describe("runConversation", () => {
 
     const captured = output.read() as string;
     expect(captured).toContain("recovered");
+  });
+
+  test("streaming: displays stream error to user instead of swallowing it", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+
+    const mockStream = mock(async () => {
+      const fullStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "text-delta", payload: { id: "1", text: "partial" } });
+          controller.error(new Error("connection reset"));
+        },
+      });
+      return {
+        fullStream,
+        getFullOutput: async () => ({
+          text: "partial", messages: [{ role: "user", content: "Hi" }],
+          usage: {}, totalUsage: {}, steps: [], finishReason: undefined,
+          warnings: [], providerMetadata: undefined, request: {},
+          reasoning: [], reasoningText: undefined, toolCalls: [],
+          toolResults: [], sources: [], files: [], response: {},
+          object: undefined, error: new Error("connection reset"), tripwire: undefined,
+          traceId: undefined, runId: undefined, suspendPayload: undefined,
+          rememberedMessages: [],
+        }),
+      };
+    });
+
+    const mockAgent = {
+      generate: mock(async () => { throw new Error("should not call"); }),
+      stream: mockStream,
+    } as unknown as Agent;
+
+    const deps: ConversationDeps = {
+      agent: mockAgent,
+      input,
+      output,
+      streaming: true,
+    };
+
+    const done = runConversation(deps);
+    input.write("Hi\n");
+    await new Promise((r) => setTimeout(r, 100));
+    input.end();
+    await done;
+
+    const captured = (output.read() as string) ?? "";
+    const plain = stripAnsi(captured);
+    // The error message must be displayed to the user, not swallowed
+    expect(plain).toContain("connection reset");
+  });
+
+  test("streaming: displays non-Error stream failures as strings", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+
+    const mockStream = mock(async () => {
+      const fullStream = new ReadableStream({
+        start(controller) {
+          controller.error("network timeout");
+        },
+      });
+      return {
+        fullStream,
+        getFullOutput: async () => ({
+          text: "", messages: [{ role: "user", content: "Hi" }],
+          usage: {}, totalUsage: {}, steps: [], finishReason: undefined,
+          warnings: [], providerMetadata: undefined, request: {},
+          reasoning: [], reasoningText: undefined, toolCalls: [],
+          toolResults: [], sources: [], files: [], response: {},
+          object: undefined, error: "network timeout", tripwire: undefined,
+          traceId: undefined, runId: undefined, suspendPayload: undefined,
+          rememberedMessages: [],
+        }),
+      };
+    });
+
+    const mockAgent = {
+      generate: mock(async () => { throw new Error("should not call"); }),
+      stream: mockStream,
+    } as unknown as Agent;
+
+    const deps: ConversationDeps = {
+      agent: mockAgent,
+      input,
+      output,
+      streaming: true,
+    };
+
+    const done = runConversation(deps);
+    input.write("Hi\n");
+    await new Promise((r) => setTimeout(r, 100));
+    input.end();
+    await done;
+
+    const captured = (output.read() as string) ?? "";
+    const plain = stripAnsi(captured);
+    expect(plain).toContain("network timeout");
+  });
+
+  test("streaming: stream error display uses failure symbol", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+
+    const mockStream = mock(async () => {
+      const fullStream = new ReadableStream({
+        start(controller) {
+          controller.error(new Error("api error"));
+        },
+      });
+      return {
+        fullStream,
+        getFullOutput: async () => ({
+          text: "", messages: [{ role: "user", content: "Hi" }],
+          usage: {}, totalUsage: {}, steps: [], finishReason: undefined,
+          warnings: [], providerMetadata: undefined, request: {},
+          reasoning: [], reasoningText: undefined, toolCalls: [],
+          toolResults: [], sources: [], files: [], response: {},
+          object: undefined, error: new Error("api error"), tripwire: undefined,
+          traceId: undefined, runId: undefined, suspendPayload: undefined,
+          rememberedMessages: [],
+        }),
+      };
+    });
+
+    const mockAgent = {
+      generate: mock(async () => { throw new Error("should not call"); }),
+      stream: mockStream,
+    } as unknown as Agent;
+
+    const deps: ConversationDeps = {
+      agent: mockAgent,
+      input,
+      output,
+      streaming: true,
+    };
+
+    const done = runConversation(deps);
+    input.write("Hi\n");
+    await new Promise((r) => setTimeout(r, 100));
+    input.end();
+    await done;
+
+    const captured = (output.read() as string) ?? "";
+    const plain = stripAnsi(captured);
+    // Should contain the cross/failure symbol from figures (U+2718 HEAVY BALLOT X)
+    expect(plain).toContain("✘");
+  });
+
+  test("streaming: conversation continues after displayed stream error", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+
+    let callCount = 0;
+
+    const mockStream = mock(async () => {
+      callCount++;
+      if (callCount === 1) {
+        const fullStream = new ReadableStream({
+          start(controller) {
+            controller.error(new Error("transient failure"));
+          },
+        });
+        return {
+          fullStream,
+          getFullOutput: async () => ({
+            text: "", messages: [{ role: "user", content: "Hi" }],
+            usage: {}, totalUsage: {}, steps: [], finishReason: undefined,
+            warnings: [], providerMetadata: undefined, request: {},
+            reasoning: [], reasoningText: undefined, toolCalls: [],
+            toolResults: [], sources: [], files: [], response: {},
+            object: undefined, error: new Error("transient failure"), tripwire: undefined,
+            traceId: undefined, runId: undefined, suspendPayload: undefined,
+            rememberedMessages: [],
+          }),
+        };
+      }
+      const fullStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "text-delta", payload: { id: "2", text: "success" } });
+          controller.close();
+        },
+      });
+      return {
+        fullStream,
+        getFullOutput: async () => ({
+          text: "success", messages: [
+            { role: "user", content: "Hi" },
+            { role: "assistant", content: "success" },
+          ],
+          usage: {}, totalUsage: {}, steps: [], finishReason: "stop",
+          warnings: [], providerMetadata: undefined, request: {},
+          reasoning: [], reasoningText: undefined, toolCalls: [],
+          toolResults: [], sources: [], files: [], response: {},
+          object: undefined, error: undefined, tripwire: undefined,
+          traceId: undefined, runId: undefined, suspendPayload: undefined,
+          rememberedMessages: [],
+        }),
+      };
+    });
+
+    const mockAgent = {
+      generate: mock(async () => { throw new Error("should not call"); }),
+      stream: mockStream,
+    } as unknown as Agent;
+
+    const deps: ConversationDeps = {
+      agent: mockAgent,
+      input,
+      output,
+      streaming: true,
+    };
+
+    const done = runConversation(deps);
+    input.write("Hi\n");
+    await new Promise((r) => setTimeout(r, 100));
+    input.write("Again\n");
+    await new Promise((r) => setTimeout(r, 100));
+    input.end();
+    await done;
+
+    const captured = (output.read() as string) ?? "";
+    const plain = stripAnsi(captured);
+    // Error was displayed AND conversation recovered
+    expect(plain).toContain("transient failure");
+    expect(plain).toContain("success");
   });
 
   test("streaming: routes tool-error chunks to onChunk callback", async () => {

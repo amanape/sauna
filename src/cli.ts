@@ -19,7 +19,7 @@ import { runHooks } from "./hook-executor";
 import { handlePlan, handleBuild, handleRun } from "./handlers";
 import { createActivityReporter } from "./activity-reporter";
 import { ExecutionMetrics } from "./execution-metrics";
-import { createActivitySpinner } from "./terminal-formatting";
+import { createActivitySpinner, colors, symbols } from "./terminal-formatting";
 
 export type Subcommand = "discover" | "plan" | "build" | "run";
 
@@ -343,9 +343,15 @@ async function handleStreamingTurn(
         deps.onChunk?.(chunk);
       }
     }
-  } catch {
+  } catch (err) {
     // Stream error — partial text already written remains visible.
-    // The readline interface stays functional for subsequent turns.
+    // Display the error so the user knows what happened.
+    if (textWasMidLine) {
+      deps.output.write("\n");
+      textWasMidLine = false;
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    deps.output.write(`${symbols.failure} ${colors.error(msg)}\n`);
   }
 
   // Trailing newline after streaming completes
