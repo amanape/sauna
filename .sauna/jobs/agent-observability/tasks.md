@@ -34,3 +34,9 @@
 - [x] Tests for activity reporter: normal vs verbose output, tool-type summaries, tool name cleaning, sub-agent display, stream injection — agent-activity-visibility.md
 - [x] Tests for `--verbose` flag parsing across all four subcommands — verbosity-control.md
 - [x] Tests for SessionRunner streaming mode: fullStream iteration, message history via getFullOutput, error handling — discover-streaming.md
+
+## Remaining
+
+- [x] Add `onChunk` handler to `ActivityReporter` interface and `createActivityReporter()` that formats `tool-call`, `tool-result`, and `tool-error` streaming chunks for display — agent-activity-visibility.md
+- [x] Add tests for activity reporter `onChunk` handler: tool-call/tool-result/tool-error chunk formatting, spinner pause during chunk output, verbose vs normal mode — agent-activity-visibility.md
+- [ ] Enable streaming in discover mode: pass `streaming: true` and `onChunk: reporter.onChunk` to `runConversation()` in `main()` discover case (`src/cli.ts:412-425`) — discover-streaming.md

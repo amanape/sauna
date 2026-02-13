@@ -100,8 +100,14 @@ export interface ActivityReporterConfig {
   spinner?: ActivitySpinner;
 }
 
+export interface StreamingChunk {
+  type: string;
+  payload: Record<string, unknown>;
+}
+
 export interface ActivityReporter {
   onStepFinish: (step: LLMStepResult) => void;
+  onChunk: (chunk: StreamingChunk) => void;
 }
 
 export function createActivityReporter(
@@ -222,5 +228,75 @@ export function createActivityReporter(
     }
   }
 
-  return { onStepFinish };
+  function onChunk(chunk: StreamingChunk): void {
+    try {
+      const { type, payload } = chunk;
+      const toolName = payload?.toolName as string | undefined;
+
+      if (type === "tool-call") {
+        if (!toolName) return;
+        const args = payload.args as Record<string, unknown> | undefined;
+        const lines: string[] = [];
+
+        const summary = summarizeToolCall(toolName, args);
+        lines.push(indent(`${colors.cyan(symbols.pointer)} ${summary}`));
+
+        if (verbose && args) {
+          lines.push(indentVerbose(colors.dim(truncateJson(args))));
+        }
+
+        // Start timing this tool call
+        const toolCallId = payload.toolCallId as string | undefined;
+        if (metrics && toolCallId) {
+          metrics.startToolCall(toolCallId);
+        }
+
+        flushLines(lines);
+      } else if (type === "tool-result") {
+        if (!toolName) return;
+        const isError = payload.isError === true;
+        const result = payload.result;
+        const lines: string[] = [];
+
+        const resultSummary = summarizeToolResult(toolName, result, isError);
+
+        // End timing and append duration
+        const toolCallId = payload.toolCallId as string | undefined;
+        let durationSuffix = "";
+        if (metrics && toolCallId) {
+          const duration = metrics.endToolCall(toolCallId);
+          if (duration > 0) {
+            durationSuffix = ` ${colors.dim(formatDuration(duration))}`;
+          }
+        }
+
+        lines.push(indent(resultSummary + durationSuffix));
+
+        if (verbose && result !== undefined) {
+          lines.push(indentVerbose(colors.dim(truncateJson(result))));
+        }
+
+        flushLines(lines);
+      } else if (type === "tool-error") {
+        if (!toolName) return;
+        const errorMsg = payload.error != null ? String(payload.error) : "error";
+        const lines: string[] = [];
+
+        lines.push(indent(`${symbols.failure} ${cleanToolName(toolName)} ${colors.red(errorMsg)}`));
+
+        // End timing if tracked
+        const toolCallId = payload.toolCallId as string | undefined;
+        if (metrics && toolCallId) {
+          metrics.endToolCall(toolCallId);
+        }
+
+        flushLines(lines);
+      }
+      // Unrecognized chunk types are silently ignored.
+    } catch {
+      // Never throw — swallow display errors silently.
+    }
+  }
+
+  return { onStepFinish, onChunk };
 }

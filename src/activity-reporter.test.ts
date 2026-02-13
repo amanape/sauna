@@ -711,3 +711,212 @@ describe("activity reporter — spinner integration", () => {
     expect(getPauseCount()).toBe(0);
   });
 });
+
+// ── onChunk handler — streaming chunk formatting ────────────────────────────
+
+function makeChunk(type: string, payload: Record<string, unknown>) {
+  return { type, runId: "r1", from: "AGENT", payload };
+}
+
+describe("activity reporter — onChunk handler", () => {
+  test("formats tool-call chunk with cleaned name and arg summary", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onChunk(
+      makeChunk("tool-call", {
+        toolCallId: "tc1",
+        toolName: "mastra_workspace_read_file",
+        args: { path: "src/index.ts" },
+      }),
+    );
+
+    const text = stripAnsi(output());
+    expect(text).toContain("read_file");
+    expect(text).toContain("src/index.ts");
+  });
+
+  test("formats tool-result chunk with success indicator", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onChunk(
+      makeChunk("tool-result", {
+        toolCallId: "tc1",
+        toolName: "mastra_workspace_read_file",
+        result: { content: "file contents" },
+      }),
+    );
+
+    const text = stripAnsi(output());
+    expect(text).toContain("read_file");
+    expect(text).toMatch(/✔|✓|√/);
+  });
+
+  test("formats tool-result chunk with failure indicator when isError is true", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onChunk(
+      makeChunk("tool-result", {
+        toolCallId: "tc1",
+        toolName: "mastra_workspace_read_file",
+        result: { error: "File not found" },
+        isError: true,
+      }),
+    );
+
+    const text = stripAnsi(output());
+    expect(text).toMatch(/✖|✗|✘|×|x/i);
+    expect(text).toContain("File not found");
+  });
+
+  test("formats tool-error chunk with error indicator and message", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onChunk(
+      makeChunk("tool-error", {
+        toolCallId: "tc1",
+        toolName: "mastra_workspace_write_file",
+        error: "Permission denied",
+      }),
+    );
+
+    const text = stripAnsi(output());
+    expect(text).toMatch(/✖|✗|✘|×|x/i);
+    expect(text).toContain("write_file");
+    expect(text).toContain("Permission denied");
+  });
+
+  test("verbose mode shows full args on tool-call chunk", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: true });
+
+    reporter.onChunk(
+      makeChunk("tool-call", {
+        toolCallId: "tc1",
+        toolName: "mastra_workspace_write_file",
+        args: { path: "out.ts", content: "hello world" },
+      }),
+    );
+
+    const text = stripAnsi(output());
+    expect(text).toContain('"path"');
+    expect(text).toContain("out.ts");
+    expect(text).toContain("hello world");
+  });
+
+  test("verbose mode shows full result on tool-result chunk", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: true });
+
+    reporter.onChunk(
+      makeChunk("tool-result", {
+        toolCallId: "tc1",
+        toolName: "mastra_workspace_read_file",
+        result: { content: "file body here" },
+      }),
+    );
+
+    const text = stripAnsi(output());
+    expect(text).toContain("file body here");
+  });
+
+  test("pauses spinner during chunk output", () => {
+    const { stream } = createCapture();
+
+    let pauseCount = 0;
+    const spinner = {
+      start(_text: string) {},
+      update(_text: string) {},
+      success(_text?: string) {},
+      error(_text?: string) {},
+      stop() {},
+      isSpinning() { return true; },
+      withPause(fn: () => void) {
+        pauseCount++;
+        fn();
+      },
+    };
+
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      spinner,
+    });
+
+    reporter.onChunk(
+      makeChunk("tool-call", {
+        toolCallId: "tc1",
+        toolName: "read_file",
+        args: { path: "f.ts" },
+      }),
+    );
+
+    expect(pauseCount).toBeGreaterThan(0);
+  });
+
+  test("starts tool call timing on tool-call chunk when metrics provided", () => {
+    const clock = makeClock();
+    const { stream, output } = createCapture();
+    const metrics = new ExecutionMetrics(clock.now);
+    const reporter = createActivityReporter({
+      output: stream,
+      verbose: false,
+      metrics,
+    });
+
+    // tool-call starts timing
+    reporter.onChunk(
+      makeChunk("tool-call", {
+        toolCallId: "tc1",
+        toolName: "read_file",
+        args: { path: "f.ts" },
+      }),
+    );
+
+    clock.advance(350);
+
+    // tool-result ends timing — duration should appear
+    reporter.onChunk(
+      makeChunk("tool-result", {
+        toolCallId: "tc1",
+        toolName: "read_file",
+        result: { content: "ok" },
+      }),
+    );
+
+    const text = stripAnsi(output());
+    expect(text).toContain("350ms");
+  });
+
+  test("ignores unrecognized chunk types without crashing", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    expect(() =>
+      reporter.onChunk(makeChunk("text-delta", { id: "1", text: "hi" })),
+    ).not.toThrow();
+
+    // Should produce no output for unrecognized chunks
+    expect(output()).toBe("");
+  });
+
+  test("never throws on malformed chunk data", () => {
+    const { stream } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    expect(() =>
+      reporter.onChunk(makeChunk("tool-call", {})),
+    ).not.toThrow();
+
+    expect(() =>
+      reporter.onChunk(makeChunk("tool-result", {})),
+    ).not.toThrow();
+
+    expect(() =>
+      reporter.onChunk(makeChunk("tool-error", {})),
+    ).not.toThrow();
+  });
+});
