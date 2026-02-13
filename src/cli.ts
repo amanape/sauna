@@ -413,7 +413,9 @@ export async function main(): Promise<void> {
           agent,
           input: process.stdin,
           output: process.stdout,
+          streaming: true,
           onStepFinish: reporter.onStepFinish,
+          onChunk: reporter.onChunk,
           onTurnStart: () => {
             metrics.startTurn();
             spinner.start("Agent thinking…");
