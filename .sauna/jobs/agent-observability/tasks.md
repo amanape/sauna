@@ -24,8 +24,8 @@
 ## Priority 4: Discover Streaming
 
 - [x] Add streaming mode to `SessionRunner`: call `agent.stream()`, iterate `fullStream`, call `getFullOutput()` for message history — discover-streaming.md
-- [ ] Update `runConversation` to handle streaming: write `text-delta` chunks immediately, route tool chunks to activity reporter, extract usage from `step-finish`/`finish` — discover-streaming.md
-- [ ] Handle text/tool interleaving during streaming: insert newline before tool activity if mid-line, resume text on new line — discover-streaming.md
+- [x] Update `runConversation` to handle streaming: write `text-delta` chunks immediately, route tool chunks via `onChunk` callback, extract usage from `step-finish`/`finish` — discover-streaming.md
+- [x] Handle text/tool interleaving during streaming: insert newline before tool activity if mid-line, resume text on new line after tool activity, trailing newline after stream completes — discover-streaming.md
 
 ## Priority 5: Testing
 

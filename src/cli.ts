@@ -7,6 +7,7 @@ import { existsSync } from "node:fs";
 import { Agent } from "@mastra/core/agent";
 import type { LLMStepResult } from "@mastra/core/agent";
 import type { Readable, Writable } from "node:stream";
+import type { ChunkType } from "@mastra/core/stream";
 
 import { createDiscoveryAgent, createPlanningAgent, createBuilderAgent } from "./agent-definitions";
 import { initEnvironment } from "./init-environment";
@@ -259,15 +260,25 @@ export function parseCliArgs(argv: string[]): ParseResult {
   }
 }
 
+export type StreamingChunkCallback = (chunk: ChunkType<unknown>) => void;
+
 export interface ConversationDeps {
   agent: Agent;
   input: Readable;
   output: Writable;
+  streaming?: boolean;
   onStepFinish?: (step: LLMStepResult) => void;
   onFinish?: OnFinishCallback;
+  onChunk?: StreamingChunkCallback;
   onTurnStart?: () => void;
   onTurnEnd?: () => void;
 }
+
+/** Chunk types routed to onChunk callback during streaming */
+const ROUTED_CHUNK_TYPES = new Set([
+  "tool-call", "tool-result", "tool-error",
+  "step-finish", "finish",
+]);
 
 export async function runConversation(deps: ConversationDeps): Promise<void> {
   const session = new SessionRunner({
@@ -288,9 +299,13 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
 
       deps.onTurnStart?.();
       try {
-        const result = await session.sendMessage(trimmed);
-        if (result) {
-          deps.output.write(result.text + "\n");
+        if (deps.streaming) {
+          await handleStreamingTurn(session, trimmed, deps);
+        } else {
+          const result = await session.sendMessage(trimmed);
+          if (result) {
+            deps.output.write(result.text + "\n");
+          }
         }
       } finally {
         deps.onTurnEnd?.();
@@ -298,6 +313,51 @@ export async function runConversation(deps: ConversationDeps): Promise<void> {
     }
   } finally {
     rl.close();
+  }
+}
+
+async function handleStreamingTurn(
+  session: SessionRunner,
+  message: string,
+  deps: ConversationDeps,
+): Promise<void> {
+  const result = session.sendMessageStreaming(message);
+  if (!result) return;
+
+  let textWasMidLine = false;
+
+  try {
+    for await (const chunk of result.stream) {
+      const chunkType = (chunk as { type: string }).type;
+
+      if (chunkType === "text-delta") {
+        const text = (chunk as { payload: { text: string } }).payload.text;
+        deps.output.write(text);
+        textWasMidLine = text.length > 0 && !text.endsWith("\n");
+      } else if (ROUTED_CHUNK_TYPES.has(chunkType)) {
+        // Insert newline before tool activity if text was mid-line
+        if (textWasMidLine && (chunkType === "tool-call" || chunkType === "tool-error")) {
+          deps.output.write("\n");
+          textWasMidLine = false;
+        }
+        deps.onChunk?.(chunk);
+      }
+    }
+  } catch {
+    // Stream error — partial text already written remains visible.
+    // The readline interface stays functional for subsequent turns.
+  }
+
+  // Trailing newline after streaming completes
+  if (textWasMidLine) {
+    deps.output.write("\n");
+  }
+
+  // Await fullOutput to update message history for multi-turn continuity
+  try {
+    await result.fullOutput;
+  } catch {
+    // fullOutput may reject if stream errored; conversation continues.
   }
 }
 

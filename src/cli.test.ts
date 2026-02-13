@@ -8,7 +8,7 @@ import type { Agent, LLMStepResult } from "@mastra/core/agent";
 import type { MessageInput } from "@mastra/core/agent/message-list";
 import { createTool } from "@mastra/core/tools";
 import * as z from "zod";
-import { parseCliArgs, runConversation, type ConversationDeps, type HelpResult } from "./cli";
+import { parseCliArgs, runConversation, type ConversationDeps, type StreamingChunkCallback, type HelpResult } from "./cli";
 import type { OnFinishCallback } from "./session-runner";
 import { DEFAULT_MODEL, getProviderFromModel, getApiKeyEnvVar, validateApiKey } from "./model-resolution";
 import { createWorkspace } from "./workspace-factory";
@@ -1187,6 +1187,362 @@ describe("runConversation", () => {
     const done = runConversation(deps);
     input.end();
     await done;
+  });
+
+  // ── Streaming mode tests ────────────────────────────────────────────────
+
+  /** Helper to create a mock agent with a stream method that yields chunks */
+  function makeStreamingDeps(overrides: {
+    chunks: Array<{ type: string; payload: Record<string, unknown> }>;
+    fullOutputMessages?: MessageInput[];
+    onChunk?: StreamingChunkCallback;
+    onTurnStart?: () => void;
+    onTurnEnd?: () => void;
+  }) {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+
+    const messages = overrides.fullOutputMessages ?? [
+      { role: "user" as const, content: "Hello" },
+      { role: "assistant" as const, content: "Hi there" },
+    ];
+
+    const mockStream = mock(async () => {
+      // Create a ReadableStream from the chunks array
+      const chunks = overrides.chunks;
+      const fullStream = new ReadableStream({
+        start(controller) {
+          for (const chunk of chunks) {
+            controller.enqueue(chunk);
+          }
+          controller.close();
+        },
+      });
+
+      return {
+        fullStream,
+        getFullOutput: async () => ({
+          text: "Hi there",
+          messages,
+          usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          totalUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          steps: [],
+          finishReason: "stop",
+          warnings: [],
+          providerMetadata: undefined,
+          request: {},
+          reasoning: [],
+          reasoningText: undefined,
+          toolCalls: [],
+          toolResults: [],
+          sources: [],
+          files: [],
+          response: {},
+          object: undefined,
+          error: undefined,
+          tripwire: undefined,
+          traceId: undefined,
+          runId: undefined,
+          suspendPayload: undefined,
+          rememberedMessages: [],
+        }),
+      };
+    });
+
+    const mockAgent = {
+      generate: mock(async () => { throw new Error("should not call generate in streaming mode"); }),
+      stream: mockStream,
+    } as unknown as Agent;
+
+    const deps: ConversationDeps = {
+      agent: mockAgent,
+      input,
+      output,
+      streaming: true,
+      onChunk: overrides.onChunk,
+      onTurnStart: overrides.onTurnStart,
+      onTurnEnd: overrides.onTurnEnd,
+    };
+
+    return { input, output, mockStream, deps };
+  }
+
+  test("streaming: writes text-delta chunks to output stream", async () => {
+    const { input, output, deps } = makeStreamingDeps({
+      chunks: [
+        { type: "text-delta", payload: { id: "1", text: "Hello " } },
+        { type: "text-delta", payload: { id: "1", text: "world" } },
+      ],
+    });
+
+    const done = runConversation(deps);
+    input.write("Hi\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    const captured = output.read();
+    expect(captured).toContain("Hello ");
+    expect(captured).toContain("world");
+  });
+
+  test("streaming: routes tool-call chunks to onChunk callback", async () => {
+    const received: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const onChunk: StreamingChunkCallback = (chunk) => { received.push(chunk as typeof received[0]); };
+
+    const toolCallChunk = {
+      type: "tool-call",
+      payload: { toolCallId: "tc1", toolName: "read_file", args: { path: "/foo.ts" } },
+    };
+
+    const { input, deps } = makeStreamingDeps({
+      chunks: [toolCallChunk],
+      onChunk,
+    });
+
+    const done = runConversation(deps);
+    input.write("Read file\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    expect(received).toHaveLength(1);
+    expect(received[0].type).toBe("tool-call");
+    expect(received[0].payload.toolName).toBe("read_file");
+  });
+
+  test("streaming: routes tool-result chunks to onChunk callback", async () => {
+    const received: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const onChunk: StreamingChunkCallback = (chunk) => { received.push(chunk as typeof received[0]); };
+
+    const { input, deps } = makeStreamingDeps({
+      chunks: [
+        { type: "tool-call", payload: { toolCallId: "tc1", toolName: "read_file", args: { path: "/foo.ts" } } },
+        { type: "tool-result", payload: { toolCallId: "tc1", toolName: "read_file", result: "content" } },
+      ],
+      onChunk,
+    });
+
+    const done = runConversation(deps);
+    input.write("Read\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    expect(received).toHaveLength(2);
+    expect(received[0].type).toBe("tool-call");
+    expect(received[1].type).toBe("tool-result");
+  });
+
+  test("streaming: routes step-finish and finish chunks to onChunk callback", async () => {
+    const received: Array<{ type: string }> = [];
+    const onChunk: StreamingChunkCallback = (chunk) => { received.push(chunk as typeof received[0]); };
+
+    const { input, deps } = makeStreamingDeps({
+      chunks: [
+        { type: "text-delta", payload: { id: "1", text: "OK" } },
+        { type: "step-finish", payload: { stepResult: {}, output: { usage: {} }, metadata: {}, messages: [] } },
+        { type: "finish", payload: { output: {}, messages: [] } },
+      ],
+      onChunk,
+    });
+
+    const done = runConversation(deps);
+    input.write("Go\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    const types = received.map((c) => c.type);
+    expect(types).toContain("step-finish");
+    expect(types).toContain("finish");
+    // text-delta should NOT be in onChunk — it goes to output stream
+    expect(types).not.toContain("text-delta");
+  });
+
+  test("streaming: inserts newline before tool activity when text was mid-line", async () => {
+    const { input, output, deps } = makeStreamingDeps({
+      chunks: [
+        { type: "text-delta", payload: { id: "1", text: "Starting" } },
+        { type: "tool-call", payload: { toolCallId: "tc1", toolName: "search", args: { query: "test" } } },
+        { type: "tool-result", payload: { toolCallId: "tc1", toolName: "search", result: "found" } },
+        { type: "text-delta", payload: { id: "1", text: "Done" } },
+      ],
+      onChunk: () => {},
+    });
+
+    const done = runConversation(deps);
+    input.write("Go\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    const captured = output.read() as string;
+    // After "Starting" text and before tool activity, a newline should be inserted
+    // After tool activity and before "Done", text should resume on a new line
+    expect(captured).toContain("Starting");
+    expect(captured).toContain("Done");
+    // The text "Starting" should be followed by a newline (not immediately followed by "Done")
+    const startIdx = captured.indexOf("Starting");
+    const doneIdx = captured.indexOf("Done");
+    const between = captured.slice(startIdx + "Starting".length, doneIdx);
+    expect(between).toContain("\n");
+  });
+
+  test("streaming: adds trailing newline after streaming completes", async () => {
+    const { input, output, deps } = makeStreamingDeps({
+      chunks: [
+        { type: "text-delta", payload: { id: "1", text: "Hello" } },
+      ],
+    });
+
+    const done = runConversation(deps);
+    input.write("Hi\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    const captured = output.read() as string;
+    expect(captured).toMatch(/Hello\n$/);
+  });
+
+  test("streaming: does not call agent.generate", async () => {
+    const { input, deps } = makeStreamingDeps({
+      chunks: [
+        { type: "text-delta", payload: { id: "1", text: "Response" } },
+      ],
+    });
+
+    const done = runConversation(deps);
+    input.write("Hi\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    const mockGenerate = (deps.agent as unknown as { generate: ReturnType<typeof mock> }).generate;
+    expect(mockGenerate).not.toHaveBeenCalled();
+  });
+
+  test("streaming: calls onTurnStart and onTurnEnd around streaming turn", async () => {
+    const events: string[] = [];
+    const { input, deps } = makeStreamingDeps({
+      chunks: [
+        { type: "text-delta", payload: { id: "1", text: "OK" } },
+      ],
+      onTurnStart: () => events.push("turnStart"),
+      onTurnEnd: () => events.push("turnEnd"),
+    });
+
+    const done = runConversation(deps);
+    input.write("Hi\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    expect(events[0]).toBe("turnStart");
+    expect(events[events.length - 1]).toBe("turnEnd");
+  });
+
+  test("streaming: continues conversation after stream error", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.setEncoding("utf8");
+
+    let callCount = 0;
+
+    const mockStream = mock(async () => {
+      callCount++;
+      if (callCount === 1) {
+        // First call: stream that errors
+        const fullStream = new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: "text-delta", payload: { id: "1", text: "partial" } });
+            controller.error(new Error("stream broke"));
+          },
+        });
+        return {
+          fullStream,
+          getFullOutput: async () => ({
+            text: "partial", messages: [{ role: "user", content: "Hi" }],
+            usage: {}, totalUsage: {}, steps: [], finishReason: undefined,
+            warnings: [], providerMetadata: undefined, request: {},
+            reasoning: [], reasoningText: undefined, toolCalls: [],
+            toolResults: [], sources: [], files: [], response: {},
+            object: undefined, error: new Error("stream broke"), tripwire: undefined,
+            traceId: undefined, runId: undefined, suspendPayload: undefined,
+            rememberedMessages: [],
+          }),
+        };
+      }
+      // Second call: succeeds
+      const fullStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "text-delta", payload: { id: "2", text: "recovered" } });
+          controller.close();
+        },
+      });
+      return {
+        fullStream,
+        getFullOutput: async () => ({
+          text: "recovered", messages: [
+            { role: "user", content: "Hi" },
+            { role: "assistant", content: "recovered" },
+          ],
+          usage: {}, totalUsage: {}, steps: [], finishReason: "stop",
+          warnings: [], providerMetadata: undefined, request: {},
+          reasoning: [], reasoningText: undefined, toolCalls: [],
+          toolResults: [], sources: [], files: [], response: {},
+          object: undefined, error: undefined, tripwire: undefined,
+          traceId: undefined, runId: undefined, suspendPayload: undefined,
+          rememberedMessages: [],
+        }),
+      };
+    });
+
+    const mockAgent = {
+      generate: mock(async () => { throw new Error("should not call"); }),
+      stream: mockStream,
+    } as unknown as Agent;
+
+    const deps: ConversationDeps = {
+      agent: mockAgent,
+      input,
+      output,
+      streaming: true,
+    };
+
+    const done = runConversation(deps);
+    input.write("Hi\n");
+    await new Promise((r) => setTimeout(r, 100));
+    input.write("Again\n");
+    await new Promise((r) => setTimeout(r, 100));
+    input.end();
+    await done;
+
+    const captured = output.read() as string;
+    expect(captured).toContain("recovered");
+  });
+
+  test("streaming: routes tool-error chunks to onChunk callback", async () => {
+    const received: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const onChunk: StreamingChunkCallback = (chunk) => { received.push(chunk as typeof received[0]); };
+
+    const { input, deps } = makeStreamingDeps({
+      chunks: [
+        { type: "tool-error", payload: { toolCallId: "tc1", toolName: "bad_tool", error: "fail" } },
+      ],
+      onChunk,
+    });
+
+    const done = runConversation(deps);
+    input.write("Try\n");
+    await new Promise((r) => setTimeout(r, 50));
+    input.end();
+    await done;
+
+    expect(received).toHaveLength(1);
+    expect(received[0].type).toBe("tool-error");
   });
 });
 

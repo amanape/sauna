@@ -8,7 +8,7 @@ export { SessionRunner, type SessionRunnerConfig, type OnFinishCallback, type St
 export { runFixedCount, runUntilDone, type FixedCountConfig, type UntilDoneConfig } from "./loop-runner";
 export { runJobPipeline, type JobPipelineDeps } from "./job-pipeline";
 export { initEnvironment, type InitEnvironmentConfig, type Environment } from "./init-environment";
-export { parseCliArgs, runConversation, type CliArgs, type ParseResult, type HelpResult, type Subcommand, type DiscoverArgs, type PlanArgs, type BuildArgs, type RunArgs, type ConversationDeps } from "./cli";
+export { parseCliArgs, runConversation, type CliArgs, type ParseResult, type HelpResult, type Subcommand, type DiscoverArgs, type PlanArgs, type BuildArgs, type RunArgs, type ConversationDeps, type StreamingChunkCallback } from "./cli";
 export { createMcpClient, buildMcpServerConfigs, validateTavilyApiKey, type McpServerConfigs } from "./mcp-client";
 export { loadHooks } from "./hooks-loader";
 export { runHooks, type HookResult, type HookSuccess, type HookFailure } from "./hook-executor";
