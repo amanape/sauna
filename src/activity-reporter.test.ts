@@ -1012,6 +1012,102 @@ describe("activity reporter — onChunk handler", () => {
   });
 });
 
+// ── Sub-agent yellow coloring ────────────────────────────────────────────────
+
+describe("activity reporter — sub-agent yellow coloring", () => {
+  const YELLOW = "\x1b[33m"; // ansis yellow
+  const CYAN = "\x1b[36m";   // ansis cyan
+
+  test("onStepFinish uses yellow pointer for researcher tool calls", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("researcher", { message: "find docs for bun test" })],
+      toolResults: [makeToolResult("researcher", { text: "Found documentation" })],
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const raw = output();
+    expect(raw).toContain(YELLOW);
+    expect(raw).not.toContain(CYAN);
+  });
+
+  test("onStepFinish uses cyan pointer for regular tool calls", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    const step = makeStep({
+      toolCalls: [makeToolCall("mastra_workspace_read_file", { path: "f.ts" })],
+      toolResults: [makeToolResult("mastra_workspace_read_file", { content: "ok" })],
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const raw = output();
+    expect(raw).toContain(CYAN);
+    expect(raw).not.toContain(YELLOW);
+  });
+
+  test("onChunk uses yellow pointer for researcher tool-call chunks", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onChunk(
+      makeChunk("tool-call", {
+        toolCallId: "tc1",
+        toolName: "researcher",
+        args: { message: "look up streaming API" },
+      }),
+    );
+
+    const raw = output();
+    expect(raw).toContain(YELLOW);
+    expect(raw).not.toContain(CYAN);
+  });
+
+  test("onChunk uses cyan pointer for regular tool-call chunks", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    reporter.onChunk(
+      makeChunk("tool-call", {
+        toolCallId: "tc1",
+        toolName: "mastra_workspace_read_file",
+        args: { path: "src/index.ts" },
+      }),
+    );
+
+    const raw = output();
+    expect(raw).toContain(CYAN);
+    expect(raw).not.toContain(YELLOW);
+  });
+
+  test("mixed step with researcher and regular tool uses correct colors for each", () => {
+    const { stream, output } = createCapture();
+    const reporter = createActivityReporter({ output: stream, verbose: false });
+
+    const step = makeStep({
+      toolCalls: [
+        makeToolCall("mastra_workspace_read_file", { path: "f.ts" }),
+        makeToolCall("researcher", { message: "find examples" }),
+      ],
+      toolResults: [
+        makeToolResult("mastra_workspace_read_file", { content: "ok" }),
+        makeToolResult("researcher", { text: "Found examples" }),
+      ],
+      finishReason: "tool-calls",
+    });
+
+    reporter.onStepFinish(step);
+    const raw = output();
+    // Both colors should be present — cyan for the regular tool, yellow for researcher
+    expect(raw).toContain(CYAN);
+    expect(raw).toContain(YELLOW);
+  });
+});
+
 // ── onFinish handler — generation-level error display ────────────────────────
 
 describe("activity reporter — onFinish handler", () => {

@@ -30,6 +30,11 @@ export function cleanToolName(name: string): string {
   return name;
 }
 
+/** Returns true when the tool name refers to an agent-as-tool (sub-agent). */
+export function isSubAgentTool(rawName: string): boolean {
+  return rawName === "researcher";
+}
+
 // ── Tool-type summaries ─────────────────────────────────────────────────────
 
 const MAX_JSON_LENGTH = 500;
@@ -167,9 +172,10 @@ export function createActivityReporter(
 
         const args = call.payload.args as Record<string, unknown> | undefined;
 
-        // Tool call line
+        // Tool call line — sub-agent calls use yellow, regular tools use cyan
         const summary = summarizeToolCall(toolName, args);
-        lines.push(indent(`${colors.cyan(symbols.pointer)} ${summary}`));
+        const pointerColor = isSubAgentTool(toolName) ? colors.yellow : colors.cyan;
+        lines.push(indent(`${pointerColor(symbols.pointer)} ${summary}`));
 
         // Verbose: full args
         if (verbose && args) {
@@ -246,7 +252,8 @@ export function createActivityReporter(
         const lines: string[] = [];
 
         const summary = summarizeToolCall(toolName, args);
-        lines.push(indent(`${colors.cyan(symbols.pointer)} ${summary}`));
+        const pointerColor = isSubAgentTool(toolName) ? colors.yellow : colors.cyan;
+        lines.push(indent(`${pointerColor(symbols.pointer)} ${summary}`));
 
         if (verbose && args) {
           lines.push(indentVerbose(colors.dim(truncateJson(args))));
