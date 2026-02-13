@@ -81,12 +81,20 @@ export interface PlanningAgentConfig {
 export async function createPlanningAgent(config: PlanningAgentConfig): Promise<Agent> {
   const promptPath = resolve(import.meta.dirname, "../.sauna/prompts/plan.md");
   const raw = await Bun.file(promptPath).text();
-  const instructions = raw.replaceAll("${JOB_ID}", config.jobId);
+  const content = raw.replaceAll("${JOB_ID}", config.jobId);
 
   return new Agent({
     id: "planner",
     name: "planner",
-    instructions,
+    instructions: {
+      role: "system",
+      content,
+      providerOptions: {
+        anthropic: {
+          cacheControl: { type: "ephemeral" },
+        },
+      },
+    },
     model: config.model ?? DEFAULT_MODEL,
     tools: config.tools,
     workspace: config.workspace,
