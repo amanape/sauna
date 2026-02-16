@@ -1,9 +1,12 @@
 # Tasks
 
 ## P0: Dependencies & Package Setup
-- [ ] Install `cleye` and `@anthropic-ai/claude-agent-sdk` as runtime dependencies
-- [ ] Add `"bin": "./index.ts"` and `"build": "bun build ./index.ts --compile --outfile sauna"` script to package.json
-- [ ] Add `sauna` to `.gitignore`
+- [x] Install `cleye` and `@anthropic-ai/claude-agent-sdk` as runtime dependencies
+- [x] Add `"bin": "./index.ts"` and `"build": "bun build ./index.ts --compile --outfile sauna"` script to package.json
+- [x] Add `sauna` to `.gitignore`
+- [x] Added `version: "0.1.0"` to package.json (needed by cleye for `--version` flag)
+- [x] Verified `bun run build` compiles a working standalone binary
+- [x] Tests in `setup.test.ts` cover all P0 requirements (validated with fail/pass cycle)
 
 ## P1: CLI Parsing
 - [ ] Implement CLI arg parsing in `index.ts` using `cleye`: positional prompt, `--model`/`-m` (string), `--loop`/`-l` (boolean), `--count`/`-n` (number), `--context`/`-c` (repeatable string array), version from package.json
