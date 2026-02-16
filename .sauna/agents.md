@@ -2,10 +2,15 @@
 
 ## Commands
 - `bun test` — run all tests
-- `bun test setup.test.ts` — run P0 setup tests
+- `bun test setup.test.ts` — run P0 setup + P5 binary compilation tests
+- `bun test cli.test.ts` — run P1 CLI parsing tests
+- `bun test session.test.ts` — run P2 agent session tests
+- `bun test stream.test.ts` — run P3 streaming output tests
+- `bun test loop.test.ts` — run P4 loop mode tests
 - `bun run build` — compile standalone `sauna` binary
 - `bunx tsc --noEmit` — type check without emitting
-- `bun index.ts` — run the CLI in development mode
+- `bun index.ts "prompt"` — run the CLI in development mode (requires a prompt argument)
+- `SAUNA_DRY_RUN=1 bun index.ts "prompt"` — print parsed config as JSON and exit (for testing)
 
 ## Dependencies
 - `cleye@2.2.1` — CLI argument parsing
