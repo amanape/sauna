@@ -3,7 +3,7 @@ import { test, expect, describe, beforeAll } from "bun:test";
 describe("P0: package setup", () => {
   test("package.json has bin field pointing to index.ts", async () => {
     const pkg = await Bun.file("package.json").json();
-    expect(pkg.bin).toBe("./index.ts");
+    expect(pkg.bin).toBe("./sauna");
   });
 
   test("package.json has build script with bun build --compile", async () => {

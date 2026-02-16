@@ -1,7 +1,0 @@
-model: minimax/MiniMax-M2.5
-
-subagents:
-  reader:
-    model: minimax/MiniMax-M2.5
-    description: "Reads files and returns their contents. Delegate file reading tasks to this agent."
-    instructions: "You are a file reader. When asked to read a file, use the readFileTool to read it and return the contents."

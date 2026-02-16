@@ -1,5 +1,8 @@
 import { test, expect, describe } from "bun:test";
+import { resolve } from "node:path";
 import { resolveModel } from "./cli";
+
+const ROOT = resolve(import.meta.dir, "..");
 
 describe("P1: CLI parsing", () => {
   describe("model resolution", () => {
@@ -30,7 +33,7 @@ describe("P1: CLI parsing", () => {
   describe("missing prompt", () => {
     test("exits non-zero when no prompt is provided", async () => {
       const proc = Bun.spawn(["bun", "index.ts"], {
-        cwd: import.meta.dir,
+        cwd: ROOT,
         stdout: "pipe",
         stderr: "pipe",
       });
@@ -43,7 +46,7 @@ describe("P1: CLI parsing", () => {
     test("special characters in prompt are preserved", async () => {
       const input = 'hello "world" & <foo> $bar';
       const proc = Bun.spawn(["bun", "index.ts", input], {
-        cwd: import.meta.dir,
+        cwd: ROOT,
         stdout: "pipe",
         stderr: "pipe",
         env: { ...process.env, SAUNA_DRY_RUN: "1" },
@@ -60,7 +63,7 @@ describe("P1: CLI parsing", () => {
       const proc = Bun.spawn(
         ["bun", "index.ts", "--count", "5", "test prompt"],
         {
-          cwd: import.meta.dir,
+          cwd: ROOT,
           stdout: "pipe",
           stderr: "pipe",
           env: { ...process.env, SAUNA_DRY_RUN: "1" },
@@ -88,7 +91,7 @@ describe("P1: CLI parsing", () => {
           "test prompt",
         ],
         {
-          cwd: import.meta.dir,
+          cwd: ROOT,
           stdout: "pipe",
           stderr: "pipe",
           env: { ...process.env, SAUNA_DRY_RUN: "1" },
