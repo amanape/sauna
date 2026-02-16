@@ -1,73 +1,121 @@
 # Complexity Findings
 
-## Verdict: Pain-driven, not ceremony-driven
+## Verdict: Appropriately simple, with some self-congratulatory testing
 
-571 lines of source. 1,585 lines of tests. 2 runtime dependencies. Every abstraction exists because something hurt without it — not because a book said to.
-
----
-
-## The question: pain or "good practice"?
-
-### `write` callback injection — **Pain**
-Every function takes `write: (s: string) => void` instead of calling `process.stdout.write`. This exists because the test suite needs to capture output. Without it, you'd be mocking `process.stdout` globally — fragile, stateful, breaks parallel test runs. This pattern is threaded through every file consistently. It earns its keep.
-
-### `StreamState` — **Pain**
-Tracks `lastCharWasNewline` and `isFirstTextOutput` across a stream of SDK messages. Without it: double newlines before tool tags, leading whitespace on first output. These are real formatting bugs that showed up during development. The state object is created fresh per session/iteration and passed explicitly — no hidden globals.
-
-### `createMessageChannel()` — **Pain**
-The SDK's `query()` API requires `AsyncIterable<any>` for multi-turn prompts. You have a user typing into readline (push-based) and an SDK wanting to pull messages. This 30-line async queue bridges the two. It's a well-known async primitive implemented inline because pulling in a library for one use site would be absurd.
-
-### `findClaude()` — **Reuse**
-Both `session.ts` and `interactive.ts` need the Claude executable path. Extracting it to 8 lines is justified by the two call sites. Not deep, not clever, just shared code.
-
-### `resolveModel()` — **Convenience**
-A 3-entry dictionary mapping `sonnet` → `claude-sonnet-4-20250514`. Nobody wants to type model IDs. 10 lines total.
-
-### `buildPrompt()` — **Reuse**
-Prepends context path references to the prompt. Called by both `runSession` and `runInteractive`. 5 lines of logic.
-
-### `InteractiveOverrides` — **Pain (testing)**
-5 optional fields: `input`, `promptOutput`, `createQuery`, `addSignalHandler`, `removeSignalHandler`. This is a lot of injection surface. But each field unlocks a specific test scenario: fake stdin, captured prompt output, mock query factory, signal handler verification. The alternative is mocking `process.stdin`, `process.stderr`, `process.on`, and the SDK — all global state. The override bag is the lesser evil.
-
-### `SAUNA_DRY_RUN` env var — **Pain (testing)**
-The CLI entry point (`index.ts`) has an escape hatch: if `SAUNA_DRY_RUN=1`, print parsed args as JSON and exit. This lets `cli.test.ts` verify argument parsing as a subprocess without invoking the agent. Common pattern for CLIs that are otherwise hard to test.
-
-### `LoopConfig` / `SessionConfig` / `InteractiveConfig` — **Documentation**
-Small type aliases for function parameters. These are "good practice" in the boring, useful sense — they name the shape of data flowing between functions. No inheritance, no generics, no ceremony.
+571 lines of source. 1,585 lines of tests. 2 runtime dependencies. The code is clean. But let's not give it a medal for doing what any 571-line project *should* do — be simple.
 
 ---
 
-## What's not abstracted (correctly)
+## The real question: is this complex *for what it does*?
 
-**Duplicated query options** — `session.ts:28-38` and `interactive.ts:127-135` both construct the same `options` object (system prompt, permission mode, etc.) independently. There's no shared builder. With exactly 2 call sites and stable options, this is the right call. The risk: if one changes and the other doesn't, behavior silently diverges. Worth knowing, not worth fixing yet.
+What sauna does: shell out to the Claude Agent SDK with a prompt, optionally in a loop or REPL. That's it. It's a thin CLI wrapper around `query()`.
 
-**Loop branch duplication** — `loop.ts` has near-identical `for` loops for forever mode (lines 34-48) and count mode (lines 53-67). Extracting a shared helper would save ~12 lines but add indirection. At 76 total lines, readability wins.
-
-**No error class hierarchy** — Errors are caught with `catch (err: any)` and formatted inline with ANSI codes. No custom error types, no error middleware. For a CLI that either works or prints a red message, this is fine.
-
-**No logging framework** — `write()` to stdout, `process.stderr.write()` for prompts. That's all a CLI this size needs.
-
-**No config file** — Flags and env vars only. No `.saunarc`, no YAML/TOML config, no config schema validation. Correct for the scope.
+The honest answer: **No, it's not over-engineered.** But some of the "simplicity" is a side effect of the scope being tiny, not of disciplined restraint. When your entire product is "call an SDK and print the output," it's hard to over-engineer. The real test of these instincts comes when the next 5 features land.
 
 ---
 
-## Actual issues
+## Abstraction-by-abstraction review
 
-### Real
+### `write` callback injection — **Justified, but worth questioning the cost**
 
-1. **`findClaude()` has no error handling** (`src/claude.ts:6`) — `execSync("which claude")` throws a raw `child_process` error if Claude Code isn't installed. Users see a stack trace instead of "Claude Code not found on PATH." This is the most user-facing bug.
+Every function takes `write: (s: string) => void`. This makes testing easy — no global stdout mocking. Fair enough. But it also means *every function signature* carries a testing concern. The production call site is always `(s) => process.stdout.write(s)`. You're paying a readability tax on every function for testability. For 571 lines, this is fine. At 5,000 lines with `write` threaded through 40 functions, you'd want a different pattern (a writable stream, a context object, something). Watch for this becoming a wart.
 
-2. **`msg: any` typing in `processMessage`** (`src/stream.ts:77`) — The SDK message type is not imported or modeled. Deep property access chains (`msg.event.delta.type`, `msg.event.content_block.type`) are untyped. If the SDK changes its streaming protocol, the compiler won't catch it.
+### `StreamState` — **Real pain, correctly solved**
 
-3. **`state?: StreamState` is optional but always passed** (`src/stream.ts:77`) — Every caller passes state, but the parameter is optional, creating `if (state)` guards that are dead code in practice. This isn't backward compatibility — the optional form was never a public API. Should just be required.
+Formatting state across a stream of messages is genuinely tricky. Leading whitespace, double newlines before tool tags — these are real bugs that users see. The explicit state object is the right call over hidden module-level variables. No notes.
 
-### Minor
+### `createMessageChannel()` — **Clean, but be honest about what it is**
 
-4. **`err: any` in catch blocks** — `err.message` is accessed without verifying `err` is an `Error`. If something throws a string, output shows `undefined`. Low risk.
+It's a single-consumer async queue. It exists because the SDK wants `AsyncIterable` and readline is push-based. 30 lines, no dependencies. This is the one piece of genuine "systems programming" in the project. It's well-done.
 
-5. **No validation of `--count` negative values** — `--count -1` silently does nothing. Not a crash, but confusing.
+### `InteractiveOverrides` — **The testing tail wagging the production dog**
 
-6. **Stale model aliases** — Aliases point to `claude-*-4-2025*` models. These will need updating as new models ship.
+5 optional injection points: `input`, `promptOutput`, `createQuery`, `addSignalHandler`, `removeSignalHandler`. That's a lot of injection surface for a 201-line file. Every one of these exists solely for testing. The production path never uses them.
+
+This is the "good practice" trap in disguise: the code is structured around making tests easy rather than around the problem domain. It works at this scale. But the honest critique is that `interactive.ts` is ~50% "how do I test this" and ~50% "what does this do." If you're reading the code to understand the REPL, you have to mentally filter out the testing scaffolding.
+
+The alternative (subprocess testing, mocking at the module boundary) would keep the production code cleaner at the cost of slower, more brittle tests. Neither answer is wrong, but let's not pretend this one is costless.
+
+### `SAUNA_DRY_RUN` env var — **Pragmatic hack**
+
+An env-gated escape hatch so CLI argument parsing can be tested via subprocess without invoking the agent. Common pattern, nothing wrong with it. But it is dead code in production that exists only for tests. Call it what it is.
+
+### `findClaude()` — **Too simple**
+
+8 lines. `execSync("which claude")` + `realpathSync`. No error handling. If Claude isn't on PATH, users get a raw child_process stack trace. This is the single most user-facing bug in the project, and it's been noted in prior findings but not fixed. At some point noting a bug stops counting as due diligence and starts counting as procrastination.
+
+### `resolveModel()` — **Fine**
+
+10-line lookup table. Does its job. The aliases will go stale when new models ship, but that's maintenance, not a design problem.
+
+### Config types (`SessionConfig`, `InteractiveConfig`, `LoopConfig`) — **Fine**
+
+Named parameter shapes. No ceremony. This is what types are for.
+
+---
+
+## What's correctly *not* abstracted
+
+- **Duplicated query options** in `session.ts` and `interactive.ts` — Both construct the same SDK options object independently. Extracting a shared builder would be premature. The risk (divergence) is real but small. Correct for now.
+
+- **Near-identical loop bodies** in `loop.ts` — The forever and count loops are almost the same. A shared helper would save 12 lines and add one layer of indirection. At 76 total lines, keeping them separate is correct.
+
+- **No error class hierarchy** — `catch (err: any)` and format inline. For a CLI that either works or shows a red line, this is fine. Don't let anyone talk you into custom error types here.
+
+- **No config file** — Flags only. No `.saunarc`. Correct for the scope.
+
+---
+
+## Genuine issues
+
+### 1. `findClaude()` has no error handling (src/claude.ts:6)
+
+`execSync("which claude")` throws an unhandled child_process error if Claude Code isn't installed. Users see a stack trace. This has been a known issue across multiple analysis passes and remains unfixed. **Fix it. It's 3 lines.**
+
+```ts
+try {
+  const which = execSync("which claude", { encoding: "utf-8" }).trim();
+  return realpathSync(which);
+} catch {
+  throw new Error("Claude Code not found on PATH. Install it first.");
+}
+```
+
+### 2. `msg: any` in processMessage (src/stream.ts:77)
+
+The SDK's streaming message type is not imported or modeled. Deep property chains like `msg.event.delta.type` are untyped. If the SDK changes its wire format, the compiler won't catch it. This is a calculated bet that the SDK is stable — fine for now, but document the bet.
+
+### 3. `state?: StreamState` is optional but never omitted (src/stream.ts:77)
+
+Every caller passes state. The optional parameter creates dead `if (state)` guards. The comment says "backwards-compatible" but this was never a public API. Make it required. Remove the guards.
+
+### 4. `err: any` in catch blocks
+
+`err.message` is accessed without verifying `err` is an Error. If something throws a string (which some Node APIs do), the output shows `undefined`. Minor, but sloppy.
+
+### 5. No validation of `--count` values
+
+`--count 0` silently does nothing. `--count -1` silently does nothing. Neither is documented behavior. Either validate or document.
+
+### 6. `permissionMode: "bypassPermissions"` is hardcoded
+
+Both `session.ts` and `interactive.ts` hardcode `allowDangerouslySkipPermissions: true`. There's no way for users to opt into permission prompts. This is a reasonable default for a power-user tool, but it should at least be documented — preferably as a flag.
+
+---
+
+## The testing ratio question
+
+**Test:source ratio is 2.8:1** (1,585 test lines / 571 source lines).
+
+Is this good? It depends on what you're testing. Some observations:
+
+- `setup.test.ts` (230 lines) tests that `package.json` has the right fields and that `bun build` produces binaries for 5 platforms. This is genuinely useful — it catches build/release regressions.
+
+- `interactive.test.ts` (508 lines) is the longest file in the *entire project*, source or test. It's longer than the file it tests (201 lines). Much of it is setting up mock streams, fake query factories, and signal handler overrides. The `InteractiveOverrides` type exists to serve this file. There's a circularity: the production code was shaped to be testable, and the tests are complex because the production code's testability surface is large.
+
+- `stream.test.ts` (360 lines) is thorough and well-structured. The formatting functions are pure, so the tests are straightforward assertions. This is where the test ratio pays off most clearly.
+
+The test suite is comprehensive. But "comprehensive tests for simple code" is not the same value proposition as "comprehensive tests for complex code." At this scale, many of the tested behaviors are visible by running the CLI once. The tests are insurance against regressions — good insurance, but the premium is high relative to the property value.
 
 ---
 
@@ -79,15 +127,28 @@ Small type aliases for function parameters. These are "good practice" in the bor
 | Test lines | 1,585 |
 | Test:source ratio | 2.8:1 |
 | Source files | 7 |
+| Test files | 6 |
 | Runtime dependencies | 2 |
-| "Good practice" abstractions | 0 |
-| Pain-driven abstractions | ~8 |
+| Abstractions driven by pain | 3 (StreamState, createMessageChannel, DRY_RUN) |
+| Abstractions driven by testability | 3 (write callback, InteractiveOverrides, findClaude extraction) |
+| Abstractions driven by reuse | 2 (buildPrompt, resolveModel) |
 | Pass-through layers | 0 |
+| Known bugs, unfixed | 1 (findClaude error handling) |
 
 ---
 
 ## Bottom line
 
-This is a 571-line CLI that reads like a 571-line CLI. You can understand the entire system in 15 minutes. Every file does one thing. The test suite is thorough without being theatrical. The abstractions are scars from real problems — formatting bugs, testability needs, SDK API requirements — not from architecture astronautics.
+This is a 571-line CLI that reads like a 571-line CLI. That's good. The code is clean, the dependency footprint is minimal, and you can understand the whole system in 15 minutes.
 
-The biggest risk isn't over-engineering. It's that the codebase is so lean that future features (auth, config profiles, plugin support) would need structural changes. But that's a problem for when those features exist, not before. YAGNI applied correctly.
+But the previous analysis was too gentle. The honest version:
+
+1. **Half the abstractions serve testing, not the problem domain.** The `write` callback, `InteractiveOverrides`, and `SAUNA_DRY_RUN` exist for tests. The production code would be simpler without them. This is a reasonable trade-off, not a virtue.
+
+2. **The test suite is thorough for code that barely needs it.** 2.8:1 test ratio on a thin SDK wrapper is more about developer confidence than risk mitigation. The riskiest code (the SDK integration itself) isn't really testable in isolation anyway — the tests mock it away entirely.
+
+3. **The one real bug (`findClaude` error handling) has been documented multiple times and not fixed.** At some point, writing about a bug is not a substitute for fixing it.
+
+4. **The codebase isn't simple because of discipline — it's simple because the scope is small.** The real question is what happens when the next 5 features land. The current structure has no obvious extension points (no plugin system, no middleware, no config layer). That's fine *now*, but claiming "YAGNI applied correctly" is unfalsifiable until you actually need it.
+
+The code is good. Just don't mistake "small and clean" for "architecturally principled." They're correlated at this scale, not equivalent.
