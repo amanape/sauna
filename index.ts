@@ -1,7 +1,7 @@
 import { cli } from "cleye";
-import { resolveModel } from "./cli";
-import { runSession } from "./session";
-import { runLoop } from "./loop";
+import { resolveModel } from "./src/cli";
+import { runSession } from "./src/session";
+import { runLoop } from "./src/loop";
 
 const pkg = await Bun.file("package.json").json();
 
