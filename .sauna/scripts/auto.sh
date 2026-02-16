@@ -29,6 +29,13 @@ all_tasks_done() {
   ! grep -q '^\s*- \[ \]' "$TASKS_FILE"
 }
 
+# Phase 1: Plan 2 times (create NLT, then address gaps)
+echo "=== Phase 1: Planning (2x) ==="
+for i in 1 2; do
+  echo "--- Plan $i/2 ---"
+  run_plan
+done
+
 # Phase 2: Build until all tasks are done
 echo "=== Phase 2: Building until all tasks done ==="
 iteration=0
