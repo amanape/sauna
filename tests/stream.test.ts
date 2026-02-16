@@ -1,10 +1,10 @@
-import { test, expect, describe } from "bun:test";
+import { test, expect, describe } from 'bun:test';
 import {
   formatToolTag,
   formatSummary,
   formatError,
   processMessage,
-} from "./stream";
+} from '../src/stream';
 
 /**
  * P3: Streaming Output
@@ -14,19 +14,19 @@ import {
  * Pure functions are tested directly — no stdout mocking needed.
  */
 
-describe("P3: Streaming Output", () => {
-  describe("formatToolTag", () => {
-    test("wraps tool name in dim brackets", () => {
-      const result = formatToolTag("Read");
+describe('P3: Streaming Output', () => {
+  describe('formatToolTag', () => {
+    test('wraps tool name in dim brackets', () => {
+      const result = formatToolTag('Read');
       // Should contain the tool name in brackets
-      expect(result).toContain("[Read]");
+      expect(result).toContain('[Read]');
       // Should have ANSI dim escape codes wrapping it
       expect(result).toMatch(/\x1b\[2m\[Read\]\x1b\[22m/);
     });
   });
 
-  describe("formatSummary", () => {
-    test("includes token count, turns, and duration", () => {
+  describe('formatSummary', () => {
+    test('includes token count, turns, and duration', () => {
       const result = formatSummary({
         inputTokens: 1000,
         outputTokens: 500,
@@ -34,63 +34,63 @@ describe("P3: Streaming Output", () => {
         durationMs: 12345,
       });
       // Should contain total tokens (input + output)
-      expect(result).toContain("1500 tokens");
-      expect(result).toContain("3 turns");
-      expect(result).toContain("12.3s");
+      expect(result).toContain('1500 tokens');
+      expect(result).toContain('3 turns');
+      expect(result).toContain('12.3s');
       // Should be dim
       expect(result).toMatch(/\x1b\[2m/);
     });
 
-    test("formats duration under 1 second", () => {
+    test('formats duration under 1 second', () => {
       const result = formatSummary({
         inputTokens: 100,
         outputTokens: 50,
         numTurns: 1,
         durationMs: 450,
       });
-      expect(result).toContain("0.5s");
+      expect(result).toContain('0.5s');
     });
 
-    test("singular turn", () => {
+    test('singular turn', () => {
       const result = formatSummary({
         inputTokens: 100,
         outputTokens: 50,
         numTurns: 1,
         durationMs: 1000,
       });
-      expect(result).toContain("1 turn");
+      expect(result).toContain('1 turn');
       // Should NOT say "1 turns"
-      expect(result).not.toContain("1 turns");
+      expect(result).not.toContain('1 turns');
     });
   });
 
-  describe("formatError", () => {
-    test("includes subtype and error messages", () => {
-      const result = formatError("error_during_execution", [
-        "Something went wrong",
+  describe('formatError', () => {
+    test('includes subtype and error messages', () => {
+      const result = formatError('error_during_execution', [
+        'Something went wrong',
       ]);
-      expect(result).toContain("error_during_execution");
-      expect(result).toContain("Something went wrong");
+      expect(result).toContain('error_during_execution');
+      expect(result).toContain('Something went wrong');
       // Should have red ANSI escape code
       expect(result).toMatch(/\x1b\[31m/);
     });
 
-    test("handles multiple errors", () => {
-      const result = formatError("error_max_turns", [
-        "Turn limit reached",
-        "Session aborted",
+    test('handles multiple errors', () => {
+      const result = formatError('error_max_turns', [
+        'Turn limit reached',
+        'Session aborted',
       ]);
-      expect(result).toContain("Turn limit reached");
-      expect(result).toContain("Session aborted");
+      expect(result).toContain('Turn limit reached');
+      expect(result).toContain('Session aborted');
     });
 
-    test("handles empty errors array", () => {
-      const result = formatError("error_during_execution", []);
-      expect(result).toContain("error_during_execution");
+    test('handles empty errors array', () => {
+      const result = formatError('error_during_execution', []);
+      expect(result).toContain('error_during_execution');
     });
   });
 
-  describe("processMessage", () => {
+  describe('processMessage', () => {
     /**
      * processMessage receives SDK messages and writes formatted output.
      * It accepts a `write` callback to decouple from stdout, making tests
@@ -98,68 +98,70 @@ describe("P3: Streaming Output", () => {
      */
     function collect() {
       const chunks: string[] = [];
-      const write = (s: string) => { chunks.push(s); };
+      const write = (s: string) => {
+        chunks.push(s);
+      };
       return { chunks, write };
     }
 
-    test("writes text_delta content to output", () => {
+    test('writes text_delta content to output', () => {
       const { chunks, write } = collect();
       processMessage(
         {
-          type: "stream_event",
+          type: 'stream_event',
           event: {
-            type: "content_block_delta",
+            type: 'content_block_delta',
             index: 0,
-            delta: { type: "text_delta", text: "Hello" },
+            delta: { type: 'text_delta', text: 'Hello' },
           },
           parent_tool_use_id: null,
-          uuid: "test-uuid" as any,
-          session_id: "test-session",
+          uuid: 'test-uuid' as any,
+          session_id: 'test-session',
         },
-        write
+        write,
       );
-      expect(chunks).toEqual(["Hello"]);
+      expect(chunks).toEqual(['Hello']);
     });
 
-    test("writes dim tool tag on content_block_start for tool_use", () => {
+    test('writes dim tool tag on content_block_start for tool_use', () => {
       const { chunks, write } = collect();
       processMessage(
         {
-          type: "stream_event",
+          type: 'stream_event',
           event: {
-            type: "content_block_start",
+            type: 'content_block_start',
             index: 1,
             content_block: {
-              type: "tool_use",
-              id: "toolu_123",
-              name: "Bash",
+              type: 'tool_use',
+              id: 'toolu_123',
+              name: 'Bash',
               input: {},
             },
           },
           parent_tool_use_id: null,
-          uuid: "test-uuid" as any,
-          session_id: "test-session",
+          uuid: 'test-uuid' as any,
+          session_id: 'test-session',
         },
-        write
+        write,
       );
       expect(chunks.length).toBe(1);
-      expect(chunks[0]).toContain("[Bash]");
+      expect(chunks[0]).toContain('[Bash]');
       // Should be dim
       expect(chunks[0]).toMatch(/\x1b\[2m/);
     });
 
-    test("writes summary on success result", () => {
+    test('writes summary on success result', () => {
       const { chunks, write } = collect();
       processMessage(
         {
-          type: "result",
-          subtype: "success",
+          type: 'result',
+          subtype: 'success',
           duration_ms: 5000,
           duration_api_ms: 4000,
           is_error: false,
           num_turns: 2,
-          result: "done",
-          stop_reason: "end_turn",
+          result: 'done',
+          stop_reason: 'end_turn',
           total_cost_usd: 0.01,
           usage: {
             input_tokens: 800,
@@ -169,23 +171,23 @@ describe("P3: Streaming Output", () => {
           },
           modelUsage: {},
           permission_denials: [],
-          uuid: "test-uuid" as any,
-          session_id: "test-session",
+          uuid: 'test-uuid' as any,
+          session_id: 'test-session',
         },
-        write
+        write,
       );
       expect(chunks.length).toBe(1);
-      expect(chunks[0]).toContain("1000 tokens");
-      expect(chunks[0]).toContain("2 turns");
-      expect(chunks[0]).toContain("5.0s");
+      expect(chunks[0]).toContain('1000 tokens');
+      expect(chunks[0]).toContain('2 turns');
+      expect(chunks[0]).toContain('5.0s');
     });
 
-    test("writes red error on error result", () => {
+    test('writes red error on error result', () => {
       const { chunks, write } = collect();
       processMessage(
         {
-          type: "result",
-          subtype: "error_during_execution",
+          type: 'result',
+          subtype: 'error_during_execution',
           duration_ms: 3000,
           duration_api_ms: 2000,
           is_error: true,
@@ -200,26 +202,26 @@ describe("P3: Streaming Output", () => {
           },
           modelUsage: {},
           permission_denials: [],
-          errors: ["Connection timeout"],
-          uuid: "test-uuid" as any,
-          session_id: "test-session",
+          errors: ['Connection timeout'],
+          uuid: 'test-uuid' as any,
+          session_id: 'test-session',
         },
-        write
+        write,
       );
       expect(chunks.length).toBe(1);
-      expect(chunks[0]).toContain("error_during_execution");
-      expect(chunks[0]).toContain("Connection timeout");
+      expect(chunks[0]).toContain('error_during_execution');
+      expect(chunks[0]).toContain('Connection timeout');
       expect(chunks[0]).toMatch(/\x1b\[31m/);
     });
 
-    test("ignores unrelated message types", () => {
+    test('ignores unrelated message types', () => {
       const { chunks, write } = collect();
       processMessage(
         {
-          type: "system",
-          subtype: "init",
+          type: 'system',
+          subtype: 'init',
         } as any,
-        write
+        write,
       );
       expect(chunks).toEqual([]);
     });

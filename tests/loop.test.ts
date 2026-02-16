@@ -5,31 +5,31 @@
  * Loop mode repeats the same prompt across multiple fresh agent sessions.
  * Each iteration is independent — errors in one don't halt subsequent ones.
  */
-import { test, expect, describe } from "bun:test";
-import { formatLoopHeader } from "./stream";
-import { runLoop, type LoopConfig } from "./loop";
+import { test, expect, describe } from 'bun:test';
+import { formatLoopHeader } from '../src/stream';
+import { runLoop, type LoopConfig } from '../src/loop';
 
-describe("formatLoopHeader", () => {
-  test("infinite mode shows iteration number only", () => {
+describe('formatLoopHeader', () => {
+  test('infinite mode shows iteration number only', () => {
     const header = formatLoopHeader(3);
-    expect(header).toContain("loop 3");
+    expect(header).toContain('loop 3');
     // Should be dim (ANSI dim code)
-    expect(header).toContain("\x1b[2m");
-    expect(header).not.toContain("/");
+    expect(header).toContain('\x1b[2m');
+    expect(header).not.toContain('/');
   });
 
-  test("fixed count mode shows iteration and total", () => {
+  test('fixed count mode shows iteration and total', () => {
     const header = formatLoopHeader(2, 5);
-    expect(header).toContain("loop 2 / 5");
-    expect(header).toContain("\x1b[2m");
+    expect(header).toContain('loop 2 / 5');
+    expect(header).toContain('\x1b[2m');
   });
 });
 
 // Helpers for loop orchestration tests
 function makeSuccessResult() {
   return {
-    type: "result",
-    subtype: "success",
+    type: 'result',
+    subtype: 'success',
     usage: { input_tokens: 100, output_tokens: 50 },
     num_turns: 1,
     duration_ms: 1000,
@@ -53,86 +53,68 @@ function mockSessionFactory(opts?: { failOnIteration?: number }) {
   return { run: () => fakeSession(), calls };
 }
 
-describe("runLoop", () => {
-  test("single-run mode (no --loop): runs once, no header", async () => {
+describe('runLoop', () => {
+  test('single-run mode (no --loop): runs once, no header', async () => {
     const output: string[] = [];
     const factory = mockSessionFactory();
 
-    await runLoop(
-      { loop: false, count: undefined },
-      factory.run,
-      (s) => output.push(s)
+    await runLoop({ loop: false, count: undefined }, factory.run, (s) =>
+      output.push(s),
     );
 
     expect(factory.calls).toEqual([1]);
     // No loop header should appear
-    const joined = output.join("");
-    expect(joined).not.toContain("loop");
+    const joined = output.join('');
+    expect(joined).not.toContain('loop');
   });
 
-  test("--loop --count 3: runs exactly 3 iterations with headers", async () => {
+  test('--loop --count 3: runs exactly 3 iterations with headers', async () => {
     const output: string[] = [];
     const factory = mockSessionFactory();
 
-    await runLoop(
-      { loop: true, count: 3 },
-      factory.run,
-      (s) => output.push(s)
-    );
+    await runLoop({ loop: true, count: 3 }, factory.run, (s) => output.push(s));
 
     expect(factory.calls).toEqual([1, 2, 3]);
-    const joined = output.join("");
-    expect(joined).toContain("loop 1 / 3");
-    expect(joined).toContain("loop 2 / 3");
-    expect(joined).toContain("loop 3 / 3");
+    const joined = output.join('');
+    expect(joined).toContain('loop 1 / 3');
+    expect(joined).toContain('loop 2 / 3');
+    expect(joined).toContain('loop 3 / 3');
   });
 
-  test("--loop --count 0: runs zero iterations", async () => {
+  test('--loop --count 0: runs zero iterations', async () => {
     const output: string[] = [];
     const factory = mockSessionFactory();
 
-    await runLoop(
-      { loop: true, count: 0 },
-      factory.run,
-      (s) => output.push(s)
-    );
+    await runLoop({ loop: true, count: 0 }, factory.run, (s) => output.push(s));
 
     expect(factory.calls).toEqual([]);
   });
 
-  test("--loop --count 1: runs once with header", async () => {
+  test('--loop --count 1: runs once with header', async () => {
     const output: string[] = [];
     const factory = mockSessionFactory();
 
-    await runLoop(
-      { loop: true, count: 1 },
-      factory.run,
-      (s) => output.push(s)
-    );
+    await runLoop({ loop: true, count: 1 }, factory.run, (s) => output.push(s));
 
     expect(factory.calls).toEqual([1]);
-    const joined = output.join("");
-    expect(joined).toContain("loop 1 / 1");
+    const joined = output.join('');
+    expect(joined).toContain('loop 1 / 1');
   });
 
-  test("error in one iteration does not halt subsequent iterations", async () => {
+  test('error in one iteration does not halt subsequent iterations', async () => {
     const output: string[] = [];
     const factory = mockSessionFactory({ failOnIteration: 2 });
 
-    await runLoop(
-      { loop: true, count: 3 },
-      factory.run,
-      (s) => output.push(s)
-    );
+    await runLoop({ loop: true, count: 3 }, factory.run, (s) => output.push(s));
 
     // All 3 iterations should have been attempted
     expect(factory.calls).toEqual([1, 2, 3]);
     // Error should be displayed
-    const joined = output.join("");
-    expect(joined).toContain("iteration 2 failed");
+    const joined = output.join('');
+    expect(joined).toContain('iteration 2 failed');
   });
 
-  test("--loop without --count: runs indefinitely until aborted", async () => {
+  test('--loop without --count: runs indefinitely until aborted', async () => {
     // Test infinite mode by aborting after 3 iterations via AbortController
     const output: string[] = [];
     let callCount = 0;
@@ -148,15 +130,15 @@ describe("runLoop", () => {
       { loop: true, count: undefined },
       () => fakeSession(),
       (s) => output.push(s),
-      abort.signal
+      abort.signal,
     );
 
     expect(callCount).toBe(3);
-    const joined = output.join("");
+    const joined = output.join('');
     // Infinite mode headers show just the number, no total
-    expect(joined).toContain("loop 1");
-    expect(joined).toContain("loop 2");
-    expect(joined).toContain("loop 3");
-    expect(joined).not.toContain("/");
+    expect(joined).toContain('loop 1');
+    expect(joined).toContain('loop 2');
+    expect(joined).toContain('loop 3');
+    expect(joined).not.toContain('/');
   });
 });
