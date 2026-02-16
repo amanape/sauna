@@ -1,59 +1,73 @@
-# Codebase Complexity Findings
+# Complexity Findings
 
-## Verdict: Lean and honest
+## Verdict: Pain-driven, not ceremony-driven
 
-571 lines of source across 7 files. 1,585 lines of tests. 2 runtime dependencies. Zero gratuitous abstractions detected.
-
-Every abstraction exists because removing it would mean duplicated code or untestable code. Nothing exists for "good practice" alone.
+571 lines of source. 1,585 lines of tests. 2 runtime dependencies. Every abstraction exists because something hurt without it — not because a book said to.
 
 ---
 
-## The abstractions, judged
+## The question: pain or "good practice"?
 
-### `src/cli.ts` (10 lines) — Model alias resolution
-**Pain-driven.** Nobody wants to type `claude-sonnet-4-20250514`. A 3-entry dictionary + one function. Does one thing. Good.
+### `write` callback injection — **Pain**
+Every function takes `write: (s: string) => void` instead of calling `process.stdout.write`. This exists because the test suite needs to capture output. Without it, you'd be mocking `process.stdout` globally — fragile, stateful, breaks parallel test runs. This pattern is threaded through every file consistently. It earns its keep.
 
-### `src/claude.ts` (8 lines) — Find the Claude executable
-**Necessity-driven.** The Agent SDK needs `pathToClaudeCodeExecutable`. Both `session.ts` and `interactive.ts` call this, so extraction is justified by reuse. Not a premature abstraction — it's shared code.
+### `StreamState` — **Pain**
+Tracks `lastCharWasNewline` and `isFirstTextOutput` across a stream of SDK messages. Without it: double newlines before tool tags, leading whitespace on first output. These are real formatting bugs that showed up during development. The state object is created fresh per session/iteration and passed explicitly — no hidden globals.
 
-### `src/session.ts` (40 lines) — Session creation + prompt building
-**Reuse-driven.** `buildPrompt` is called by both `runSession` and `runInteractive`. `SessionConfig` type documents the contract clearly. The conditional model spread (`...(config.model ? { model: config.model } : {})`) avoids sending `undefined` as a property. Standard pattern.
+### `createMessageChannel()` — **Pain**
+The SDK's `query()` API requires `AsyncIterable<any>` for multi-turn prompts. You have a user typing into readline (push-based) and an SDK wanting to pull messages. This 30-line async queue bridges the two. It's a well-known async primitive implemented inline because pulling in a library for one use site would be absurd.
 
-### `src/loop.ts` (76 lines) — Loop orchestration
-**Requirements-driven.** Three distinct modes (single-run, fixed-count, infinite) with error isolation between iterations and state reset. The forever and count branches are near-duplicates (~12 lines each) — extracting a helper would save lines but obscure the flow at this scale. Acceptable.
+### `findClaude()` — **Reuse**
+Both `session.ts` and `interactive.ts` need the Claude executable path. Extracting it to 8 lines is justified by the two call sites. Not deep, not clever, just shared code.
 
-### `src/interactive.ts` (201 lines) — Interactive REPL
-**Complexity-driven.** The most complex file, and it earns it. `createMessageChannel` is not a fancy pattern choice — the SDK requires `AsyncIterable<any>` for multi-turn prompts, and this is the minimal bridge from imperative `push()` to pull-based iteration. Signal handling exists because the alternative is zombie processes. `InteractiveOverrides` (5 optional fields) is a lot of injection surface, but each field unlocks a specific test scenario that would otherwise require mocking globals.
+### `resolveModel()` — **Convenience**
+A 3-entry dictionary mapping `sonnet` → `claude-sonnet-4-20250514`. Nobody wants to type model IDs. 10 lines total.
 
-### `src/stream.ts` (148 lines) — Output formatting + state tracking
-**Correctness-driven.** `StreamState` tracks `lastCharWasNewline` and `isFirstTextOutput`. Without it: double newlines before tool tags, leading whitespace on first output. Five pure formatting functions, one stateful processor. Clean separation. The `state?: StreamState` optional parameter adds `if (state)` guards everywhere even though every caller passes state — a minor wart from backward compatibility that could be cleaned up.
+### `buildPrompt()` — **Reuse**
+Prepends context path references to the prompt. Called by both `runSession` and `runInteractive`. 5 lines of logic.
 
-### `index.ts` (88 lines) — CLI entry point
-**Structurally necessary.** Argument parsing via `cleye`, mutual exclusivity validation, dispatch to execution mode. `SAUNA_DRY_RUN` env-var escape hatch lets tests verify argument parsing without invoking the agent. Pragmatic.
+### `InteractiveOverrides` — **Pain (testing)**
+5 optional fields: `input`, `promptOutput`, `createQuery`, `addSignalHandler`, `removeSignalHandler`. This is a lot of injection surface. But each field unlocks a specific test scenario: fake stdin, captured prompt output, mock query factory, signal handler verification. The alternative is mocking `process.stdin`, `process.stderr`, `process.on`, and the SDK — all global state. The override bag is the lesser evil.
 
----
+### `SAUNA_DRY_RUN` env var — **Pain (testing)**
+The CLI entry point (`index.ts`) has an escape hatch: if `SAUNA_DRY_RUN=1`, print parsed args as JSON and exit. This lets `cli.test.ts` verify argument parsing as a subprocess without invoking the agent. Common pattern for CLIs that are otherwise hard to test.
 
-## Design decisions worth calling out
-
-**`write` callback injection everywhere** — Instead of calling `process.stdout.write` directly, every function takes a `write: (s: string) => void` parameter. This makes the entire output pipeline testable without mocking globals. Applied consistently across all files. Good pattern.
-
-**`SAUNA_DRY_RUN`** — The entry point has a mode that prints parsed args as JSON and exits, used by `cli.test.ts`. Avoids the common trap of untestable CLI entry points.
-
-**`permissionMode: "bypassPermissions"`** — The agent runs fully autonomous with no permission prompts. Intentional for a non-interactive agent runner, but worth being aware of — this tool gives Claude Code unrestricted access to whatever it's pointed at.
-
-**No shared config object** — Session options (system prompt, permission mode, etc.) are duplicated between `runSession` and `runInteractive` rather than extracted into a shared builder. There are exactly 2 call sites and the options are stable. Acceptable.
+### `LoopConfig` / `SessionConfig` / `InteractiveConfig` — **Documentation**
+Small type aliases for function parameters. These are "good practice" in the boring, useful sense — they name the shape of data flowing between functions. No inheritance, no generics, no ceremony.
 
 ---
 
-## What's not here (and shouldn't be)
+## What's not abstracted (correctly)
 
-- No config file abstraction. Env vars are enough.
-- No plugin system. Not in scope.
-- No logging framework. `process.stdout.write` is fine.
-- No custom error classes. Try-catch with formatted output works.
-- No dependency injection container. Function parameters work.
-- No unnecessary generics. Types are concrete.
-- No abstract base classes, strategy patterns, or factory-of-factories.
+**Duplicated query options** — `session.ts:28-38` and `interactive.ts:127-135` both construct the same `options` object (system prompt, permission mode, etc.) independently. There's no shared builder. With exactly 2 call sites and stable options, this is the right call. The risk: if one changes and the other doesn't, behavior silently diverges. Worth knowing, not worth fixing yet.
+
+**Loop branch duplication** — `loop.ts` has near-identical `for` loops for forever mode (lines 34-48) and count mode (lines 53-67). Extracting a shared helper would save ~12 lines but add indirection. At 76 total lines, readability wins.
+
+**No error class hierarchy** — Errors are caught with `catch (err: any)` and formatted inline with ANSI codes. No custom error types, no error middleware. For a CLI that either works or prints a red message, this is fine.
+
+**No logging framework** — `write()` to stdout, `process.stderr.write()` for prompts. That's all a CLI this size needs.
+
+**No config file** — Flags and env vars only. No `.saunarc`, no YAML/TOML config, no config schema validation. Correct for the scope.
+
+---
+
+## Actual issues
+
+### Real
+
+1. **`findClaude()` has no error handling** (`src/claude.ts:6`) — `execSync("which claude")` throws a raw `child_process` error if Claude Code isn't installed. Users see a stack trace instead of "Claude Code not found on PATH." This is the most user-facing bug.
+
+2. **`msg: any` typing in `processMessage`** (`src/stream.ts:77`) — The SDK message type is not imported or modeled. Deep property access chains (`msg.event.delta.type`, `msg.event.content_block.type`) are untyped. If the SDK changes its streaming protocol, the compiler won't catch it.
+
+3. **`state?: StreamState` is optional but always passed** (`src/stream.ts:77`) — Every caller passes state, but the parameter is optional, creating `if (state)` guards that are dead code in practice. This isn't backward compatibility — the optional form was never a public API. Should just be required.
+
+### Minor
+
+4. **`err: any` in catch blocks** — `err.message` is accessed without verifying `err` is an `Error`. If something throws a string, output shows `undefined`. Low risk.
+
+5. **No validation of `--count` negative values** — `--count -1` silently does nothing. Not a crash, but confusing.
+
+6. **Stale model aliases** — Aliases point to `claude-*-4-2025*` models. These will need updating as new models ship.
 
 ---
 
@@ -65,47 +79,15 @@ Every abstraction exists because removing it would mean duplicated code or untes
 | Test lines | 1,585 |
 | Test:source ratio | 2.8:1 |
 | Source files | 7 |
-| Exported functions | ~12 |
-| Runtime dependencies | 2 (`@anthropic-ai/claude-agent-sdk`, `cleye`) |
+| Runtime dependencies | 2 |
+| "Good practice" abstractions | 0 |
+| Pain-driven abstractions | ~8 |
 | Pass-through layers | 0 |
-| Unused abstractions | 0 |
 
 ---
 
-## Dependency choices
+## Bottom line
 
-- `cleye` over `commander`/`yargs` — lightweight, declarative, no bloat. Good choice.
-- Two runtime deps total. The dependency tree is what it needs to be.
-- `yaml` is dev-only, used in one test to parse the GitHub Actions workflow. Fine.
+This is a 571-line CLI that reads like a 571-line CLI. You can understand the entire system in 15 minutes. Every file does one thing. The test suite is thorough without being theatrical. The abstractions are scars from real problems — formatting bugs, testability needs, SDK API requirements — not from architecture astronautics.
 
----
-
-## Actual issues found
-
-### Real problems
-
-1. **No error handling in `findClaude()`** (`src/claude.ts:6`) — `execSync("which claude")` throws a raw Node `child_process` error if Claude Code isn't installed. Both `runSession` and `runInteractive` call this. Users see a confusing stack trace instead of "Claude Code not found on PATH." This is the most user-facing bug in the codebase.
-
-2. **`msg: any` typing in `processMessage`** (`src/stream.ts:77`) — The SDK message type is not imported or modeled. The function dereferences `msg.type`, `msg.event.type`, `msg.event.delta.type`, `msg.event.content_block.type` all without type safety. If the SDK changes its streaming protocol, the compiler won't catch it.
-
-3. **Stale model aliases** (`src/cli.ts:1-5`) — Aliases point to `claude-*-4-2025*` models. These may be outdated. Documented in project tasks but not yet fixed.
-
-### Minor items
-
-4. **`err: any` in catch blocks** (`src/loop.ts:44,64`, `src/interactive.ts:193`) — Accesses `err.message` without checking if `err` is actually an `Error` instance. If something throws a string, this produces `undefined` in the output. Low risk in practice.
-
-5. **Loop branch duplication** (`src/loop.ts:34-48` vs `53-67`) — The forever and count branches are nearly identical. Saves ~12 lines to extract but adds a layer. Acceptable at 76 total lines.
-
-6. **`StreamState` optionality** (`src/stream.ts`) — `state?: StreamState` is optional but every caller passes it. The `if (state)` guards are dead code in production. Cosmetic.
-
-7. **No validation of `--count` negative values** — `--count -1` silently does nothing (loop condition `i <= -1` is immediately false). Not a crash, but not great UX.
-
----
-
-## Summary
-
-This codebase is appropriately engineered for a 571-line CLI tool. Abstractions exist from pain (shared code, testability, visual correctness), not from principle. The test suite is thorough at 2.8:1 without being theatrical. The architecture is obvious — you can understand the entire system in 15 minutes by reading 7 files.
-
-The biggest gap is user-facing error handling at the `findClaude` boundary. Everything else is cosmetic or low-severity.
-
-If anything, the risk is that it's *too* lean — future features might need structural changes. But that's a problem for future features, not for today. YAGNI applied correctly.
+The biggest risk isn't over-engineering. It's that the codebase is so lean that future features (auth, config profiles, plugin support) would need structural changes. But that's a problem for when those features exist, not before. YAGNI applied correctly.
