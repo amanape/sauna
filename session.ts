@@ -1,4 +1,11 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { realpathSync } from "node:fs";
+import { execSync } from "node:child_process";
+
+function findClaude(): string {
+  const which = execSync("which claude", { encoding: "utf-8" }).trim();
+  return realpathSync(which);
+}
 
 /**
  * Prepends context path references to the prompt so the agent knows
@@ -27,6 +34,7 @@ export function runSession(config: SessionConfig) {
   return query({
     prompt: fullPrompt,
     options: {
+      pathToClaudeCodeExecutable: findClaude(),
       systemPrompt: { type: "preset", preset: "claude_code" },
       settingSources: ["user", "project"],
       permissionMode: "bypassPermissions",
