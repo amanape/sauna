@@ -3,8 +3,7 @@ import { resolveModel } from "./src/cli";
 import { runSession } from "./src/session";
 import { runLoop } from "./src/loop";
 import { runInteractive } from "./src/interactive";
-
-const pkg = await Bun.file("package.json").json();
+import pkg from "./package.json";
 
 const argv = cli(
   {
