@@ -1,36 +1,73 @@
-import { test, expect, describe, mock, beforeEach } from "bun:test";
+import { test, expect, describe, mock } from "bun:test";
 import { PassThrough } from "node:stream";
 
-// Mock the SDK so session.ts's import of `query` resolves
+// Mock the SDK so interactive.ts's import of `query` resolves
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  unstable_v2_createSession: () => {
-    throw new Error("should not be called — use overrides.createSession");
+  query: () => {
+    throw new Error("should not be called — use overrides.createQuery");
   },
-  query: () => (async function* () {})(),
 }));
 
 const { runInteractive } = await import("../src/interactive");
 
-/** Creates a fake SDKSession with controllable stream output */
-function createMockSession() {
-  const messages: any[][] = [];
-  let currentMessages: any[] = [];
+const successResult = (overrides?: Partial<any>) => ({
+  type: "result",
+  subtype: "success",
+  result: "ok",
+  usage: { input_tokens: 100, output_tokens: 50 },
+  num_turns: 1,
+  duration_ms: 1000,
+  session_id: "test-session-id",
+  ...overrides,
+});
 
-  return {
-    session: {
-      sessionId: "test-session-id",
-      send: mock(async () => {}),
-      stream: mock(async function* () {
-        const msgs = messages.shift() ?? [];
-        for (const msg of msgs) {
+const textDelta = (text: string) => ({
+  type: "stream_event",
+  event: {
+    type: "content_block_delta",
+    delta: { type: "text_delta", text },
+  },
+  session_id: "test-session-id",
+});
+
+/**
+ * Creates a mock Query object that reads from an AsyncIterable prompt.
+ *
+ * For each message read from the prompt iterable, the mock yields the
+ * next queued turn's messages. This mirrors how the real SDK processes
+ * multi-turn conversations via AsyncIterable prompts.
+ */
+function createMockQuery() {
+  const turns: any[][] = [];
+  const receivedMessages: any[] = [];
+
+  function createQuery(params: { prompt: AsyncIterable<any>; options: any }) {
+    const gen = (async function* () {
+      for await (const inputMsg of params.prompt) {
+        receivedMessages.push(inputMsg);
+        const turnMsgs = turns.shift() ?? [];
+        for (const msg of turnMsgs) {
           yield msg;
         }
-      }),
-      close: mock(() => {}),
+      }
+    })();
+
+    const q = gen as any;
+    q.close = mock(() => {
+      gen.return(undefined as any);
+    });
+    return q;
+  }
+
+  return {
+    createQuery,
+    /** Queue messages that the generator will yield for the next turn */
+    queueTurn(msgs: any[]) {
+      turns.push(msgs);
     },
-    /** Queue messages that stream() will yield on the next call */
-    queueMessages(msgs: any[]) {
-      messages.push(msgs);
+    /** Get all user messages received from the prompt iterable */
+    get messages() {
+      return receivedMessages;
     },
   };
 }
@@ -49,35 +86,17 @@ function createFakeStdin() {
   };
 }
 
-const successResult = (overrides?: Partial<any>) => ({
-  type: "result",
-  subtype: "success",
-  usage: { input_tokens: 100, output_tokens: 50 },
-  num_turns: 1,
-  duration_ms: 1000,
-  ...overrides,
-});
-
-const textDelta = (text: string) => ({
-  type: "stream_event",
-  event: {
-    type: "content_block_delta",
-    delta: { type: "text_delta", text },
-  },
-});
-
 describe("P2: Interactive Mode", () => {
   test("sends first prompt with context, streams response, then exits on empty input", async () => {
-    const { session, queueMessages } = createMockSession();
+    const mockQuery = createMockQuery();
     const stdin = createFakeStdin();
     const output: string[] = [];
     const write = (s: string) => output.push(s);
 
     // Queue response for first turn
-    queueMessages([textDelta("Hello from agent\n"), successResult()]);
+    mockQuery.queueTurn([textDelta("Hello from agent\n"), successResult()]);
 
     // After first turn, readline will prompt — send empty line to exit
-    // Use setTimeout to send after readline is waiting
     setTimeout(() => stdin.writeLine(""), 50);
 
     await runInteractive(
@@ -86,34 +105,27 @@ describe("P2: Interactive Mode", () => {
       {
         input: stdin.stream,
         promptOutput: new PassThrough(),
-        createSession: () => session,
+        createQuery: mockQuery.createQuery,
       },
     );
 
-    // First turn should have sent the prompt with context
-    expect(session.send).toHaveBeenCalledTimes(1);
-    const sentPrompt = (session.send as any).mock.calls[0][0];
-    expect(sentPrompt).toContain("foo.md");
-    expect(sentPrompt).toContain("test prompt");
-
-    // Should have streamed the response
-    expect(session.stream).toHaveBeenCalledTimes(1);
+    // First message should contain prompt with context
+    expect(mockQuery.messages).toHaveLength(1);
+    expect(mockQuery.messages[0].message.content).toContain("foo.md");
+    expect(mockQuery.messages[0].message.content).toContain("test prompt");
 
     // Output should contain the agent's response
     const fullOutput = output.join("");
     expect(fullOutput).toContain("Hello from agent");
-
-    // Session should be closed
-    expect(session.close).toHaveBeenCalledTimes(1);
   });
 
   test("empty input exits the REPL immediately", async () => {
-    const { session, queueMessages } = createMockSession();
+    const mockQuery = createMockQuery();
     const stdin = createFakeStdin();
     const output: string[] = [];
 
     // Queue response for first turn
-    queueMessages([textDelta("response\n"), successResult()]);
+    mockQuery.queueTurn([textDelta("response\n"), successResult()]);
 
     // Send empty line immediately after first turn
     setTimeout(() => stdin.writeLine(""), 50);
@@ -124,20 +136,19 @@ describe("P2: Interactive Mode", () => {
       {
         input: stdin.stream,
         promptOutput: new PassThrough(),
-        createSession: () => session,
+        createQuery: mockQuery.createQuery,
       },
     );
 
-    // Only one turn should have been sent
-    expect(session.send).toHaveBeenCalledTimes(1);
-    expect(session.close).toHaveBeenCalledTimes(1);
+    // Only one message should have been sent (the first prompt)
+    expect(mockQuery.messages).toHaveLength(1);
   });
 
   test("EOF (Ctrl+D) exits the REPL", async () => {
-    const { session, queueMessages } = createMockSession();
+    const mockQuery = createMockQuery();
     const stdin = createFakeStdin();
 
-    queueMessages([textDelta("hi\n"), successResult()]);
+    mockQuery.queueTurn([textDelta("hi\n"), successResult()]);
 
     // Send EOF after first turn
     setTimeout(() => stdin.end(), 50);
@@ -148,25 +159,24 @@ describe("P2: Interactive Mode", () => {
       {
         input: stdin.stream,
         promptOutput: new PassThrough(),
-        createSession: () => session,
+        createQuery: mockQuery.createQuery,
       },
     );
 
-    expect(session.send).toHaveBeenCalledTimes(1);
-    expect(session.close).toHaveBeenCalledTimes(1);
+    expect(mockQuery.messages).toHaveLength(1);
   });
 
-  test("multi-turn: subsequent turns do not include context paths", async () => {
-    const { session, queueMessages } = createMockSession();
+  test("multi-turn: follow-up messages are sent via the prompt iterable", async () => {
+    const mockQuery = createMockQuery();
     const stdin = createFakeStdin();
 
     // Queue responses for two turns
-    queueMessages([textDelta("first response\n"), successResult()]);
-    queueMessages([textDelta("second response\n"), successResult()]);
+    mockQuery.queueTurn([textDelta("first response\n"), successResult()]);
+    mockQuery.queueTurn([textDelta("second response\n"), successResult()]);
 
     // After first turn, send a follow-up, then empty to exit
     setTimeout(() => stdin.writeLine("follow up question"), 50);
-    setTimeout(() => stdin.writeLine(""), 150);
+    setTimeout(() => stdin.writeLine(""), 200);
 
     await runInteractive(
       { prompt: "initial prompt", model: "claude-sonnet-4-20250514", context: ["ctx.md"] },
@@ -174,42 +184,47 @@ describe("P2: Interactive Mode", () => {
       {
         input: stdin.stream,
         promptOutput: new PassThrough(),
-        createSession: () => session,
+        createQuery: mockQuery.createQuery,
       },
     );
 
-    expect(session.send).toHaveBeenCalledTimes(2);
+    // First message includes context
+    expect(mockQuery.messages[0].message.content).toContain("ctx.md");
+    expect(mockQuery.messages[0].message.content).toContain("initial prompt");
 
-    // First call: includes context
-    const firstCall = (session.send as any).mock.calls[0][0];
-    expect(firstCall).toContain("ctx.md");
-    expect(firstCall).toContain("initial prompt");
-
-    // Second call: raw input, no context
-    const secondCall = (session.send as any).mock.calls[1][0];
-    expect(secondCall).toBe("follow up question");
-    expect(secondCall).not.toContain("ctx.md");
+    // Follow-up was sent via the prompt iterable (not streamInput)
+    expect(mockQuery.messages).toHaveLength(2);
+    const followUp = mockQuery.messages[1];
+    expect(followUp.type).toBe("user");
+    expect(followUp.message.content).toBe("follow up question");
+    expect(followUp.session_id).toBe("test-session-id");
+    expect(followUp.parent_tool_use_id).toBeNull();
   });
 
   test("agent error mid-session does not terminate the REPL", async () => {
-    const { session } = createMockSession();
+    const mockQuery = createMockQuery();
     const stdin = createFakeStdin();
     const output: string[] = [];
 
-    // First turn: stream throws an error
-    let streamCallCount = 0;
-    session.stream = mock(async function* () {
-      streamCallCount++;
-      if (streamCallCount === 1) {
-        throw new Error("agent exploded");
-      }
-      yield textDelta("recovered\n");
-      yield successResult();
-    }) as any;
+    // First turn throws an error result
+    mockQuery.queueTurn([
+      textDelta("partial\n"),
+      {
+        type: "result",
+        subtype: "error_during_execution",
+        errors: ["agent exploded"],
+        usage: { input_tokens: 10, output_tokens: 5 },
+        num_turns: 1,
+        duration_ms: 500,
+        session_id: "test-session-id",
+      },
+    ]);
+    // Second turn succeeds
+    mockQuery.queueTurn([textDelta("recovered\n"), successResult()]);
 
     // After error on first turn, send another prompt, then exit
     setTimeout(() => stdin.writeLine("try again"), 50);
-    setTimeout(() => stdin.writeLine(""), 150);
+    setTimeout(() => stdin.writeLine(""), 200);
 
     await runInteractive(
       { prompt: "cause error", model: "claude-sonnet-4-20250514", context: [] },
@@ -217,7 +232,7 @@ describe("P2: Interactive Mode", () => {
       {
         input: stdin.stream,
         promptOutput: new PassThrough(),
-        createSession: () => session,
+        createQuery: mockQuery.createQuery,
       },
     );
 
@@ -228,17 +243,16 @@ describe("P2: Interactive Mode", () => {
     // Second turn should have succeeded
     expect(fullOutput).toContain("recovered");
 
-    // Two sends total
-    expect(session.send).toHaveBeenCalledTimes(2);
-    expect(session.close).toHaveBeenCalledTimes(1);
+    // Both turns should have messages
+    expect(mockQuery.messages).toHaveLength(2);
   });
 
   test("no CLI prompt reads first input from readline", async () => {
-    const { session, queueMessages } = createMockSession();
+    const mockQuery = createMockQuery();
     const stdin = createFakeStdin();
     const promptOutput = new PassThrough();
 
-    queueMessages([textDelta("hi\n"), successResult()]);
+    mockQuery.queueTurn([textDelta("hi\n"), successResult()]);
 
     // Send the first prompt via stdin, then exit
     setTimeout(() => stdin.writeLine("hello from stdin"), 50);
@@ -250,17 +264,16 @@ describe("P2: Interactive Mode", () => {
       {
         input: stdin.stream,
         promptOutput,
-        createSession: () => session,
+        createQuery: mockQuery.createQuery,
       },
     );
 
-    expect(session.send).toHaveBeenCalledTimes(1);
-    const sent = (session.send as any).mock.calls[0][0];
-    expect(sent).toBe("hello from stdin");
+    expect(mockQuery.messages).toHaveLength(1);
+    expect(mockQuery.messages[0].message.content).toBe("hello from stdin");
   });
 
   test("no CLI prompt with immediate EOF exits without sending", async () => {
-    const { session } = createMockSession();
+    const mockQuery = createMockQuery();
     const stdin = createFakeStdin();
 
     // Immediately end stdin — should exit without sending
@@ -272,11 +285,224 @@ describe("P2: Interactive Mode", () => {
       {
         input: stdin.stream,
         promptOutput: new PassThrough(),
-        createSession: () => session,
+        createQuery: mockQuery.createQuery,
       },
     );
 
-    expect(session.send).not.toHaveBeenCalled();
-    expect(session.close).toHaveBeenCalledTimes(1);
+    // No query should have been created — no messages received
+    expect(mockQuery.messages).toHaveLength(0);
+  });
+
+  test("query options match non-interactive session configuration", async () => {
+    let capturedOptions: any = null;
+    const stdin = createFakeStdin();
+
+    function createQuery(params: { prompt: AsyncIterable<any>; options: any }) {
+      capturedOptions = params.options;
+      // Return a minimal query-like object that consumes the iterable
+      const gen = (async function* () {
+        for await (const _ of params.prompt) {
+          yield successResult();
+          break;
+        }
+      })();
+      const q = gen as any;
+      q.close = mock(() => { gen.return(undefined); });
+      return q;
+    }
+
+    setTimeout(() => stdin.writeLine(""), 50);
+
+    await runInteractive(
+      { prompt: "test", context: [] },
+      () => {},
+      {
+        input: stdin.stream,
+        promptOutput: new PassThrough(),
+        createQuery,
+      },
+    );
+
+    // Verify all config parity options are present
+    expect(capturedOptions.systemPrompt).toEqual({ type: "preset", preset: "claude_code" });
+    expect(capturedOptions.settingSources).toEqual(["user", "project"]);
+    expect(capturedOptions.permissionMode).toBe("bypassPermissions");
+    expect(capturedOptions.allowDangerouslySkipPermissions).toBe(true);
+    expect(capturedOptions.includePartialMessages).toBe(true);
+  });
+
+  test("model is omitted from options when not specified", async () => {
+    let capturedOptions: any = null;
+    const stdin = createFakeStdin();
+
+    function createQuery(params: { prompt: AsyncIterable<any>; options: any }) {
+      capturedOptions = params.options;
+      const gen = (async function* () {
+        for await (const _ of params.prompt) {
+          yield successResult();
+          break;
+        }
+      })();
+      const q = gen as any;
+      q.close = mock(() => { gen.return(undefined); });
+      return q;
+    }
+
+    setTimeout(() => stdin.writeLine(""), 50);
+
+    await runInteractive(
+      { prompt: "test", context: [] },
+      () => {},
+      {
+        input: stdin.stream,
+        promptOutput: new PassThrough(),
+        createQuery,
+      },
+    );
+
+    // Model should NOT be in options — defer to SDK default
+    expect(capturedOptions).not.toHaveProperty("model");
+  });
+
+  test("SIGINT during query calls close() for graceful cleanup", async () => {
+    const mockQuery = createMockQuery();
+    const stdin = createFakeStdin();
+    let capturedQuery: any = null;
+
+    const originalCreateQuery = mockQuery.createQuery;
+    function wrappedCreateQuery(params: { prompt: AsyncIterable<any>; options: any }) {
+      capturedQuery = originalCreateQuery(params);
+      return capturedQuery;
+    }
+
+    // Queue a first turn response — the generator will pause after this
+    mockQuery.queueTurn([textDelta("working...\n"), successResult()]);
+
+    // When the REPL prompts after the first result, simulate SIGINT
+    // before the user types anything
+    const signalHandlers: Map<string, (...args: any[]) => void> = new Map();
+
+    setTimeout(() => {
+      // Simulate SIGINT while waiting for input
+      const handler = signalHandlers.get("SIGINT");
+      if (handler) handler("SIGINT");
+    }, 50);
+
+    await runInteractive(
+      { prompt: "test", model: "claude-sonnet-4-20250514", context: [] },
+      () => {},
+      {
+        input: stdin.stream,
+        promptOutput: new PassThrough(),
+        createQuery: wrappedCreateQuery,
+        addSignalHandler: (signal, handler) => {
+          signalHandlers.set(signal, handler);
+        },
+        removeSignalHandler: (signal) => {
+          signalHandlers.delete(signal);
+        },
+      },
+    );
+
+    // q.close() should have been called for cleanup
+    expect(capturedQuery.close).toHaveBeenCalled();
+  });
+
+  test("SIGTERM during query calls close() for graceful cleanup", async () => {
+    const mockQuery = createMockQuery();
+    const stdin = createFakeStdin();
+    let capturedQuery: any = null;
+
+    const originalCreateQuery = mockQuery.createQuery;
+    function wrappedCreateQuery(params: { prompt: AsyncIterable<any>; options: any }) {
+      capturedQuery = originalCreateQuery(params);
+      return capturedQuery;
+    }
+
+    mockQuery.queueTurn([textDelta("working...\n"), successResult()]);
+
+    const signalHandlers: Map<string, (...args: any[]) => void> = new Map();
+
+    setTimeout(() => {
+      const handler = signalHandlers.get("SIGTERM");
+      if (handler) handler("SIGTERM");
+    }, 50);
+
+    await runInteractive(
+      { prompt: "test", model: "claude-sonnet-4-20250514", context: [] },
+      () => {},
+      {
+        input: stdin.stream,
+        promptOutput: new PassThrough(),
+        createQuery: wrappedCreateQuery,
+        addSignalHandler: (signal, handler) => {
+          signalHandlers.set(signal, handler);
+        },
+        removeSignalHandler: (signal) => {
+          signalHandlers.delete(signal);
+        },
+      },
+    );
+
+    expect(capturedQuery.close).toHaveBeenCalled();
+  });
+
+  test("signal handlers are removed after REPL exits normally", async () => {
+    const mockQuery = createMockQuery();
+    const stdin = createFakeStdin();
+    const removedSignals: string[] = [];
+
+    mockQuery.queueTurn([textDelta("hi\n"), successResult()]);
+    setTimeout(() => stdin.writeLine(""), 50);
+
+    await runInteractive(
+      { prompt: "test", model: "claude-sonnet-4-20250514", context: [] },
+      () => {},
+      {
+        input: stdin.stream,
+        promptOutput: new PassThrough(),
+        createQuery: mockQuery.createQuery,
+        addSignalHandler: () => {},
+        removeSignalHandler: (signal) => {
+          removedSignals.push(signal);
+        },
+      },
+    );
+
+    // Both handlers should have been cleaned up
+    expect(removedSignals).toContain("SIGINT");
+    expect(removedSignals).toContain("SIGTERM");
+  });
+
+  test("model is forwarded when specified via --model", async () => {
+    let capturedOptions: any = null;
+    const stdin = createFakeStdin();
+
+    function createQuery(params: { prompt: AsyncIterable<any>; options: any }) {
+      capturedOptions = params.options;
+      const gen = (async function* () {
+        for await (const _ of params.prompt) {
+          yield successResult();
+          break;
+        }
+      })();
+      const q = gen as any;
+      q.close = mock(() => { gen.return(undefined); });
+      return q;
+    }
+
+    setTimeout(() => stdin.writeLine(""), 50);
+
+    await runInteractive(
+      { prompt: "test", model: "claude-opus-4-20250514", context: [] },
+      () => {},
+      {
+        input: stdin.stream,
+        promptOutput: new PassThrough(),
+        createQuery,
+      },
+    );
+
+    expect(capturedOptions.model).toBe("claude-opus-4-20250514");
   });
 });

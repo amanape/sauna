@@ -1,25 +1,17 @@
 /**
  * Interactive multi-turn REPL for sauna CLI.
  *
- * Uses the SDK v2 session APIs to maintain conversation context across turns.
- * The readline prompt is written to stderr so it does not mix with agent output
- * on stdout.
+ * Uses the v1 query() API with an AsyncIterable prompt for multi-turn
+ * conversations, matching the same agent configuration as the non-interactive
+ * path. The readline prompt is written to stderr so it does not mix with
+ * agent output on stdout.
  */
-import {
-  unstable_v2_createSession,
-  type SDKSessionOptions,
-} from "@anthropic-ai/claude-agent-sdk";
+import { query, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { createInterface } from "node:readline";
 import { processMessage, createStreamState } from "./stream";
 import { buildPrompt } from "./session";
-import { realpathSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { findClaude } from "./claude";
 import type { Readable, Writable } from "node:stream";
-
-function findClaude(): string {
-  const which = execSync("which claude", { encoding: "utf-8" }).trim();
-  return realpathSync(which);
-}
 
 export type InteractiveConfig = {
   prompt?: string;
@@ -27,11 +19,16 @@ export type InteractiveConfig = {
   context: string[];
 };
 
-/** Optional overrides for testing — inject custom streams or session factory. */
+/** Options passed to query() — mirrors the non-interactive session options. */
+export type QueryOptions = Parameters<typeof query>[0]["options"];
+
+/** Optional overrides for testing — inject custom streams or query factory. */
 export type InteractiveOverrides = {
   input?: Readable;
   promptOutput?: Writable;
-  createSession?: (options: SDKSessionOptions) => any;
+  createQuery?: (params: { prompt: AsyncIterable<any>; options: QueryOptions }) => Query;
+  addSignalHandler?: (signal: string, handler: (...args: any[]) => void) => void;
+  removeSignalHandler?: (signal: string, handler: (...args: any[]) => void) => void;
 };
 
 /**
@@ -55,10 +52,46 @@ function readLine(rl: ReturnType<typeof createInterface>): Promise<string | null
 }
 
 /**
+ * Simple async message channel. Push user messages to feed the query;
+ * the query reads from the channel's async iterator on each turn.
+ */
+function createMessageChannel() {
+  let resolve: ((msg: any) => void) | null = null;
+  const pending: any[] = [];
+
+  return {
+    push(msg: any) {
+      if (resolve) {
+        const r = resolve;
+        resolve = null;
+        r(msg);
+      } else {
+        pending.push(msg);
+      }
+    },
+    async *[Symbol.asyncIterator]() {
+      while (true) {
+        let msg;
+        if (pending.length > 0) {
+          msg = pending.shift();
+        } else {
+          msg = await new Promise<any>((r) => {
+            resolve = r;
+          });
+        }
+        if (msg === null) return;
+        yield msg;
+      }
+    },
+  };
+}
+
+/**
  * Runs the interactive REPL loop.
  *
- * - Creates a persistent session on the first turn
- * - Context paths are only included in the first prompt
+ * - Starts a v1 query() session with an AsyncIterable prompt for multi-turn
+ * - Extracts session_id from result messages for follow-up turns
+ * - Follow-up input is pushed to the message channel, which the query reads
  * - Empty input or Ctrl+D exits cleanly (exit code 0)
  * - Agent errors are printed but do not end the session
  */
@@ -67,69 +100,102 @@ export async function runInteractive(
   write: (s: string) => void,
   overrides?: InteractiveOverrides,
 ): Promise<void> {
-  const sessionOptions: SDKSessionOptions = {
-    model: config.model ?? "claude-sonnet-4-20250514",
-    pathToClaudeCodeExecutable: findClaude(),
-    permissionMode: "bypassPermissions",
-  };
-
-  const createSessionFn = overrides?.createSession ?? unstable_v2_createSession;
-  const session = createSessionFn(sessionOptions);
-
   const rl = createInterface({
     input: overrides?.input ?? process.stdin,
     output: overrides?.promptOutput ?? process.stderr,
     prompt: "> ",
   });
 
-  try {
-    // Determine first prompt: from CLI arg or first readline input
-    let firstInput: string;
-    if (config.prompt) {
-      firstInput = config.prompt;
-    } else {
-      rl.prompt();
-      const line = await readLine(rl);
-      if (line === null || line.trim() === "") {
-        return;
-      }
-      firstInput = line;
+  // Determine first prompt: from CLI arg or first readline input
+  let firstInput: string;
+  if (config.prompt) {
+    firstInput = config.prompt;
+  } else {
+    rl.prompt();
+    const line = await readLine(rl);
+    if (line === null || line.trim() === "") {
+      rl.close();
+      return;
     }
+    firstInput = line;
+  }
 
-    // First turn: include context paths
-    const fullPrompt = buildPrompt(firstInput, config.context);
-    await session.send(fullPrompt);
-    let state = createStreamState();
-    try {
-      for await (const msg of session.stream()) {
-        processMessage(msg, write, state);
-      }
-    } catch (err: any) {
-      write(`\x1b[31merror: ${err.message}\x1b[0m\n`);
-    }
+  // Build the full first prompt with context paths
+  const fullPrompt = buildPrompt(firstInput, config.context);
 
-    // Subsequent turns: no context paths
-    while (true) {
-      rl.prompt();
-      const input = await readLine(rl);
+  // Query options matching non-interactive session path
+  const options: QueryOptions = {
+    pathToClaudeCodeExecutable: findClaude(),
+    systemPrompt: { type: "preset", preset: "claude_code" },
+    settingSources: ["user", "project"],
+    permissionMode: "bypassPermissions",
+    allowDangerouslySkipPermissions: true,
+    includePartialMessages: true,
+    ...(config.model ? { model: config.model } : {}),
+  };
 
-      // Empty input or EOF exits
-      if (input === null || input.trim() === "") {
-        break;
-      }
+  // Create message channel for multi-turn input — push first message immediately
+  const messages = createMessageChannel();
+  messages.push({
+    type: "user",
+    message: { role: "user", content: fullPrompt },
+    session_id: "",
+    parent_tool_use_id: null,
+  });
 
-      await session.send(input);
-      state = createStreamState();
-      try {
-        for await (const msg of session.stream()) {
-          processMessage(msg, write, state);
-        }
-      } catch (err: any) {
-        write(`\x1b[31merror: ${err.message}\x1b[0m\n`);
-      }
-    }
-  } finally {
+  const createQueryFn = overrides?.createQuery ?? query;
+  const q = createQueryFn({ prompt: messages, options });
+
+  // Register signal handlers for graceful cleanup on SIGINT/SIGTERM
+  const addSignal = overrides?.addSignalHandler ?? ((sig: string, fn: (...args: any[]) => void) => process.on(sig, fn));
+  const removeSignal = overrides?.removeSignalHandler ?? ((sig: string, fn: (...args: any[]) => void) => process.removeListener(sig, fn));
+
+  const onSignal = () => {
     rl.close();
-    session.close();
+    q.close();
+  };
+  addSignal("SIGINT", onSignal);
+  addSignal("SIGTERM", onSignal);
+
+  try {
+    let sessionId: string | undefined;
+    let state = createStreamState();
+
+    // Process all messages across turns from the query generator
+    for await (const msg of q) {
+      // Extract session_id from any message that carries one
+      if ("session_id" in msg && typeof msg.session_id === "string") {
+        sessionId = msg.session_id;
+      }
+
+      processMessage(msg, write, state);
+
+      // After a result message, prompt for follow-up input
+      if (msg.type === "result") {
+        rl.prompt();
+        const input = await readLine(rl);
+
+        // Empty input or EOF exits
+        if (input === null || input.trim() === "") {
+          break;
+        }
+
+        // Reset stream state and push follow-up message to the channel
+        state = createStreamState();
+        messages.push({
+          type: "user",
+          message: { role: "user", content: input },
+          session_id: sessionId ?? "",
+          parent_tool_use_id: null,
+        });
+      }
+    }
+  } catch (err: any) {
+    write(`\x1b[31merror: ${err.message}\x1b[0m\n`);
+  } finally {
+    removeSignal("SIGINT", onSignal);
+    removeSignal("SIGTERM", onSignal);
+    rl.close();
+    q.close();
   }
 }
