@@ -5,8 +5,7 @@
  * and error isolation between iterations. Accepts a session factory and
  * write callback for testability — no direct SDK or stdout dependency.
  */
-import { formatLoopHeader } from "./stream";
-import { processMessage } from "./stream";
+import { formatLoopHeader, processMessage, createStreamState } from "./stream";
 
 export type LoopConfig = {
   forever: boolean;
@@ -36,10 +35,11 @@ export async function runLoop(
     for (let i = 1; ; i++) {
       if (signal?.aborted) break;
       write(formatLoopHeader(i) + "\n");
+      const state = createStreamState();
       try {
         const session = createSession();
         for await (const msg of session) {
-          processMessage(msg, write);
+          processMessage(msg, write, state);
         }
       } catch (err: any) {
         write(`\x1b[31merror: ${err.message}\x1b[0m\n`);
@@ -54,10 +54,11 @@ export async function runLoop(
     if (config.count === 0) return;
     for (let i = 1; i <= config.count; i++) {
       write(formatLoopHeader(i, config.count) + "\n");
+      const state = createStreamState();
       try {
         const session = createSession();
         for await (const msg of session) {
-          processMessage(msg, write);
+          processMessage(msg, write, state);
         }
       } catch (err: any) {
         write(`\x1b[31merror: ${err.message}\x1b[0m\n`);
@@ -67,8 +68,9 @@ export async function runLoop(
   }
 
   // Single-run mode: no flags, run once with no header
+  const state = createStreamState();
   const session = createSession();
   for await (const msg of session) {
-    processMessage(msg, write);
+    processMessage(msg, write, state);
   }
 }

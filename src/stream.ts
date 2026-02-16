@@ -76,7 +76,6 @@ export function createStreamState(): StreamState {
  */
 export function processMessage(msg: any, write: WriteFn, state?: StreamState): void {
   if (msg.type === "result") {
-    const prefix = state && !state.lastCharWasNewline ? "\n" : "\n";
     if (msg.subtype === "success") {
       // Summary: ensure exactly one \n separator from preceding content
       const sep = state

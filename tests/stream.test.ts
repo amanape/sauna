@@ -343,5 +343,18 @@ describe('P3: Streaming Output', () => {
       // "done" + \n + summary — single newline separator
       expect(output).toMatch(/done\n\x1b\[2m150 tokens/);
     });
+
+    test('session with only a result message (no text, no tools) renders summary correctly', () => {
+      // When the agent produces no text and no tool calls, only a result message,
+      // the summary should render without spurious leading newlines.
+      const output = collectStateful([result()]);
+      // Summary should start immediately (lastCharWasNewline defaults to true,
+      // so no separator is prepended)
+      expect(output).toMatch(/^\x1b\[2m150 tokens/);
+      // Should end with newline
+      expect(output).toMatch(/\n$/);
+      // No double newlines
+      expect(output).not.toContain('\n\n');
+    });
   });
 });

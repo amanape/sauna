@@ -10,7 +10,10 @@
 - `bun run build` — compile standalone `sauna` binary
 - `bunx tsc --noEmit` — type check without emitting
 - `bun index.ts "prompt"` — run the CLI in development mode (requires a prompt argument)
+- `bun index.ts -i` — start interactive multi-turn mode (prompt optional)
+- `bun index.ts -i "initial prompt"` — start interactive mode with an initial prompt
 - `SAUNA_DRY_RUN=1 bun index.ts "prompt"` — print parsed config as JSON and exit (for testing)
+- `bun test tests/interactive.test.ts` — run interactive mode tests
 
 ## Dependencies
 - `cleye@2.2.1` — CLI argument parsing

@@ -97,6 +97,61 @@ describe('P1: CLI parsing', () => {
     });
   });
 
+  describe('--interactive and --count mutual exclusivity', () => {
+    test('--interactive --forever prints error and exits non-zero', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--interactive', '--forever', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('--interactive');
+      expect(stderr).toContain('--forever');
+    });
+
+    test('--interactive --count N prints error and exits non-zero', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--interactive', '--count', '3', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('--interactive');
+      expect(stderr).toContain('--count');
+    });
+  });
+
+  describe('--interactive without prompt', () => {
+    test('--interactive without prompt does not exit with help (dry-run prints config)', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--interactive'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.interactive).toBe(true);
+    });
+  });
+
   describe('--context paths', () => {
     test('multiple --context paths are collected into an array', async () => {
       const proc = Bun.spawn(

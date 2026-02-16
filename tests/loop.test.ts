@@ -114,6 +114,64 @@ describe('runLoop', () => {
     expect(joined).toContain('iteration 2 failed');
   });
 
+  test('formatting state resets between loop iterations', async () => {
+    // Verify StreamState does not leak between iterations.
+    // Iteration 1: text without trailing newline → tool tag should get \n prefix.
+    // Iteration 2: tool tag as first output → should NOT get \n prefix (fresh state).
+    // If state leaked from iteration 1, iteration 2's tool tag would wrongly
+    // inherit lastCharWasNewline=true from the result at end of iteration 1,
+    // which happens to be correct. So instead we test with:
+    // Iteration 1: text without trailing newline (no result) — state has lastCharWasNewline=false
+    // Iteration 2: leading blank lines in text — should be stripped (isFirstTextOutput=true)
+    //
+    // If isFirstTextOutput leaked as false, the leading \n wouldn't be stripped.
+    let callCount = 0;
+    const output: string[] = [];
+
+    async function* fakeSession(): AsyncGenerator<any> {
+      callCount++;
+      if (callCount === 1) {
+        // Iteration 1: text without trailing newline, then result
+        yield {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            delta: { type: 'text_delta', text: 'iter1' },
+          },
+        };
+        yield makeSuccessResult();
+      } else {
+        // Iteration 2: text with leading blank lines — should be stripped if state is fresh
+        yield {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            delta: { type: 'text_delta', text: '\n\niter2' },
+          },
+        };
+        yield makeSuccessResult();
+      }
+    }
+
+    await runLoop(
+      { forever: false, count: 2 },
+      () => fakeSession(),
+      (s) => output.push(s),
+    );
+
+    const joined = output.join('');
+    // Iteration 2's leading blank lines should be stripped (fresh isFirstTextOutput=true)
+    // If state leaked, "\n\niter2" would appear verbatim
+    expect(joined).toContain('iter2');
+    expect(joined).not.toMatch(/loop 2 \/ 2.*\n\n\niter2/s);
+    // Verify the text appears right after the header+newline+summary structure
+    // The key assertion: no double newline before iter2's text
+    const iter2Start = joined.indexOf('iter2');
+    // 'iter2' should appear and should not be preceded by \n\n (stripped)
+    const beforeIter2 = joined.substring(Math.max(0, iter2Start - 3), iter2Start);
+    expect(beforeIter2).not.toContain('\n\n');
+  });
+
   test('--forever: runs indefinitely until aborted', async () => {
     // Test infinite mode by aborting after 3 iterations via AbortController
     const output: string[] = [];
