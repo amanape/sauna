@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trap 'kill 0' SIGINT
 
 PROMPT="${1:-}"
 if [ -z "$PROMPT" ]; then
