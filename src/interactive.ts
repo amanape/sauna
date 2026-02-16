@@ -100,6 +100,18 @@ export async function runInteractive(
   write: (s: string) => void,
   overrides?: InteractiveOverrides,
 ): Promise<void> {
+<<<<<<< Updated upstream
+=======
+  const sessionOptions: SDKSessionOptions = {
+    model: config.model ?? "claude-sonnet-4-5",
+    pathToClaudeCodeExecutable: findClaude(),
+    permissionMode: "bypassPermissions",
+  };
+
+  const createSessionFn = overrides?.createSession ?? unstable_v2_createSession;
+  const session = createSessionFn(sessionOptions);
+
+>>>>>>> Stashed changes
   const rl = createInterface({
     input: overrides?.input ?? process.stdin,
     output: overrides?.promptOutput ?? process.stderr,
