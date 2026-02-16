@@ -77,6 +77,16 @@ export function createStreamState(): StreamState {
 export function processMessage(msg: any, write: WriteFn, state?: StreamState): void {
   if (msg.type === "result") {
     if (msg.subtype === "success") {
+      // Fallback: if no streaming text was written, display result text
+      if (state?.isFirstTextOutput && msg.result) {
+        let text = msg.result.replace(/^\n+/, "");
+        if (text.length > 0) {
+          write(text);
+          if (!text.endsWith("\n")) write("\n");
+          state.isFirstTextOutput = false;
+          state.lastCharWasNewline = true;
+        }
+      }
       // Summary: ensure exactly one \n separator from preceding content
       const sep = state
         ? (state.lastCharWasNewline ? "" : "\n")

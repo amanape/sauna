@@ -18,3 +18,6 @@
 ## Dependencies
 - `cleye@2.2.1` — CLI argument parsing
 - `@anthropic-ai/claude-agent-sdk@0.2.42` — Claude agent session
+
+## Modules
+- `src/claude.ts` — shared module with `findClaude()` used by both `src/session.ts` and `src/interactive.ts`

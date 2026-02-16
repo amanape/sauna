@@ -1,11 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { realpathSync } from "node:fs";
-import { execSync } from "node:child_process";
-
-function findClaude(): string {
-  const which = execSync("which claude", { encoding: "utf-8" }).trim();
-  return realpathSync(which);
-}
+import { findClaude } from "./claude";
 
 /**
  * Prepends context path references to the prompt so the agent knows
