@@ -50,15 +50,40 @@ export function formatError(subtype: string, errors: string[]): string {
 type WriteFn = (s: string) => void;
 
 /**
- * Processes a single SDK message and writes formatted output.
- * Accepts a write callback to decouple from stdout — enables testing
- * without process.stdout mocking.
+ * Mutable state for tracking output formatting across a stream of messages.
+ *
+ * - lastCharWasNewline: whether the most recent written character was '\n'.
+ *   Used to decide if a newline must be inserted before tool tags.
+ * - isFirstTextOutput: whether any text_delta has been written yet.
+ *   Used to strip leading blank lines from the first text output.
  */
-export function processMessage(msg: any, write: WriteFn): void {
+export type StreamState = {
+  lastCharWasNewline: boolean;
+  isFirstTextOutput: boolean;
+};
+
+/** Creates a fresh StreamState — call once per session or loop iteration. */
+export function createStreamState(): StreamState {
+  return { lastCharWasNewline: true, isFirstTextOutput: true };
+}
+
+/**
+ * Processes a single SDK message and writes formatted output.
+ *
+ * When called with a StreamState, tracks newline position and strips
+ * leading whitespace from the first text output. When called without
+ * state (backwards-compatible), behaves statelessly as before.
+ */
+export function processMessage(msg: any, write: WriteFn, state?: StreamState): void {
   if (msg.type === "result") {
+    const prefix = state && !state.lastCharWasNewline ? "\n" : "\n";
     if (msg.subtype === "success") {
+      // Summary: ensure exactly one \n separator from preceding content
+      const sep = state
+        ? (state.lastCharWasNewline ? "" : "\n")
+        : "\n";
       write(
-        "\n" +
+        sep +
           formatSummary({
             inputTokens: msg.usage.input_tokens,
             outputTokens: msg.usage.output_tokens,
@@ -68,7 +93,13 @@ export function processMessage(msg: any, write: WriteFn): void {
           "\n"
       );
     } else {
-      write("\n" + formatError(msg.subtype, msg.errors ?? []) + "\n");
+      const sep = state
+        ? (state.lastCharWasNewline ? "" : "\n")
+        : "\n";
+      write(sep + formatError(msg.subtype, msg.errors ?? []) + "\n");
+    }
+    if (state) {
+      state.lastCharWasNewline = true;
     }
     return;
   }
@@ -79,12 +110,30 @@ export function processMessage(msg: any, write: WriteFn): void {
       event.type === "content_block_delta" &&
       event.delta?.type === "text_delta"
     ) {
-      write(event.delta.text);
+      let text = event.delta.text;
+      // Strip leading blank lines from the very first text output
+      if (state && state.isFirstTextOutput) {
+        text = text.replace(/^\n+/, "");
+        if (text.length > 0) {
+          state.isFirstTextOutput = false;
+        }
+      }
+      if (text.length > 0) {
+        write(text);
+        if (state) {
+          state.lastCharWasNewline = text.endsWith("\n");
+        }
+      }
     } else if (
       event.type === "content_block_start" &&
       event.content_block?.type === "tool_use"
     ) {
-      write(formatToolTag(event.content_block.name) + "\n");
+      // Insert newline before tool tag if previous output didn't end with one
+      const prefix = state && !state.lastCharWasNewline ? "\n" : "";
+      write(prefix + formatToolTag(event.content_block.name) + "\n");
+      if (state) {
+        state.lastCharWasNewline = true;
+      }
     }
   }
 }

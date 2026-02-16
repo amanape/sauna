@@ -54,11 +54,11 @@ function mockSessionFactory(opts?: { failOnIteration?: number }) {
 }
 
 describe('runLoop', () => {
-  test('single-run mode (no --loop): runs once, no header', async () => {
+  test('no flags: runs once, no header', async () => {
     const output: string[] = [];
     const factory = mockSessionFactory();
 
-    await runLoop({ loop: false, count: undefined }, factory.run, (s) =>
+    await runLoop({ forever: false, count: undefined }, factory.run, (s) =>
       output.push(s),
     );
 
@@ -68,11 +68,11 @@ describe('runLoop', () => {
     expect(joined).not.toContain('loop');
   });
 
-  test('--loop --count 3: runs exactly 3 iterations with headers', async () => {
+  test('--count 3: runs exactly 3 iterations with headers', async () => {
     const output: string[] = [];
     const factory = mockSessionFactory();
 
-    await runLoop({ loop: true, count: 3 }, factory.run, (s) => output.push(s));
+    await runLoop({ forever: false, count: 3 }, factory.run, (s) => output.push(s));
 
     expect(factory.calls).toEqual([1, 2, 3]);
     const joined = output.join('');
@@ -81,20 +81,20 @@ describe('runLoop', () => {
     expect(joined).toContain('loop 3 / 3');
   });
 
-  test('--loop --count 0: runs zero iterations', async () => {
+  test('--count 0: runs zero iterations', async () => {
     const output: string[] = [];
     const factory = mockSessionFactory();
 
-    await runLoop({ loop: true, count: 0 }, factory.run, (s) => output.push(s));
+    await runLoop({ forever: false, count: 0 }, factory.run, (s) => output.push(s));
 
     expect(factory.calls).toEqual([]);
   });
 
-  test('--loop --count 1: runs once with header', async () => {
+  test('--count 1: runs once with header', async () => {
     const output: string[] = [];
     const factory = mockSessionFactory();
 
-    await runLoop({ loop: true, count: 1 }, factory.run, (s) => output.push(s));
+    await runLoop({ forever: false, count: 1 }, factory.run, (s) => output.push(s));
 
     expect(factory.calls).toEqual([1]);
     const joined = output.join('');
@@ -105,7 +105,7 @@ describe('runLoop', () => {
     const output: string[] = [];
     const factory = mockSessionFactory({ failOnIteration: 2 });
 
-    await runLoop({ loop: true, count: 3 }, factory.run, (s) => output.push(s));
+    await runLoop({ forever: false, count: 3 }, factory.run, (s) => output.push(s));
 
     // All 3 iterations should have been attempted
     expect(factory.calls).toEqual([1, 2, 3]);
@@ -114,7 +114,7 @@ describe('runLoop', () => {
     expect(joined).toContain('iteration 2 failed');
   });
 
-  test('--loop without --count: runs indefinitely until aborted', async () => {
+  test('--forever: runs indefinitely until aborted', async () => {
     // Test infinite mode by aborting after 3 iterations via AbortController
     const output: string[] = [];
     let callCount = 0;
@@ -127,7 +127,7 @@ describe('runLoop', () => {
     }
 
     await runLoop(
-      { loop: true, count: undefined },
+      { forever: true, count: undefined },
       () => fakeSession(),
       (s) => output.push(s),
       abort.signal,

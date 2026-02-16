@@ -58,8 +58,8 @@ describe('P1: CLI parsing', () => {
     });
   });
 
-  describe('--count without --loop', () => {
-    test('--count without --loop is silently ignored', async () => {
+  describe('--count alone enables looping', () => {
+    test('--count without --forever passes count through for fixed-count mode', async () => {
       const proc = Bun.spawn(
         ['bun', 'index.ts', '--count', '5', 'test prompt'],
         {
@@ -71,10 +71,29 @@ describe('P1: CLI parsing', () => {
       );
       const stdout = await new Response(proc.stdout).text();
       const exitCode = await proc.exited;
-      // Should succeed (exit 0) and not loop
       expect(exitCode).toBe(0);
-      // The parsed config should show loop: false
-      expect(stdout).toContain('"loop":false');
+      const parsed = JSON.parse(stdout);
+      expect(parsed.forever).toBe(false);
+      expect(parsed.count).toBe(5);
+    });
+  });
+
+  describe('--forever and --count mutual exclusivity', () => {
+    test('--forever --count N prints error and exits non-zero', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--forever', '--count', '3', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('--forever');
+      expect(stderr).toContain('--count');
     });
   });
 

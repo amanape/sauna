@@ -4,6 +4,8 @@ import {
   formatSummary,
   formatError,
   processMessage,
+  createStreamState,
+  type StreamState,
 } from '../src/stream';
 
 /**
@@ -224,6 +226,122 @@ describe('P3: Streaming Output', () => {
         write,
       );
       expect(chunks).toEqual([]);
+    });
+  });
+
+  describe('P1: output formatting state tracking', () => {
+    /**
+     * processMessage is stateful — it tracks whether the last character
+     * written was a newline and whether any text has been output yet.
+     * This state is passed in via a StreamState object and mutated
+     * by each call, enabling correct newline insertion and leading
+     * whitespace stripping across a sequence of messages.
+     */
+
+    // Helper: make a text_delta stream event
+    function textDelta(text: string) {
+      return {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          delta: { type: 'text_delta', text },
+        },
+      };
+    }
+
+    // Helper: make a tool_use content_block_start
+    function toolStart(name: string) {
+      return {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          content_block: { type: 'tool_use', name },
+        },
+      };
+    }
+
+    // Helper: make a success result
+    function result() {
+      return {
+        type: 'result',
+        subtype: 'success',
+        usage: { input_tokens: 100, output_tokens: 50 },
+        num_turns: 1,
+        duration_ms: 1000,
+      };
+    }
+
+    // Helper: collect output from a sequence of messages with shared state
+    function collectStateful(messages: any[]): string {
+      const chunks: string[] = [];
+      const write = (s: string) => chunks.push(s);
+      const state = createStreamState();
+      for (const msg of messages) {
+        processMessage(msg, write, state);
+      }
+      return chunks.join('');
+    }
+
+    test('tool tag after text lacking trailing newline gets newline inserted', () => {
+      const output = collectStateful([
+        textDelta('hello world'),
+        toolStart('Read'),
+      ]);
+      // "hello world" doesn't end with \n, so \n should be inserted before [Read]
+      expect(output).toBe('hello world\n\x1b[2m[Read]\x1b[22m\n');
+    });
+
+    test('tool tag after text ending with newline gets no extra newline', () => {
+      const output = collectStateful([
+        textDelta('hello world\n'),
+        toolStart('Read'),
+      ]);
+      // Already ends with \n — no extra \n before [Read]
+      expect(output).toBe('hello world\n\x1b[2m[Read]\x1b[22m\n');
+    });
+
+    test('first text output with leading blank lines has them stripped', () => {
+      const output = collectStateful([textDelta('\n\n\nhello')]);
+      expect(output).toBe('hello');
+    });
+
+    test('leading whitespace stripping only applies to first text output', () => {
+      const output = collectStateful([
+        textDelta('first'),
+        textDelta('\n\nsecond'),
+      ]);
+      // Only first text gets stripped; subsequent preserves leading whitespace
+      expect(output).toBe('first\n\nsecond');
+    });
+
+    test('consecutive tool calls each start on their own line', () => {
+      const output = collectStateful([
+        toolStart('Read'),
+        toolStart('Write'),
+        toolStart('Bash'),
+      ]);
+      expect(output).toBe(
+        '\x1b[2m[Read]\x1b[22m\n' +
+          '\x1b[2m[Write]\x1b[22m\n' +
+          '\x1b[2m[Bash]\x1b[22m\n',
+      );
+    });
+
+    test('session with only tool calls and summary formats correctly', () => {
+      const output = collectStateful([toolStart('Read'), toolStart('Write'), result()]);
+      // Tool tags each on own line, no leading blank line
+      expect(output).toContain('\x1b[2m[Read]\x1b[22m\n');
+      expect(output).toContain('\x1b[2m[Write]\x1b[22m\n');
+      // Summary follows
+      expect(output).toContain('150 tokens');
+      // No double blank line between last tool tag and summary
+      expect(output).not.toMatch(/\n\n\n/);
+    });
+
+    test('summary has exactly one newline separator from preceding text', () => {
+      const output = collectStateful([textDelta('done'), result()]);
+      // "done" + \n + summary — single newline separator
+      expect(output).toMatch(/done\n\x1b\[2m150 tokens/);
     });
   });
 });

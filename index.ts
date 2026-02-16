@@ -16,15 +16,14 @@ const argv = cli(
         alias: "m",
         description: "Model to use (sonnet, opus, haiku, or full model ID)",
       },
-      loop: {
+      forever: {
         type: Boolean,
-        alias: "l",
-        description: "Run the prompt in a loop",
+        description: "Run the prompt indefinitely until Ctrl+C",
       },
       count: {
         type: Number,
         alias: "n",
-        description: "Number of loop iterations (requires --loop)",
+        description: "Number of loop iterations",
       },
       context: {
         type: [String],
@@ -45,22 +44,28 @@ if (!prompt) {
 }
 
 const model = resolveModel(argv.flags.model);
-const loop = argv.flags.loop ?? false;
+const forever = argv.flags.forever ?? false;
 const count = argv.flags.count;
 const context = argv.flags.context ?? [];
+
+// Mutual exclusivity: --forever and --count cannot be combined
+if (forever && count !== undefined) {
+  process.stderr.write("error: --forever and --count are mutually exclusive\n");
+  process.exit(1);
+}
 
 // In dry-run mode, print parsed config as JSON and exit
 if (process.env.SAUNA_DRY_RUN === "1") {
   console.log(
-    JSON.stringify({ prompt, model, loop, count, context })
+    JSON.stringify({ prompt, model, forever, count, context })
   );
   process.exit(0);
 }
 
-// Run session(s) — single-run or loop mode with real-time streaming output
+// Run session(s) — single-run, fixed-count, or infinite mode
 const write = (s: string) => process.stdout.write(s);
 await runLoop(
-  { loop, count },
+  { forever, count },
   () => runSession({ prompt, model, context }),
   write
 );

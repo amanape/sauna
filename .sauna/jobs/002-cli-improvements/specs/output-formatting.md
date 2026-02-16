@@ -11,7 +11,6 @@ Sauna's streaming output properly separates tool tags from text content and avoi
 - If the agent's text output already ends with a newline, no extra newline is added before a tool tag
 - The very first text output of a session does not begin with blank lines (leading whitespace is stripped)
 - The success summary line is separated from preceding text by a newline
-- Between loop iterations, formatting state resets so each iteration starts clean
 
 ## Edge Cases
 
