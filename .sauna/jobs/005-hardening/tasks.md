@@ -3,13 +3,13 @@
 ## P0 — Blocking: errors reach users as stack traces
 
 - [ ] Add try/catch to `findClaude()` so missing/non-executable/dangling-symlink `claude` produces a one-line stderr message + exit 1 instead of a stack trace (src/claude.ts)
-- [ ] Move `findClaude()` call to `index.ts` startup, before `runLoop`/`runInteractive`, so resolution happens once before any session or REPL setup
+- [ ] Move `findClaude()` call to `index.ts` startup, before `runLoop`/`runInteractive`, so resolution happens once before any session or REPL setup — currently called per-iteration in `session.ts:31` and once in `interactive.ts:128`; pass the resolved path as a parameter to both
 - [ ] Wrap top-level `await runLoop(…)` / `await runInteractive(…)` in try/catch that formats the error to stderr and exits 1 — no unhandled exceptions reach the user (index.ts)
 - [ ] Guard `err.message` access in all catch blocks: if thrown value is not an Error, coerce to string instead of printing `undefined` (loop.ts:44–45, loop.ts:63–64, interactive.ts:193–194)
 
 ## P1 — Input validation: bad `--count` values silently misbehave
 
-- [ ] Validate `--count` in `index.ts` before mutual-exclusivity checks: reject 0 (must be at least 1), negatives (must be a positive integer), non-integers (must be a whole number) — stderr + exit 1
+- [ ] Validate `--count` in `index.ts` before mutual-exclusivity checks: reject 0 (must be at least 1), negatives (must be a positive integer), non-integers (must be a whole number), and `NaN` (cleye produces `NaN` for non-numeric input like `--count abc`) — stderr + exit 1
 - [ ] Remove the dead `if (config.count === 0) return` guard in `loop.ts:54` once validation is in index.ts
 - [ ] Update the `--count 0` test in `tests/loop.test.ts` (currently asserts silent no-op) to match the new validation behavior or remove it
 
@@ -33,11 +33,12 @@
 
 ## P5 — REPL resource leak: `findClaude()` failure leaks readline
 
-- [ ] Move `findClaude()` out of `runInteractive` (to index.ts per P0 task), which also eliminates the rl leak when findClaude throws after rl is created but before the try/finally block
+- [ ] Move `findClaude()` out of `runInteractive` (to index.ts per P0 task), which also eliminates the rl leak when findClaude throws after rl is created at line 103 but before the try/finally block at line 160
 
 ## P6 — Signal handling in loop mode: no SIGINT/SIGTERM handler
 
 - [ ] Wire an AbortController in `index.ts` for SIGINT/SIGTERM that feeds into `runLoop`'s existing `signal` parameter — currently the parameter exists but is never connected at the call site
+- [ ] Extend `runLoop` fixed-count mode (lines 55–67) to check `signal?.aborted` between iterations — currently only the `forever` branch checks the signal
 - [ ] Remove signal handlers after runLoop completes
 
 ## P7 — Test-only injection points in production code
