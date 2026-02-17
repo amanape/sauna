@@ -1,5 +1,4 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { findClaude } from "./claude";
 
 /**
  * Prepends context path references to the prompt so the agent knows
@@ -16,6 +15,7 @@ export type SessionConfig = {
   prompt: string;
   model?: string;
   context: string[];
+  claudePath: string;
 };
 
 /**
@@ -28,7 +28,7 @@ export function runSession(config: SessionConfig) {
   return query({
     prompt: fullPrompt,
     options: {
-      pathToClaudeCodeExecutable: findClaude(),
+      pathToClaudeCodeExecutable: config.claudePath,
       systemPrompt: { type: "preset", preset: "claude_code" },
       settingSources: ["user", "project"],
       permissionMode: "bypassPermissions",

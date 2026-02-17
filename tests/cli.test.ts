@@ -78,6 +78,76 @@ describe('P1: CLI parsing', () => {
     });
   });
 
+  describe('--count validation', () => {
+    test('--count 0 prints error and exits non-zero', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--count', '0', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('--count');
+      expect(stderr).toContain('at least 1');
+    });
+
+    test('--count -1 prints error and exits non-zero', async () => {
+      // cleye parses --count -1 as NaN (treats -1 as a flag), so this
+      // triggers the NaN validation rather than the positive-integer check
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--count', '-1', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('--count');
+    });
+
+    test('--count 1.5 prints error and exits non-zero', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--count', '1.5', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('--count');
+      expect(stderr).toContain('whole number');
+    });
+
+    test('--count abc prints error and exits non-zero', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--count', 'abc', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('--count');
+    });
+  });
+
   describe('--forever and --count mutual exclusivity', () => {
     test('--forever --count N prints error and exits non-zero', async () => {
       const proc = Bun.spawn(
@@ -149,6 +219,32 @@ describe('P1: CLI parsing', () => {
       expect(exitCode).toBe(0);
       const parsed = JSON.parse(stdout);
       expect(parsed.interactive).toBe(true);
+    });
+  });
+
+  describe('startup error handling', () => {
+    test('missing claude binary prints error to stderr and exits 1 — no stack trace', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          // PATH has bun but no claude
+          env: { PATH: `${process.execPath.replace(/\/bun$/, '')}:/usr/bin:/bin` },
+        },
+      );
+      const stderr = await new Response(proc.stderr).text();
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+
+      expect(exitCode).toBe(1);
+      // Error should be on stderr
+      expect(stderr.toLowerCase()).toContain('claude');
+      // No stack traces on stdout or stderr
+      expect(stdout).not.toContain('at ');
+      expect(stderr).not.toContain('at findClaude');
+      expect(stderr).not.toContain('at execSync');
     });
   });
 

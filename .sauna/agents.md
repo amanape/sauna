@@ -14,10 +14,12 @@
 - `bun index.ts -i "initial prompt"` — start interactive mode with an initial prompt
 - `SAUNA_DRY_RUN=1 bun index.ts "prompt"` — print parsed config as JSON and exit (for testing)
 - `bun test tests/interactive.test.ts` — run interactive mode tests
+- `bun test tests/claude.test.ts` — run P0 claude resolution tests
 
 ## Dependencies
 - `cleye@2.2.1` — CLI argument parsing
 - `@anthropic-ai/claude-agent-sdk@0.2.42` — Claude agent session
 
 ## Modules
-- `src/claude.ts` — shared module with `findClaude()` used by both `src/session.ts` and `src/interactive.ts`
+- `src/claude.ts` — `findClaude()` resolves the Claude Code executable path; called once from `index.ts` at startup
+- `index.ts` — CLI entry point; calls `findClaude()` at startup and passes resolved `claudePath` to `runLoop`/`runInteractive`

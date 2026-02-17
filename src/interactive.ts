@@ -10,13 +10,13 @@ import { query, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { createInterface } from "node:readline";
 import { processMessage, createStreamState } from "./stream";
 import { buildPrompt } from "./session";
-import { findClaude } from "./claude";
 import type { Readable, Writable } from "node:stream";
 
 export type InteractiveConfig = {
   prompt?: string;
   model?: string;
   context: string[];
+  claudePath: string;
 };
 
 /** Options passed to query() — mirrors the non-interactive session options. */
@@ -99,6 +99,7 @@ export async function runInteractive(
   config: InteractiveConfig,
   write: (s: string) => void,
   overrides?: InteractiveOverrides,
+  errWrite?: (s: string) => void,
 ): Promise<void> {
   const rl = createInterface({
     input: overrides?.input ?? process.stdin,
@@ -125,7 +126,7 @@ export async function runInteractive(
 
   // Query options matching non-interactive session path
   const options: QueryOptions = {
-    pathToClaudeCodeExecutable: findClaude(),
+    pathToClaudeCodeExecutable: config.claudePath,
     systemPrompt: { type: "preset", preset: "claude_code" },
     settingSources: ["user", "project"],
     permissionMode: "bypassPermissions",
@@ -168,7 +169,7 @@ export async function runInteractive(
         sessionId = msg.session_id;
       }
 
-      processMessage(msg, write, state);
+      processMessage(msg, write, state, errWrite);
 
       // After a result message, prompt for follow-up input
       if (msg.type === "result") {
@@ -190,8 +191,10 @@ export async function runInteractive(
         });
       }
     }
-  } catch (err: any) {
-    write(`\x1b[31merror: ${err.message}\x1b[0m\n`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const errTarget = errWrite ?? write;
+    errTarget(`\x1b[31merror: ${message}\x1b[0m\n`);
   } finally {
     removeSignal("SIGINT", onSignal);
     removeSignal("SIGTERM", onSignal);

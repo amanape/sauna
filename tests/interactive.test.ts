@@ -100,7 +100,7 @@ describe("P2: Interactive Mode", () => {
     setTimeout(() => stdin.writeLine(""), 50);
 
     await runInteractive(
-      { prompt: "test prompt", model: "claude-sonnet-4-20250514", context: ["foo.md"] },
+      { prompt: "test prompt", model: "claude-sonnet-4-20250514", context: ["foo.md"], claudePath: "/fake/claude" },
       write,
       {
         input: stdin.stream,
@@ -131,7 +131,7 @@ describe("P2: Interactive Mode", () => {
     setTimeout(() => stdin.writeLine(""), 50);
 
     await runInteractive(
-      { prompt: "go", model: "claude-sonnet-4-20250514", context: [] },
+      { prompt: "go", model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
       (s) => output.push(s),
       {
         input: stdin.stream,
@@ -154,7 +154,7 @@ describe("P2: Interactive Mode", () => {
     setTimeout(() => stdin.end(), 50);
 
     await runInteractive(
-      { prompt: "go", model: "claude-sonnet-4-20250514", context: [] },
+      { prompt: "go", model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
       () => {},
       {
         input: stdin.stream,
@@ -179,7 +179,7 @@ describe("P2: Interactive Mode", () => {
     setTimeout(() => stdin.writeLine(""), 200);
 
     await runInteractive(
-      { prompt: "initial prompt", model: "claude-sonnet-4-20250514", context: ["ctx.md"] },
+      { prompt: "initial prompt", model: "claude-sonnet-4-20250514", context: ["ctx.md"], claudePath: "/fake/claude" },
       () => {},
       {
         input: stdin.stream,
@@ -227,7 +227,7 @@ describe("P2: Interactive Mode", () => {
     setTimeout(() => stdin.writeLine(""), 200);
 
     await runInteractive(
-      { prompt: "cause error", model: "claude-sonnet-4-20250514", context: [] },
+      { prompt: "cause error", model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
       (s) => output.push(s),
       {
         input: stdin.stream,
@@ -259,7 +259,7 @@ describe("P2: Interactive Mode", () => {
     setTimeout(() => stdin.writeLine(""), 150);
 
     await runInteractive(
-      { model: "claude-sonnet-4-20250514", context: [] },
+      { model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
       () => {},
       {
         input: stdin.stream,
@@ -280,7 +280,7 @@ describe("P2: Interactive Mode", () => {
     setTimeout(() => stdin.end(), 50);
 
     await runInteractive(
-      { model: "claude-sonnet-4-20250514", context: [] },
+      { model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
       () => {},
       {
         input: stdin.stream,
@@ -314,7 +314,7 @@ describe("P2: Interactive Mode", () => {
     setTimeout(() => stdin.writeLine(""), 50);
 
     await runInteractive(
-      { prompt: "test", context: [] },
+      { prompt: "test", context: [], claudePath: "/fake/claude" },
       () => {},
       {
         input: stdin.stream,
@@ -351,7 +351,7 @@ describe("P2: Interactive Mode", () => {
     setTimeout(() => stdin.writeLine(""), 50);
 
     await runInteractive(
-      { prompt: "test", context: [] },
+      { prompt: "test", context: [], claudePath: "/fake/claude" },
       () => {},
       {
         input: stdin.stream,
@@ -389,7 +389,7 @@ describe("P2: Interactive Mode", () => {
     }, 50);
 
     await runInteractive(
-      { prompt: "test", model: "claude-sonnet-4-20250514", context: [] },
+      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
       () => {},
       {
         input: stdin.stream,
@@ -429,7 +429,7 @@ describe("P2: Interactive Mode", () => {
     }, 50);
 
     await runInteractive(
-      { prompt: "test", model: "claude-sonnet-4-20250514", context: [] },
+      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
       () => {},
       {
         input: stdin.stream,
@@ -456,7 +456,7 @@ describe("P2: Interactive Mode", () => {
     setTimeout(() => stdin.writeLine(""), 50);
 
     await runInteractive(
-      { prompt: "test", model: "claude-sonnet-4-20250514", context: [] },
+      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
       () => {},
       {
         input: stdin.stream,
@@ -494,7 +494,7 @@ describe("P2: Interactive Mode", () => {
     setTimeout(() => stdin.writeLine(""), 50);
 
     await runInteractive(
-      { prompt: "test", model: "claude-opus-4-20250514", context: [] },
+      { prompt: "test", model: "claude-opus-4-20250514", context: [], claudePath: "/fake/claude" },
       () => {},
       {
         input: stdin.stream,
@@ -504,5 +504,84 @@ describe("P2: Interactive Mode", () => {
     );
 
     expect(capturedOptions.model).toBe("claude-opus-4-20250514");
+  });
+});
+
+describe("P4: error output routing to stderr", () => {
+  test("query exception goes to errWrite, not write", async () => {
+    const stdin = createFakeStdin();
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    // Create a query that throws mid-iteration
+    function createQuery(params: { prompt: AsyncIterable<any>; options: any }) {
+      const gen = (async function* () {
+        for await (const _ of params.prompt) {
+          throw new Error("query exploded");
+        }
+      })();
+      const q = gen as any;
+      q.close = mock(() => { gen.return(undefined); });
+      return q;
+    }
+
+    await runInteractive(
+      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
+      (s) => stdout.push(s),
+      {
+        input: stdin.stream,
+        promptOutput: new PassThrough(),
+        createQuery,
+      },
+      (s) => stderr.push(s),
+    );
+
+    const stdoutJoined = stdout.join("");
+    const stderrJoined = stderr.join("");
+    expect(stderrJoined).toContain("query exploded");
+    expect(stdoutJoined).not.toContain("query exploded");
+  });
+
+  test("non-success SDK result goes to errWrite via processMessage", async () => {
+    const mockQuery = createMockQuery();
+    const stdin = createFakeStdin();
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    // Queue an error result
+    mockQuery.queueTurn([
+      textDelta("partial\n"),
+      {
+        type: "result",
+        subtype: "error_during_execution",
+        errors: ["agent failed"],
+        usage: { input_tokens: 10, output_tokens: 5 },
+        num_turns: 1,
+        duration_ms: 500,
+        session_id: "test-session-id",
+      },
+    ]);
+
+    // After first result, send empty line to exit
+    setTimeout(() => stdin.writeLine(""), 50);
+
+    await runInteractive(
+      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
+      (s) => stdout.push(s),
+      {
+        input: stdin.stream,
+        promptOutput: new PassThrough(),
+        createQuery: mockQuery.createQuery,
+      },
+      (s) => stderr.push(s),
+    );
+
+    const stdoutJoined = stdout.join("");
+    const stderrJoined = stderr.join("");
+    // Error details should be in stderr
+    expect(stderrJoined).toContain("agent failed");
+    // Normal text output stays in stdout
+    expect(stdoutJoined).toContain("partial");
+    expect(stdoutJoined).not.toContain("agent failed");
   });
 });

@@ -1,5 +1,6 @@
 import { cli } from "cleye";
 import { resolveModel } from "./src/cli";
+import { findClaude } from "./src/claude";
 import { runSession } from "./src/session";
 import { runLoop } from "./src/loop";
 import { runInteractive } from "./src/interactive";
@@ -53,6 +54,24 @@ if (!prompt && !interactive) {
 const count = argv.flags.count;
 const context = argv.flags.context ?? [];
 
+// Validate --count value before checking flag combinations
+if (count !== undefined) {
+  if (Number.isNaN(count)) {
+    process.stderr.write("error: --count must be a valid number\n");
+    process.exit(1);
+  }
+  if (!Number.isInteger(count)) {
+    process.stderr.write("error: --count must be a whole number\n");
+    process.exit(1);
+  }
+  if (count <= 0) {
+    process.stderr.write(
+      "error: --count must be a positive integer (at least 1)\n"
+    );
+    process.exit(1);
+  }
+}
+
 // Mutual exclusivity: --forever and --count cannot be combined
 if (forever && count !== undefined) {
   process.stderr.write("error: --forever and --count are mutually exclusive\n");
@@ -74,15 +93,38 @@ if (process.env.SAUNA_DRY_RUN === "1") {
   process.exit(0);
 }
 
-const write = (s: string) => process.stdout.write(s);
+try {
+  // Resolve Claude Code executable once at startup — before any session or REPL
+  const claudePath = findClaude();
 
-if (interactive) {
-  await runInteractive({ prompt, model, context }, write);
-} else {
-  // Run session(s) — single-run, fixed-count, or infinite mode
-  await runLoop(
-    { forever, count },
-    () => runSession({ prompt: prompt!, model, context }),
-    write
-  );
+  const write = (s: string) => process.stdout.write(s);
+  const errWrite = (s: string) => process.stderr.write(s);
+
+  if (interactive) {
+    await runInteractive({ prompt, model, context, claudePath }, write, undefined, errWrite);
+  } else {
+    // Wire SIGINT/SIGTERM to an AbortController so loop modes can stop between iterations
+    const abort = new AbortController();
+    const onSignal = () => abort.abort();
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+
+    try {
+      const ok = await runLoop(
+        { forever, count },
+        () => runSession({ prompt: prompt!, model, context, claudePath }),
+        write,
+        abort.signal,
+        errWrite
+      );
+      if (!ok) process.exit(1);
+    } finally {
+      process.removeListener("SIGINT", onSignal);
+      process.removeListener("SIGTERM", onSignal);
+    }
+  }
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  process.stderr.write(`error: ${message}\n`);
+  process.exit(1);
 }

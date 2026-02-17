@@ -36,6 +36,14 @@ function makeSuccessResult() {
   };
 }
 
+function makeErrorResult(subtype = 'error', errors: string[] = ['something went wrong']) {
+  return {
+    type: 'result',
+    subtype,
+    errors,
+  };
+}
+
 /** Creates a mock session factory that yields a success result per iteration */
 function mockSessionFactory(opts?: { failOnIteration?: number }) {
   const calls: number[] = [];
@@ -79,15 +87,6 @@ describe('runLoop', () => {
     expect(joined).toContain('loop 1 / 3');
     expect(joined).toContain('loop 2 / 3');
     expect(joined).toContain('loop 3 / 3');
-  });
-
-  test('--count 0: runs zero iterations', async () => {
-    const output: string[] = [];
-    const factory = mockSessionFactory();
-
-    await runLoop({ forever: false, count: 0 }, factory.run, (s) => output.push(s));
-
-    expect(factory.calls).toEqual([]);
   });
 
   test('--count 1: runs once with header', async () => {
@@ -198,5 +197,176 @@ describe('runLoop', () => {
     expect(joined).toContain('loop 2');
     expect(joined).toContain('loop 3');
     expect(joined).not.toContain('/');
+  });
+
+  test('non-Error thrown value does not print undefined', async () => {
+    const output: string[] = [];
+    let callCount = 0;
+
+    async function* fakeSession(): AsyncGenerator<any> {
+      callCount++;
+      if (callCount === 1) {
+        throw "string error"; // non-Error value
+      }
+      yield makeSuccessResult();
+    }
+
+    await runLoop({ forever: false, count: 2 }, () => fakeSession(), (s) => output.push(s));
+
+    const joined = output.join('');
+    // Should contain the string error, not "undefined"
+    expect(joined).toContain('string error');
+    expect(joined).not.toContain('undefined');
+    // Second iteration should still run
+    expect(callCount).toBe(2);
+  });
+
+  // P2: single-run mode should signal failure so index.ts can exit 1
+  test('single-run: returns false when SDK yields a non-success result', async () => {
+    // When the SDK returns an error result (subtype !== "success"),
+    // runLoop should return false so the caller can exit non-zero.
+    const output: string[] = [];
+
+    async function* fakeSession(): AsyncGenerator<any> {
+      yield makeErrorResult('error', ['agent failed']);
+    }
+
+    const ok = await runLoop(
+      { forever: false, count: undefined },
+      () => fakeSession(),
+      (s) => output.push(s),
+    );
+
+    expect(ok).toBe(false);
+    // The error should still be rendered
+    const joined = output.join('');
+    expect(joined).toContain('agent failed');
+  });
+
+  test('single-run: returns true on success', async () => {
+    const output: string[] = [];
+    const factory = mockSessionFactory();
+
+    const ok = await runLoop(
+      { forever: false, count: undefined },
+      factory.run,
+      (s) => output.push(s),
+    );
+
+    expect(ok).toBe(true);
+  });
+
+  test('single-run: returns false when session throws', async () => {
+    // If the session generator throws (e.g. SDK crash), runLoop should
+    // catch it, display the error, and return false instead of propagating.
+    const output: string[] = [];
+
+    async function* fakeSession(): AsyncGenerator<any> {
+      throw new Error('session crashed');
+    }
+
+    const ok = await runLoop(
+      { forever: false, count: undefined },
+      () => fakeSession(),
+      (s) => output.push(s),
+    );
+
+    expect(ok).toBe(false);
+    const joined = output.join('');
+    expect(joined).toContain('session crashed');
+  });
+
+  // P6: fixed-count mode should respect signal.aborted between iterations
+  test('--count N: stops early when signal is aborted between iterations', async () => {
+    const output: string[] = [];
+    let callCount = 0;
+    const abort = new AbortController();
+
+    async function* fakeSession(): AsyncGenerator<any> {
+      callCount++;
+      // Abort after iteration 2 completes
+      if (callCount >= 2) abort.abort();
+      yield makeSuccessResult();
+    }
+
+    await runLoop(
+      { forever: false, count: 5 },
+      () => fakeSession(),
+      (s) => output.push(s),
+      abort.signal,
+    );
+
+    // Should have stopped after 2 iterations, not run all 5
+    expect(callCount).toBe(2);
+    const joined = output.join('');
+    expect(joined).toContain('loop 1 / 5');
+    expect(joined).toContain('loop 2 / 5');
+    expect(joined).not.toContain('loop 3 / 5');
+  });
+
+  // P4: errors should go to errWrite (stderr), not write (stdout)
+  test('caught errors in loop mode go to errWrite, not write', async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const factory = mockSessionFactory({ failOnIteration: 1 });
+
+    await runLoop(
+      { forever: false, count: 2 },
+      factory.run,
+      (s) => stdout.push(s),
+      undefined,
+      (s) => stderr.push(s),
+    );
+
+    const stdoutJoined = stdout.join('');
+    const stderrJoined = stderr.join('');
+    // Error message should be in stderr, not stdout
+    expect(stderrJoined).toContain('iteration 1 failed');
+    expect(stdoutJoined).not.toContain('iteration 1 failed');
+  });
+
+  test('caught errors in single-run mode go to errWrite, not write', async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    async function* fakeSession(): AsyncGenerator<any> {
+      throw new Error('single-run crashed');
+    }
+
+    await runLoop(
+      { forever: false, count: undefined },
+      () => fakeSession(),
+      (s) => stdout.push(s),
+      undefined,
+      (s) => stderr.push(s),
+    );
+
+    const stderrJoined = stderr.join('');
+    const stdoutJoined = stdout.join('');
+    expect(stderrJoined).toContain('single-run crashed');
+    expect(stdoutJoined).not.toContain('single-run crashed');
+  });
+
+  test('non-success SDK result goes to errWrite, not write', async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    async function* fakeSession(): AsyncGenerator<any> {
+      yield makeErrorResult('error', ['agent failed']);
+    }
+
+    await runLoop(
+      { forever: false, count: undefined },
+      () => fakeSession(),
+      (s) => stdout.push(s),
+      undefined,
+      (s) => stderr.push(s),
+    );
+
+    const stderrJoined = stderr.join('');
+    const stdoutJoined = stdout.join('');
+    // The formatted error from processMessage should be in stderr
+    expect(stderrJoined).toContain('agent failed');
+    expect(stdoutJoined).not.toContain('agent failed');
   });
 });

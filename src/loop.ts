@@ -19,58 +19,83 @@ type WriteFn = (s: string) => void;
  * Runs the prompt in single-run, fixed-count, or infinite mode.
  *
  * - Single-run (forever=false, count=undefined): executes one session, no header.
+ *   Returns false if the session throws or the SDK yields a non-success result.
  * - Fixed count (count=N): runs N iterations with `loop i / N` headers.
  * - Infinite (forever=true): runs until signal is aborted, with `loop N` headers.
  *
- * Errors in one iteration are caught and displayed without halting subsequent ones.
+ * Returns true on success, false on failure. Loop modes always return true
+ * because errors are caught per-iteration and don't represent overall failure.
+ *
+ * errWrite receives error output (caught exceptions, non-success SDK results).
+ * Falls back to write if not provided for backwards compatibility.
  */
 export async function runLoop(
   config: LoopConfig,
   createSession: SessionFactory,
   write: WriteFn,
-  signal?: AbortSignal
-): Promise<void> {
+  signal?: AbortSignal,
+  errWrite?: WriteFn
+): Promise<boolean> {
   // Infinite mode: --forever
   if (config.forever) {
     for (let i = 1; ; i++) {
       if (signal?.aborted) break;
       write(formatLoopHeader(i) + "\n");
       const state = createStreamState();
+      const errTarget = errWrite ?? write;
       try {
         const session = createSession();
         for await (const msg of session) {
-          processMessage(msg, write, state);
+          processMessage(msg, write, state, errWrite);
         }
-      } catch (err: any) {
-        write(`\x1b[31merror: ${err.message}\x1b[0m\n`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        errTarget(`\x1b[31merror: ${message}\x1b[0m\n`);
       }
       if (signal?.aborted) break;
     }
-    return;
+    return true;
   }
 
-  // Fixed count mode: --count N
+  // Fixed count mode: --count N (count validated as >= 1 in index.ts)
   if (config.count !== undefined) {
-    if (config.count === 0) return;
     for (let i = 1; i <= config.count; i++) {
+      if (signal?.aborted) break;
       write(formatLoopHeader(i, config.count) + "\n");
       const state = createStreamState();
+      const errTarget = errWrite ?? write;
       try {
         const session = createSession();
         for await (const msg of session) {
-          processMessage(msg, write, state);
+          processMessage(msg, write, state, errWrite);
         }
-      } catch (err: any) {
-        write(`\x1b[31merror: ${err.message}\x1b[0m\n`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        errTarget(`\x1b[31merror: ${message}\x1b[0m\n`);
       }
+      if (signal?.aborted) break;
     }
-    return;
+    return true;
   }
 
-  // Single-run mode: no flags, run once with no header
+  // Single-run mode: no flags, run once with no header.
+  // Unlike loop modes, single-run propagates failure to the caller
+  // so index.ts can exit non-zero when the agent fails.
+  let failed = false;
   const state = createStreamState();
-  const session = createSession();
-  for await (const msg of session) {
-    processMessage(msg, write, state);
+  const errTarget = errWrite ?? write;
+  try {
+    const session = createSession();
+    for await (const msg of session) {
+      processMessage(msg, write, state, errWrite);
+      if (msg.type === "result" && msg.subtype !== "success") {
+        failed = true;
+      }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    errTarget(`\x1b[31merror: ${message}\x1b[0m\n`);
+    failed = true;
   }
+  return !failed;
 }

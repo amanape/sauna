@@ -357,4 +357,86 @@ describe('P3: Streaming Output', () => {
       expect(output).not.toContain('\n\n');
     });
   });
+
+  describe('P4: error output routing', () => {
+    test('non-success result writes to errWrite, not write', () => {
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const write = (s: string) => stdout.push(s);
+      const errWrite = (s: string) => stderr.push(s);
+      const state = createStreamState();
+
+      processMessage(
+        {
+          type: 'result',
+          subtype: 'error_during_execution',
+          errors: ['something broke'],
+          usage: { input_tokens: 100, output_tokens: 50 },
+          num_turns: 1,
+          duration_ms: 1000,
+        },
+        write,
+        state,
+        errWrite,
+      );
+
+      const stdoutJoined = stdout.join('');
+      const stderrJoined = stderr.join('');
+      expect(stderrJoined).toContain('something broke');
+      expect(stderrJoined).toContain('error_during_execution');
+      expect(stdoutJoined).not.toContain('something broke');
+      expect(stdoutJoined).not.toContain('error_during_execution');
+    });
+
+    test('success result still writes to write (stdout)', () => {
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const write = (s: string) => stdout.push(s);
+      const errWrite = (s: string) => stderr.push(s);
+      const state = createStreamState();
+
+      processMessage(
+        {
+          type: 'result',
+          subtype: 'success',
+          result: 'done',
+          usage: { input_tokens: 100, output_tokens: 50 },
+          num_turns: 1,
+          duration_ms: 1000,
+        },
+        write,
+        state,
+        errWrite,
+      );
+
+      const stdoutJoined = stdout.join('');
+      const stderrJoined = stderr.join('');
+      // Success summary goes to stdout
+      expect(stdoutJoined).toContain('150 tokens');
+      // Nothing in stderr
+      expect(stderrJoined).toBe('');
+    });
+
+    test('without errWrite, non-success result falls back to write (backwards-compat)', () => {
+      const output: string[] = [];
+      const write = (s: string) => output.push(s);
+      const state = createStreamState();
+
+      processMessage(
+        {
+          type: 'result',
+          subtype: 'error_during_execution',
+          errors: ['fallback test'],
+          usage: { input_tokens: 10, output_tokens: 5 },
+          num_turns: 1,
+          duration_ms: 100,
+        },
+        write,
+        state,
+      );
+
+      const joined = output.join('');
+      expect(joined).toContain('fallback test');
+    });
+  });
 });

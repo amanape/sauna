@@ -59,12 +59,13 @@ describe('P2: Agent Session', () => {
 
   describe('runSession', () => {
     test('calls query with claude_code preset and bypassPermissions', async () => {
-      const session = runSession({ prompt: 'test', context: [] });
+      const session = runSession({ prompt: 'test', context: [], claudePath: '/fake/claude' });
       // Drain the generator to trigger the call
       for await (const _ of session) {
       }
       expect(queryCalls).toHaveLength(1);
       const opts = queryCalls[0]!.options;
+      expect(opts.pathToClaudeCodeExecutable).toBe('/fake/claude');
       expect(opts.systemPrompt).toEqual({
         type: 'preset',
         preset: 'claude_code',
@@ -80,6 +81,7 @@ describe('P2: Agent Session', () => {
         prompt: 'test',
         model: 'claude-opus-4-20250514',
         context: [],
+        claudePath: '/fake/claude',
       });
       for await (const _ of session) {
       }
@@ -87,7 +89,7 @@ describe('P2: Agent Session', () => {
     });
 
     test('omits model from query options when not provided', async () => {
-      const session = runSession({ prompt: 'test', context: [] });
+      const session = runSession({ prompt: 'test', context: [], claudePath: '/fake/claude' });
       for await (const _ of session) {
       }
       expect(queryCalls[0]!.options.model).toBeUndefined();
@@ -97,6 +99,7 @@ describe('P2: Agent Session', () => {
       const session = runSession({
         prompt: 'do something',
         context: ['README.md', 'src/'],
+        claudePath: '/fake/claude',
       });
       for await (const _ of session) {
       }

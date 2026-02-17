@@ -73,8 +73,12 @@ export function createStreamState(): StreamState {
  * When called with a StreamState, tracks newline position and strips
  * leading whitespace from the first text output. When called without
  * state (backwards-compatible), behaves statelessly as before.
+ *
+ * errWrite is an optional callback for error output (non-success results).
+ * When provided, error formatting goes to errWrite (intended for stderr)
+ * instead of write (intended for stdout). Falls back to write if not provided.
  */
-export function processMessage(msg: any, write: WriteFn, state?: StreamState): void {
+export function processMessage(msg: any, write: WriteFn, state?: StreamState, errWrite?: WriteFn): void {
   if (msg.type === "result") {
     if (msg.subtype === "success") {
       // Fallback: if no streaming text was written, display result text
@@ -105,7 +109,8 @@ export function processMessage(msg: any, write: WriteFn, state?: StreamState): v
       const sep = state
         ? (state.lastCharWasNewline ? "" : "\n")
         : "\n";
-      write(sep + formatError(msg.subtype, msg.errors ?? []) + "\n");
+      const target = errWrite ?? write;
+      target(sep + formatError(msg.subtype, msg.errors ?? []) + "\n");
     }
     if (state) {
       state.lastCharWasNewline = true;
