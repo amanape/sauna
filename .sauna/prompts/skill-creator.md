@@ -1,0 +1,1 @@
+Please read the docs on OpenAI Codex SDK (such as in https://github.com/openai/codex/tree/main/sdk/typescript) and create a skill in .sauna for it. If a skill already exists, review it for accuracy and completeness against the SDK docs and update it as needed. Also ensure the skill follows the recommended format for skills.
