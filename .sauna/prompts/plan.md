@@ -1,14 +1,15 @@
-0a. Use subagents to study all files referenced files and summarize what should exist.
-0b. Study `.sauna/jobs/xxx-[job-id]/tasks.md` (if present; it may be incorrect) to understand the plan so far.
-0c. Use subagents to search the existing codebase and summarize what does exist. Do not assume functionality is missing; have subagents confirm with code search first.
-0d. Compare the two. Identify gaps: missing features, incomplete implementations, TODOs, placeholders, skipped tests, inconsistent patterns.
+Let's create a plan from the specifications.
 
-1. Study `.sauna/jobs/xxx-[job-id]/tasks.md` (if present; it may be incorrect) and use up to 15 Sonnet subagents to study existing source code and compare it against the referenced files. Use an Opus subagent to analyze findings, prioritize tasks, and create/update `.sauna/jobs/xxx-[job-id]/tasks.md` as a bullet point list sorted in priority of items yet to be implemented (- [ ]). Ultrathink. Study `.sauna/jobs/xxx-[job-id]/tasks.md` to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents.
-2. If a `.sauna/jobs/xxx-[job-id]/tasks.md` does not exist for the current job, create one with the findings from step 1.
+Study the specifications in `ralph/specs/*` with up to 5 parallel Sonnet subagents to learn the application specifications.
 
-!IMPORTANT:
+Study `ralph/tasks.md` (if present; it may be incorrect) to understand the plan so far.
 
-- Plan only. No code changes, no commits.
-- Search before adding a task; if it already exists in the codebase, don't plan it.
-- Keep the plan concise. One line per task. Group by priority, not by file or feature.
-- Never add git/branch management tasks (merging, rebasing, PR creation, branch cleanup). Those are the developer's responsibility, not the builder's.
+Study `client/app/*` and/or `server/app/*` with up to 10 parallel Sonnet subagents.
+
+Compare the source code against the specifications to identify gaps in implementation.
+
+Use an Opus subagent to analyze findings, prioritize tasks, and create/update `ralph/tasks.md` as a bullet point list sorted in priority of items yet to be implemented (- [ ]). Ultrathink. Study `ralph/tasks.md` to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents.
+
+IMPORTANT: Plan only. Do NOT implement anything. Do NOT assume functionality is missing; confirm with code search first. Prefer consolidated, idiomatic implementations there over ad-hoc copies.
+
+If an element is missing, search first to confirm it doesn't exist, then if needed author the specification at `ralph/specs/FILENAME.md`. If you create a new element then document the plan to implement it in `ralph/tasks.md` using a subagent.
