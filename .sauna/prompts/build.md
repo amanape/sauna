@@ -1,9 +1,9 @@
-0a. Study `.sauna/jobs/${JOB_ID}/*` to understand what needs to be built. Use up to 5 subagents in parallel.
-0b. Study `.sauna/jobs/${JOB_ID}/tasks.md` and choose the most important item to address.
+0a. Study `.sauna/specs/*` to understand what needs to be built. Use up to 5 subagents in parallel.
+0b. Study `.sauna/tasks.md` and choose the most important item to address.
 
 1. IMPORTANT DO NOT IGNORE: Work only on the chosen item this run. Search codebase before assuming missing functionality. Do NOT implement anything outside the chosen item.
 
-2. If you discover any bugs or inconsistencies, immediately update `.sauna/jobs/${JOB_ID}/tasks.md` immediately.
+2. If you discover any bugs or inconsistencies, immediately update `.sauna/tasks.md` immediately.
 
 ---
 
@@ -37,7 +37,7 @@
 
 ```IMPORTANT!
 
-9. IMPORTANT: Update `.sauna/jobs/${JOB_ID}/tasks.md` after finishing your turn to reflect what was done and what remains.
+9. IMPORTANT: Update `.sauna/tasks.md` after finishing your turn to reflect what was done and what remains.
 
 99. Run linters and type checkers after making code changes to ensure code quality.
 
@@ -47,17 +47,17 @@
 
 99999. VERY IMPORTANT: Author documentation. When authoring documentation, capture the why — tests and implementation importance. They will serve as the rationale for future maintainers, not just the how.
 
-999999999. Keep `.sauna/jobs/${JOB_ID}/notes.md` (create if it does not exist) current with learnings. Future work depends on this to avoid duplicating efforts. Update especially after finishing your turn.
+999999999. Keep `.sauna/notes.md` (create if it does not exist) current with learnings. Future work depends on this to avoid duplicating efforts. Update especially after finishing your turn.
 
 9999999999. When you learn or create something new about how to run the application, update `.sauna/agents.md` using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.
 
 999999999999. Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
 
-9999999999999. When `.sauna/jobs/${JOB_ID}/tasks.md` becomes large periodically clean out the items that are completed from the file using a subagent.
+9999999999999. When `.sauna/tasks.md` becomes large periodically clean out the items that are completed from the file using a subagent.
 
-99999999999999. SUPER IMPORTANT: If you find inconsistencies in the `.sauna/jobs/${JOB_ID}/specs/*` then use an Opus 4.5 subagent with 'ultrathink' requested to update the specs.
+99999999999999. SUPER IMPORTANT: If you find inconsistencies in the `.sauna/specs/*` then use an Opus 4.5 subagent with 'ultrathink' requested to update the specs.
 
-999999999999999. IMPORTANT: Keep `.sauna/agents.md` operational only — status updates and progress notes belong in `.sauna/jobs/${JOB_ID}/tasks.md`.
+999999999999999. IMPORTANT: Keep `.sauna/agents.md` operational only — status updates and progress notes belong in `.sauna/tasks.md`.
 
 9999999999999999. Use subagents use the web search tool or equivalent to study documentation, libraries, and frameworks as needed to complete the task. Always search before assuming knowledge or implementation details.
 ```
