@@ -9,8 +9,11 @@
 // ANSI escape codes
 const DIM = "\x1b[2m";
 const DIM_OFF = "\x1b[22m";
+const BOLD = "\x1b[1m";
+const BOLD_OFF = "\x1b[22m";
 const RED = "\x1b[31m";
 const RESET = "\x1b[0m";
+const AGENT_COLOR = "\x1b[38;5;250m";
 
 /** Formats a tool name as a dim bracketed tag, e.g. `[Read]` */
 export function formatToolTag(name: string): string {
@@ -32,10 +35,20 @@ export function formatSummary(info: SummaryInfo): string {
   return `${DIM}${totalTokens} tokens · ${info.numTurns} ${turnWord} · ${seconds}s${DIM_OFF}`;
 }
 
-/** Formats a dim loop header: `loop N` (infinite) or `loop N / X` (fixed count) */
-export function formatLoopHeader(iteration: number, total?: number): string {
+/** Formats a bold full-width loop header divider with centered label.
+ *  Uses box-drawing horizontal character (─) to fill the line.
+ *  Falls back to bold label only when terminal is too narrow. */
+export function formatLoopHeader(iteration: number, total?: number, columns?: number): string {
   const label = total !== undefined ? `loop ${iteration} / ${total}` : `loop ${iteration}`;
-  return `${DIM}${label}${DIM_OFF}`;
+  const cols = columns ?? process.stdout.columns ?? 40;
+  // label + 2 spaces + at least 1 bar on each side = label.length + 4
+  if (cols < label.length + 4) {
+    return `${BOLD}${label}${BOLD_OFF}`;
+  }
+  const remaining = cols - label.length - 2; // 2 for the spaces around the label
+  const left = Math.floor(remaining / 2);
+  const right = remaining - left;
+  return `${BOLD}${"─".repeat(left)} ${label} ${"─".repeat(right)}${BOLD_OFF}`;
 }
 
 /** Formats a red error message with subtype and error details */
@@ -117,7 +130,7 @@ export function processMessage(msg: any, write: WriteFn, state?: StreamState, er
       if (state?.isFirstTextOutput && msg.result) {
         let text = msg.result.replace(/^\n+/, "");
         if (text.length > 0) {
-          write(text);
+          write(AGENT_COLOR + text + RESET);
           if (!text.endsWith("\n")) write("\n");
           state.isFirstTextOutput = false;
           state.lastCharWasNewline = true;
@@ -165,7 +178,7 @@ export function processMessage(msg: any, write: WriteFn, state?: StreamState, er
         }
       }
       if (text.length > 0) {
-        write(text);
+        write(AGENT_COLOR + text + RESET);
         if (state) {
           state.lastCharWasNewline = text.endsWith("\n");
         }
