@@ -6,6 +6,8 @@ import {
   formatError,
   processMessage,
   createStreamState,
+  extractFirstLine,
+  redactSecrets,
   type StreamState,
 } from '../src/stream';
 
@@ -176,8 +178,9 @@ describe('P3: Streaming Output', () => {
       expect(chunks).toEqual(['\x1b[38;5;250mHello\x1b[0m']);
     });
 
-    test('writes dim tool tag on content_block_start for tool_use', () => {
+    test('writes dim tool tag on content_block_start for tool_use (stateless)', () => {
       const { chunks, write } = collect();
+      // Without state, content_block_start emits the tag immediately (bare)
       processMessage(
         {
           type: 'stream_event',
@@ -200,6 +203,37 @@ describe('P3: Streaming Output', () => {
       expect(chunks.length).toBe(1);
       expect(chunks[0]).toContain('[Bash]');
       // Should be dim
+      expect(chunks[0]).toMatch(/\x1b\[2m/);
+    });
+
+    test('writes dim tool tag on content_block_stop with state', () => {
+      const { chunks, write } = collect();
+      const state = createStreamState();
+      // With state, tag is deferred to content_block_stop
+      processMessage(
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_start',
+            content_block: { type: 'tool_use', name: 'Bash', input: {} },
+          },
+        },
+        write,
+        state,
+      );
+      // Nothing written yet at content_block_start
+      expect(chunks).toEqual([]);
+
+      processMessage(
+        {
+          type: 'stream_event',
+          event: { type: 'content_block_stop', index: 1 },
+        },
+        write,
+        state,
+      );
+      expect(chunks.length).toBe(1);
+      expect(chunks[0]).toContain('[Bash]');
       expect(chunks[0]).toMatch(/\x1b\[2m/);
     });
 
@@ -300,15 +334,21 @@ describe('P3: Streaming Output', () => {
       };
     }
 
-    // Helper: make a tool_use content_block_start
-    function toolStart(name: string) {
-      return {
-        type: 'stream_event',
-        event: {
-          type: 'content_block_start',
-          content_block: { type: 'tool_use', name },
+    // Helper: make a tool_use sequence (start + stop) with no input
+    function toolEvents(name: string) {
+      return [
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_start',
+            content_block: { type: 'tool_use', name },
+          },
         },
-      };
+        {
+          type: 'stream_event',
+          event: { type: 'content_block_stop', index: 0 },
+        },
+      ];
     }
 
     // Helper: make a success result
@@ -336,7 +376,7 @@ describe('P3: Streaming Output', () => {
     test('tool tag after text lacking trailing newline gets newline inserted', () => {
       const output = collectStateful([
         textDelta('hello world'),
-        toolStart('Read'),
+        ...toolEvents('Read'),
       ]);
       // "hello world" doesn't end with \n, so \n should be inserted before [Read]
       expect(output).toBe('\x1b[38;5;250mhello world\x1b[0m\n\x1b[2m[Read]\x1b[22m\n');
@@ -345,7 +385,7 @@ describe('P3: Streaming Output', () => {
     test('tool tag after text ending with newline gets no extra newline', () => {
       const output = collectStateful([
         textDelta('hello world\n'),
-        toolStart('Read'),
+        ...toolEvents('Read'),
       ]);
       // Already ends with \n — no extra \n before [Read]
       expect(output).toBe('\x1b[38;5;250mhello world\n\x1b[0m\x1b[2m[Read]\x1b[22m\n');
@@ -367,9 +407,9 @@ describe('P3: Streaming Output', () => {
 
     test('consecutive tool calls each start on their own line', () => {
       const output = collectStateful([
-        toolStart('Read'),
-        toolStart('Write'),
-        toolStart('Bash'),
+        ...toolEvents('Read'),
+        ...toolEvents('Write'),
+        ...toolEvents('Bash'),
       ]);
       expect(output).toBe(
         '\x1b[2m[Read]\x1b[22m\n' +
@@ -379,7 +419,7 @@ describe('P3: Streaming Output', () => {
     });
 
     test('session with only tool calls and summary formats correctly', () => {
-      const output = collectStateful([toolStart('Read'), toolStart('Write'), result()]);
+      const output = collectStateful([...toolEvents('Read'), ...toolEvents('Write'), result()]);
       // Tool tags each on own line, no leading blank line
       expect(output).toContain('\x1b[2m[Read]\x1b[22m\n');
       expect(output).toContain('\x1b[2m[Write]\x1b[22m\n');
@@ -409,6 +449,343 @@ describe('P3: Streaming Output', () => {
     });
   });
 
+  describe('extractFirstLine', () => {
+    test('returns single-line string unchanged', () => {
+      expect(extractFirstLine('hello')).toBe('hello');
+    });
+
+    test('returns first line of multiline string', () => {
+      expect(extractFirstLine('line one\nline two\nline three')).toBe('line one');
+    });
+
+    test('returns undefined for non-string input', () => {
+      expect(extractFirstLine(42)).toBeUndefined();
+      expect(extractFirstLine(null)).toBeUndefined();
+      expect(extractFirstLine(undefined)).toBeUndefined();
+      expect(extractFirstLine({})).toBeUndefined();
+      expect(extractFirstLine(['array'])).toBeUndefined();
+    });
+
+    test('returns undefined for empty string', () => {
+      expect(extractFirstLine('')).toBeUndefined();
+    });
+
+    test('returns undefined when first line is empty (starts with newline)', () => {
+      expect(extractFirstLine('\nactual content')).toBeUndefined();
+    });
+
+    test('handles heredoc-style multiline content', () => {
+      const heredoc = 'cat <<EOF\nline 1\nline 2\nEOF';
+      expect(extractFirstLine(heredoc)).toBe('cat <<EOF');
+    });
+  });
+
+  describe('P5: enhanced tool detail display', () => {
+    /**
+     * Tool tags should display contextual details extracted from the tool input.
+     * The Anthropic streaming API sends input incrementally via input_json_delta
+     * events, so details are displayed at content_block_stop after accumulation.
+     * Format: [ToolName] details
+     * Details are redacted for security and truncated to first line.
+     *
+     * UNTYPED SDK DEPENDENCY:
+     * We assume the accumulated input has shape { [key: string]: any }
+     * Known properties: file_path, command, description, pattern, query
+     * These are untyped dependencies on SDK internals.
+     */
+
+    // Helper: simulate full tool streaming sequence (start → input_json_delta → stop)
+    function toolStreamSequence(name: string, input: Record<string, any>) {
+      return [
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_start',
+            content_block: { type: 'tool_use', name, input: {} },
+          },
+        },
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            delta: { type: 'input_json_delta', partial_json: JSON.stringify(input) },
+          },
+        },
+        {
+          type: 'stream_event',
+          event: { type: 'content_block_stop', index: 0 },
+        },
+      ];
+    }
+
+    function collectToolTag(name: string, input: Record<string, any>): string {
+      const chunks: string[] = [];
+      const write = (s: string) => chunks.push(s);
+      const state = createStreamState();
+      for (const msg of toolStreamSequence(name, input)) {
+        processMessage(msg, write, state);
+      }
+      return chunks.join('');
+    }
+
+    test('Read tool shows file_path', () => {
+      const output = collectToolTag('Read', { file_path: '/src/stream.ts' });
+      expect(output).toContain('[Read] /src/stream.ts');
+    });
+
+    test('Write tool shows file_path', () => {
+      const output = collectToolTag('Write', { file_path: '/src/cli.ts' });
+      expect(output).toContain('[Write] /src/cli.ts');
+    });
+
+    test('Edit tool shows file_path', () => {
+      const output = collectToolTag('Edit', { file_path: '/src/loop.ts' });
+      expect(output).toContain('[Edit] /src/loop.ts');
+    });
+
+    test('Bash tool shows command', () => {
+      const output = collectToolTag('Bash', { command: 'npm install' });
+      expect(output).toContain('[Bash] npm install');
+    });
+
+    test('Task tool shows description', () => {
+      const output = collectToolTag('Task', { description: 'Explore codebase' });
+      expect(output).toContain('[Task] Explore codebase');
+    });
+
+    test('Glob tool shows pattern', () => {
+      const output = collectToolTag('Glob', { pattern: '**/*.ts' });
+      expect(output).toContain('[Glob] **/*.ts');
+    });
+
+    test('Grep tool shows pattern', () => {
+      const output = collectToolTag('Grep', { pattern: 'function' });
+      expect(output).toContain('[Grep] function');
+    });
+
+    test('WebSearch tool shows query', () => {
+      const output = collectToolTag('WebSearch', { query: 'latest AI developments' });
+      expect(output).toContain('[WebSearch] latest AI developments');
+    });
+
+    test('unknown tool with no recognized params shows just tag', () => {
+      const output = collectToolTag('CustomTool', { foo: 'bar' });
+      expect(output).toContain('[CustomTool]');
+      expect(output).not.toContain('bar');
+    });
+
+    test('tool with empty input shows just tag', () => {
+      // Simulate tool with no input_json_delta (just start → stop)
+      const chunks: string[] = [];
+      const write = (s: string) => chunks.push(s);
+      const state = createStreamState();
+      processMessage(
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_start',
+            content_block: { type: 'tool_use', name: 'Read', input: {} },
+          },
+        },
+        write,
+        state,
+      );
+      processMessage(
+        {
+          type: 'stream_event',
+          event: { type: 'content_block_stop', index: 0 },
+        },
+        write,
+        state,
+      );
+      const output = chunks.join('');
+      expect(output).toContain('[Read]');
+      // No trailing space when no detail
+      expect(output).toMatch(/\[Read\]\x1b/);
+    });
+
+    test('tool with empty string detail shows just tag', () => {
+      // Spec edge case: "Tool with empty string details: Display just [ToolName]"
+      const output = collectToolTag('Read', { file_path: '' });
+      expect(output).toContain('[Read]');
+      expect(output).toMatch(/\[Read\]\x1b/);
+      expect(output).not.toMatch(/\[Read\] /);
+    });
+
+    test('entire line is dim formatted', () => {
+      const output = collectToolTag('Read', { file_path: '/foo.ts' });
+      // Should start with DIM and end with DIM_OFF before newline
+      expect(output).toMatch(/\x1b\[2m\[Read\] \/foo\.ts\x1b\[22m\n/);
+    });
+
+    test('Bash command with secrets is redacted', () => {
+      const output = collectToolTag('Bash', { command: 'export API_KEY=sk-12345' });
+      expect(output).toContain('[Bash] export API_KEY=***');
+      expect(output).not.toContain('sk-12345');
+    });
+
+    test('multiline command shows only first line', () => {
+      const output = collectToolTag('Bash', { command: 'cat <<EOF\nline1\nline2\nEOF' });
+      expect(output).toContain('[Bash] cat <<EOF');
+      expect(output).not.toContain('line1');
+    });
+
+    test('tool with no input_json_delta shows just tag', () => {
+      // content_block_start → content_block_stop, no delta in between
+      const chunks: string[] = [];
+      const write = (s: string) => chunks.push(s);
+      const state = createStreamState();
+      processMessage(
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_start',
+            content_block: { type: 'tool_use', name: 'Read', input: {} },
+          },
+        },
+        write,
+        state,
+      );
+      processMessage(
+        {
+          type: 'stream_event',
+          event: { type: 'content_block_stop', index: 0 },
+        },
+        write,
+        state,
+      );
+      const output = chunks.join('');
+      expect(output).toContain('[Read]');
+    });
+
+    test('malformed JSON in accumulated input shows just tag', () => {
+      const chunks: string[] = [];
+      const write = (s: string) => chunks.push(s);
+      const state = createStreamState();
+      processMessage(
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_start',
+            content_block: { type: 'tool_use', name: 'Read', input: {} },
+          },
+        },
+        write,
+        state,
+      );
+      // Send malformed JSON
+      processMessage(
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            delta: { type: 'input_json_delta', partial_json: '{broken' },
+          },
+        },
+        write,
+        state,
+      );
+      processMessage(
+        {
+          type: 'stream_event',
+          event: { type: 'content_block_stop', index: 0 },
+        },
+        write,
+        state,
+      );
+      const output = chunks.join('');
+      expect(output).toContain('[Read]');
+      expect(output).not.toContain('broken');
+    });
+
+    test('fallback chain: file_path takes precedence over command', () => {
+      // Edge case: if both exist, file_path wins (it's first in chain)
+      const output = collectToolTag('Edit', { file_path: '/foo.ts', command: 'edit' });
+      expect(output).toContain('[Edit] /foo.ts');
+    });
+
+    test('incremental JSON fragments are accumulated correctly', () => {
+      // Simulate the SDK sending JSON in multiple fragments
+      const chunks: string[] = [];
+      const write = (s: string) => chunks.push(s);
+      const state = createStreamState();
+      processMessage(
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_start',
+            content_block: { type: 'tool_use', name: 'Read', input: {} },
+          },
+        },
+        write,
+        state,
+      );
+      // Send JSON in fragments
+      processMessage(
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            delta: { type: 'input_json_delta', partial_json: '{"file_' },
+          },
+        },
+        write,
+        state,
+      );
+      processMessage(
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            delta: { type: 'input_json_delta', partial_json: 'path": "/src/stream.ts"}' },
+          },
+        },
+        write,
+        state,
+      );
+      processMessage(
+        {
+          type: 'stream_event',
+          event: { type: 'content_block_stop', index: 0 },
+        },
+        write,
+        state,
+      );
+      const output = chunks.join('');
+      expect(output).toContain('[Read] /src/stream.ts');
+    });
+  });
+
+  describe('redactSecrets', () => {
+    test('redacts export VAR=value assignments', () => {
+      expect(redactSecrets('export API_KEY=sk-1234567890')).toBe('export API_KEY=***');
+    });
+
+    test('redacts inline VAR=value assignments at start of command', () => {
+      expect(redactSecrets('SECRET=mysecret ./run.sh')).toBe('SECRET=*** ./run.sh');
+    });
+
+    test('redacts Authorization Bearer headers', () => {
+      expect(redactSecrets('curl -H "Authorization: Bearer tok_abc123" api.example.com'))
+        .toBe('curl -H "Authorization: Bearer ***" api.example.com');
+    });
+
+    test('leaves commands without secrets unchanged', () => {
+      expect(redactSecrets('npm install')).toBe('npm install');
+      expect(redactSecrets('git status')).toBe('git status');
+      expect(redactSecrets('ls -la /home/user')).toBe('ls -la /home/user');
+    });
+
+    test('redacts multiple environment variable assignments', () => {
+      expect(redactSecrets('FOO=bar BAZ=qux ./run.sh')).toBe('FOO=*** BAZ=*** ./run.sh');
+    });
+
+    test('handles export with spaces around equals', () => {
+      // export typically doesn't use spaces, but handle the pattern
+      expect(redactSecrets('export DB_PASS=hunter2')).toBe('export DB_PASS=***');
+    });
+  });
+
   describe('agent message color', () => {
     /**
      * Agent text output should be wrapped in ANSI 245 (mid-gray) so it's
@@ -431,15 +808,23 @@ describe('P3: Streaming Output', () => {
       };
     }
 
-    // Helper: make a tool_use content_block_start
-    function toolStart(name: string) {
-      return {
-        type: 'stream_event',
-        event: {
-          type: 'content_block_start',
-          content_block: { type: 'tool_use', name },
+    // Helper: make a tool_use sequence (start + stop) with no input
+    // Tool tags are deferred to content_block_stop when state is used,
+    // so we need the full sequence for stateful tests.
+    function toolEvents(name: string) {
+      return [
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_start',
+            content_block: { type: 'tool_use', name },
+          },
         },
-      };
+        {
+          type: 'stream_event',
+          event: { type: 'content_block_stop', index: 0 },
+        },
+      ];
     }
 
     // Helper: collect output from a sequence of messages with shared state
@@ -467,7 +852,7 @@ describe('P3: Streaming Output', () => {
     test('color reset at end of each chunk so tool tags are unaffected', () => {
       const output = collectStateful([
         textDelta('thinking...'),
-        toolStart('Read'),
+        ...toolEvents('Read'),
       ]);
       // Text colored, then reset before tool tag
       expect(output).toContain(AGENT_COLOR + 'thinking...' + RESET);
@@ -478,7 +863,7 @@ describe('P3: Streaming Output', () => {
     test('lastCharWasNewline tracks correctly through colored output', () => {
       const output = collectStateful([
         textDelta('hello\n'),
-        toolStart('Read'),
+        ...toolEvents('Read'),
       ]);
       // Text ends with \n (inside color), so no extra \n before tool tag
       expect(output).toBe(
@@ -504,7 +889,7 @@ describe('P3: Streaming Output', () => {
 
     test('tool tags and summaries are NOT colored with AGENT_COLOR', () => {
       const output = collectStateful([
-        toolStart('Bash'),
+        ...toolEvents('Bash'),
         {
           type: 'result',
           subtype: 'success',

@@ -60,6 +60,34 @@ export function formatError(subtype: string, errors: string[]): string {
   return parts.join("\n");
 }
 
+/**
+ * Redacts potential secrets from a command string before display.
+ * Handles: export VAR=val, VAR=val, Authorization: Bearer tokens.
+ */
+export function redactSecrets(command: string): string {
+  // Redact: export VAR=value or VAR=value (env var assignments)
+  let result = command.replace(
+    /\b([A-Z_][A-Z0-9_]*)=(\S+)/g,
+    '$1=***'
+  );
+  // Redact: Authorization: Bearer <token>
+  result = result.replace(
+    /Authorization:\s*Bearer\s+[^\s"]+/gi,
+    'Authorization: Bearer ***'
+  );
+  return result;
+}
+
+/**
+ * Extracts the first line from a value, for use in tool detail display.
+ * Returns undefined if the value is not a string, is empty, or starts with \n.
+ */
+export function extractFirstLine(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const firstLine = value.split('\n')[0] ?? '';
+  return firstLine.length > 0 ? firstLine : undefined;
+}
+
 type WriteFn = (s: string) => void;
 
 /**
@@ -69,15 +97,19 @@ type WriteFn = (s: string) => void;
  *   Used to decide if a newline must be inserted before tool tags.
  * - isFirstTextOutput: whether any text_delta has been written yet.
  *   Used to strip leading blank lines from the first text output.
+ * - pendingToolName: tool name from content_block_start, waiting for input.
+ * - pendingToolJson: accumulated input_json_delta fragments for the pending tool.
  */
 export type StreamState = {
   lastCharWasNewline: boolean;
   isFirstTextOutput: boolean;
+  pendingToolName: string | undefined;
+  pendingToolJson: string;
 };
 
 /** Creates a fresh StreamState — call once per session or loop iteration. */
 export function createStreamState(): StreamState {
-  return { lastCharWasNewline: true, isFirstTextOutput: true };
+  return { lastCharWasNewline: true, isFirstTextOutput: true, pendingToolName: undefined, pendingToolJson: '' };
 }
 
 /**
@@ -155,12 +187,58 @@ export function processMessage(msg: any, write: WriteFn, state?: StreamState, er
       event.type === "content_block_start" &&
       event.content_block?.type === "tool_use"
     ) {
-      // Insert newline before tool tag if previous output didn't end with one
-      const prefix = state && !state.lastCharWasNewline ? "\n" : "";
-      write(prefix + formatToolTag(event.content_block.name) + "\n");
+      // Defer tag display until content_block_stop when input is fully accumulated.
+      // The Anthropic streaming API sends input: {} at content_block_start;
+      // actual input arrives via input_json_delta in content_block_delta events.
       if (state) {
-        state.lastCharWasNewline = true;
+        state.pendingToolName = event.content_block.name;
+        state.pendingToolJson = '';
+      } else {
+        // Stateless fallback: no accumulation possible, show bare tag
+        const prefix = "";
+        write(`${DIM}[${event.content_block.name}]${DIM_OFF}\n`);
       }
+    } else if (
+      event.type === "content_block_delta" &&
+      event.delta?.type === "input_json_delta" &&
+      state?.pendingToolName
+    ) {
+      // Accumulate streamed JSON fragments for the pending tool's input
+      state.pendingToolJson += event.delta.partial_json;
+    } else if (
+      event.type === "content_block_stop" &&
+      state?.pendingToolName
+    ) {
+      const name = state.pendingToolName;
+
+      // Parse accumulated input and extract tool detail using fallback chain.
+      // Known properties: file_path, command, description, pattern, query
+      let detail: string | undefined;
+      if (state.pendingToolJson.length > 0) {
+        try {
+          const input = JSON.parse(state.pendingToolJson);
+          if (input && typeof input === 'object') {
+            const raw = input.file_path || input.command || input.description || input.pattern || input.query;
+            detail = extractFirstLine(raw);
+            if (detail && input.command !== undefined) {
+              detail = redactSecrets(detail);
+            }
+          }
+        } catch {
+          // Malformed JSON — show bare tag
+        }
+      }
+
+      const tag = detail
+        ? `${DIM}[${name}] ${detail}${DIM_OFF}`
+        : `${DIM}[${name}]${DIM_OFF}`;
+
+      // Insert newline before tool tag if previous output didn't end with one
+      const prefix = state.lastCharWasNewline ? "" : "\n";
+      write(prefix + tag + "\n");
+      state.lastCharWasNewline = true;
+      state.pendingToolName = undefined;
+      state.pendingToolJson = '';
     }
   }
 }
