@@ -21,7 +21,7 @@ const VALID_FIELDS = new Set([
 ]);
 
 const RESERVED_NAMES = new Set([
-  "alias",
+  "alias-list",
   "help",
   "version",
   "model",

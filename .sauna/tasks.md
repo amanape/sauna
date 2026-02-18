@@ -2,7 +2,7 @@
 
 ## Status Summary
 
-All 8 tasks are complete. The alias feature is fully implemented and tested (211 tests passing across 9 files). All specs in `.sauna/specs/` are satisfied.
+**Gap Analysis (working tree vs. specs):** The working tree has regressed from the committed HEAD. The full `sauna alias <action> [name]` subcommand (with `show`, `set`, `rm` actions) was replaced with a flat `sauna alias-list` command. The `aliasShow`, `aliasSet`, `aliasRm` functions and all their tests were removed. Tasks 3, 4, 7, and 8 are partially incomplete.
 
 ---
 
@@ -15,7 +15,7 @@ All 8 tasks are complete. The alias feature is fully implemented and tested (211
 - [x] `loadAliases(root?: string)` — read and parse `.sauna/aliases.toml`, return a `Record<string, AliasDefinition>` or empty object if file missing
 - [x] Define `AliasDefinition` type: `{ prompt: string; model?: string; context?: string[]; count?: number; forever?: boolean; interactive?: boolean }`
 - [x] Validate alias names: only `[a-zA-Z0-9_-]`, reject empty
-- [x] Validate reserved names: reject `alias`, `help`, `version`, `model`, `m`, `forever`, `count`, `n`, `interactive`, `i`, `context`, `c`
+- [ ] Validate reserved names: must reject `alias` (currently rejects `alias-list` instead)
 - [x] Validate required fields: `prompt` must exist and be a string
 - [x] Validate mutual exclusivity: `forever` + `count`, `interactive` + `forever`/`count`
 - [x] Validate `count` is a positive integer when present
@@ -25,34 +25,35 @@ All 8 tasks are complete. The alias feature is fully implemented and tested (211
 
 ### 3. Implement `src/alias-commands.ts` — CRUD subcommand handlers
 - [x] `aliasList(aliases, write)` — print compact table (name, truncated prompt, flags in short notation); print helpful message if no aliases
-- [x] `aliasShow(aliases, name, write)` — print full TOML definition for one alias; error if not found
-- [x] `aliasSet(name, root?, write?)` — create file if needed, append stub `[name]\nprompt = ""`, reject reserved/duplicate names
-- [x] `aliasRm(name, root?, write?)` — remove alias section from file; error if not found
+- [ ] `aliasShow(aliases, name, write)` — print full TOML definition for one alias; error if not found (**removed in working tree**)
+- [ ] `aliasSet(name, root?, write?)` — create file if needed, append stub `[name]\nprompt = ""`, reject reserved/duplicate names (**removed in working tree**)
+- [ ] `aliasRm(name, root?, write?)` — remove alias section from file; error if not found (**removed in working tree**)
 - [x] All handlers write to injected `write` callback for testability (matches existing pattern)
 
 ### 4. Register `alias` subcommand in `index.ts`
-- [x] Add cleye `command({ name: 'alias', parameters: ['<action>', '[name]'] })` to the `commands` array
-- [x] Route `argv.command === 'alias'` to handlers before alias resolution and before normal execution flow
-- [x] `sauna alias` (no action) shows help for the alias subcommand
+- [ ] Add cleye `command({ name: 'alias', parameters: ['<action>', '[name]'] })` to the `commands` array (**currently uses `alias-list` flat command instead**)
+- [ ] Route `argv.command === 'alias'` to handlers (list/show/set/rm) before alias resolution and before normal execution flow (**only routes to `alias-list`**)
+- [ ] `sauna alias` (no action) shows help for the alias subcommand (**not implemented**)
 
 ### 5. Implement alias resolution in `index.ts`
 - [x] Before cleye parsing: read `process.argv`, check if `argv[2]` matches an alias name
 - [x] If match: call `expandAlias()` and pass expanded argv to `cli()` as the third parameter
 - [x] If no match: pass through unchanged (current behavior preserved)
 - [x] `SAUNA_DRY_RUN=1` prints the resolved config so users can debug alias expansion
-- [x] Must skip alias resolution if `argv[2]` is `alias` (subcommand takes priority)
+- [ ] Must skip alias resolution if `argv[2]` is `alias` (subcommand takes priority) (**currently skips `alias-list` instead**)
 
 ### 6. Write tests — `tests/aliases.test.ts`
 - [x] TOML parsing: valid file, missing file (no error), malformed TOML (clear error)
 - [x] Schema validation: missing `prompt`, invalid `count`, unknown fields, reserved names, mutual exclusivity
 - [x] Alias name validation: valid chars, invalid chars, empty string
 - [x] `expandAlias()`: basic expansion, flag override (last wins), context accumulation, positional arg rejection
+- [ ] Reserved name test should check `alias` not `alias-list`
 
 ### 7. Write tests — `tests/alias-commands.test.ts`
 - [x] `list`: all aliases displayed, empty state message
-- [x] `show`: known alias prints TOML, unknown alias errors
-- [x] `set`: creates file, appends stub, rejects reserved names, rejects duplicates
-- [x] `rm`: removes alias, errors on unknown name
+- [ ] `show`: known alias prints TOML, unknown alias errors (**removed in working tree**)
+- [ ] `set`: creates file, appends stub, rejects reserved names, rejects duplicates (**removed in working tree**)
+- [ ] `rm`: removes alias, errors on unknown name (**removed in working tree**)
 
 ### 8. Write integration tests — `tests/cli.test.ts` (extend existing)
 - [x] `sauna <alias>` expands and runs (via `SAUNA_DRY_RUN=1`)
@@ -60,7 +61,20 @@ All 8 tasks are complete. The alias feature is fully implemented and tested (211
 - [x] `sauna <alias> -c /extra` appends context
 - [x] `sauna <not-an-alias>` falls through unchanged
 - [x] Missing `.sauna/aliases.toml` — existing behavior unchanged
-- [x] `sauna alias list` routes to alias subcommand, not alias resolution
+- [ ] `sauna alias list` routes to alias subcommand, not alias resolution (**currently tests `sauna alias-list` instead**)
+- [ ] `sauna alias show <name>` integration test (**removed in working tree**)
+- [ ] `sauna alias set <name>` integration test (**removed in working tree**)
+- [ ] `sauna alias rm <name>` integration test (**removed in working tree**)
+- [ ] `sauna alias` with no action integration test (**removed in working tree**)
+
+---
+
+## Remediation Summary
+
+The committed HEAD has the complete implementation. The working tree modifications stripped it down. To satisfy the specs, either:
+
+1. **Revert working tree changes** — `git checkout HEAD -- index.ts src/alias-commands.ts src/aliases.ts tests/alias-commands.test.ts tests/aliases.test.ts tests/cli.test.ts` to restore the full implementation from HEAD.
+2. **Re-implement** the removed pieces (not recommended since they already exist at HEAD).
 
 ---
 

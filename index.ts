@@ -5,16 +5,16 @@ import { runSession } from "./src/session";
 import { runLoop } from "./src/loop";
 import { runInteractive } from "./src/interactive";
 import { loadAliases, expandAlias } from "./src/aliases";
-import { aliasList, aliasShow, aliasSet, aliasRm } from "./src/alias-commands";
+import { aliasList } from "./src/alias-commands";
 import pkg from "./package.json";
 
 // --- Alias resolution: expand alias names before cleye parses argv ---
 // Must run before cli() so the expanded argv reaches cleye.
-// Skip if the first arg is a subcommand name (e.g. "alias").
+// Skip if the first arg is a subcommand name (e.g. "alias-list").
 let customArgv: string[] | undefined;
 const firstArg = process.argv[2];
 
-if (firstArg && firstArg !== "alias" && !firstArg.startsWith("-")) {
+if (firstArg && firstArg !== "alias-list" && !firstArg.startsWith("-")) {
   try {
     const aliases = loadAliases();
     const alias = aliases[firstArg];
@@ -34,6 +34,9 @@ const argv = cli(
     name: "sauna",
     version: pkg.version,
     parameters: ["[prompt]"],
+    help: {
+      description: "A lightweight CLI wrapper around the Claude Agent SDK",
+    },
     flags: {
       model: {
         type: String,
@@ -62,8 +65,10 @@ const argv = cli(
     },
     commands: [
       command({
-        name: "alias",
-        parameters: ["<action>", "[name]"],
+        name: "alias-list",
+        help: {
+          description: "List all prompt aliases defined in .sauna/aliases.toml",
+        },
       }),
     ],
   },
@@ -71,50 +76,11 @@ const argv = cli(
   customArgv
 );
 
-// Handle `sauna alias <action> [name]` subcommand
-if (argv.command === "alias") {
-  const action = argv._.action;
-  const name = argv._.name;
-  const write = (s: string) => process.stdout.write(s);
-
+// Handle `sauna alias-list` subcommand
+if (argv.command === "alias-list") {
   try {
-    switch (action) {
-      case "list": {
-        const aliases = loadAliases();
-        aliasList(aliases, write);
-        break;
-      }
-      case "show": {
-        if (!name) {
-          process.stderr.write("error: alias show requires a name\n");
-          process.exit(1);
-        }
-        const aliases = loadAliases();
-        aliasShow(aliases, name, write);
-        break;
-      }
-      case "set": {
-        if (!name) {
-          process.stderr.write("error: alias set requires a name\n");
-          process.exit(1);
-        }
-        aliasSet(name, undefined, write);
-        break;
-      }
-      case "rm": {
-        if (!name) {
-          process.stderr.write("error: alias rm requires a name\n");
-          process.exit(1);
-        }
-        aliasRm(name, undefined, write);
-        break;
-      }
-      default:
-        process.stderr.write(
-          `error: unknown alias action "${action}". Use: list, show, set, rm\n`
-        );
-        process.exit(1);
-    }
+    const aliases = loadAliases();
+    aliasList(aliases, (s: string) => process.stdout.write(s));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(`error: ${message}\n`);

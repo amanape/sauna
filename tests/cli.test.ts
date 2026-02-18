@@ -1,6 +1,6 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test';
 import { resolve } from 'node:path';
-import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { resolveModel } from '../src/cli';
 
 const ROOT = resolve(import.meta.dir, '..');
@@ -267,7 +267,7 @@ describe('P1: CLI parsing', () => {
     });
   });
 
-  describe('alias subcommand', () => {
+  describe('alias-list command', () => {
     const tmpDir = resolve(ROOT, 'tests', '.tmp-cli-alias-test');
 
     function setupAliasFile(content: string) {
@@ -295,11 +295,11 @@ describe('P1: CLI parsing', () => {
       });
     }
 
-    test('`sauna alias list` prints aliases when file exists', async () => {
+    test('`sauna alias-list` prints aliases when file exists', async () => {
       setupAliasFile(
         '[build]\nprompt = "do the build"\ncount = 3\n\n[review]\nprompt = "review code"\nmodel = "opus"\n',
       );
-      const proc = spawnSauna(['alias', 'list']);
+      const proc = spawnSauna(['alias-list']);
       const stdout = await new Response(proc.stdout).text();
       const exitCode = await proc.exited;
       expect(exitCode).toBe(0);
@@ -307,85 +307,12 @@ describe('P1: CLI parsing', () => {
       expect(stdout).toContain('review');
     });
 
-    test('`sauna alias list` prints helpful message when no aliases', async () => {
-      const proc = spawnSauna(['alias', 'list']);
+    test('`sauna alias-list` prints helpful message when no aliases', async () => {
+      const proc = spawnSauna(['alias-list']);
       const stdout = await new Response(proc.stdout).text();
       const exitCode = await proc.exited;
       expect(exitCode).toBe(0);
       expect(stdout).toContain('No aliases defined');
-    });
-
-    test('`sauna alias show <name>` prints TOML for a known alias', async () => {
-      setupAliasFile('[build]\nprompt = "do the build"\ncount = 3\n');
-      const proc = spawnSauna(['alias', 'show', 'build']);
-      const stdout = await new Response(proc.stdout).text();
-      const exitCode = await proc.exited;
-      expect(exitCode).toBe(0);
-      expect(stdout).toContain('[build]');
-      expect(stdout).toContain('do the build');
-    });
-
-    test('`sauna alias show <name>` errors for unknown alias', async () => {
-      setupAliasFile('[build]\nprompt = "do the build"\n');
-      const proc = spawnSauna(['alias', 'show', 'nope']);
-      const stderr = await new Response(proc.stderr).text();
-      const exitCode = await proc.exited;
-      expect(exitCode).not.toBe(0);
-      expect(stderr).toContain('nope');
-      expect(stderr).toContain('not found');
-    });
-
-    test('`sauna alias set <name>` creates a stub alias', async () => {
-      const proc = spawnSauna(['alias', 'set', 'deploy']);
-      const stdout = await new Response(proc.stdout).text();
-      const exitCode = await proc.exited;
-      expect(exitCode).toBe(0);
-      expect(stdout).toContain('deploy');
-      // Verify the file was created
-      const content = readFileSync(
-        resolve(tmpDir, '.sauna', 'aliases.toml'),
-        'utf-8',
-      );
-      expect(content).toContain('[deploy]');
-    });
-
-    test('`sauna alias set <name>` rejects reserved names', async () => {
-      const proc = spawnSauna(['alias', 'set', 'help']);
-      const stderr = await new Response(proc.stderr).text();
-      const exitCode = await proc.exited;
-      expect(exitCode).not.toBe(0);
-      expect(stderr).toContain('Reserved');
-    });
-
-    test('`sauna alias rm <name>` removes an alias', async () => {
-      setupAliasFile('[build]\nprompt = "do the build"\n');
-      const proc = spawnSauna(['alias', 'rm', 'build']);
-      const stdout = await new Response(proc.stdout).text();
-      const exitCode = await proc.exited;
-      expect(exitCode).toBe(0);
-      expect(stdout).toContain('Removed');
-      expect(stdout).toContain('build');
-    });
-
-    test('`sauna alias rm <name>` errors for unknown alias', async () => {
-      setupAliasFile('[build]\nprompt = "do the build"\n');
-      const proc = spawnSauna(['alias', 'rm', 'nope']);
-      const stderr = await new Response(proc.stderr).text();
-      const exitCode = await proc.exited;
-      expect(exitCode).not.toBe(0);
-      expect(stderr).toContain('nope');
-      expect(stderr).toContain('not found');
-    });
-
-    test('`sauna alias` with no action shows help', async () => {
-      const proc = spawnSauna(['alias']);
-      const stdout = await new Response(proc.stdout).text();
-      const stderr = await new Response(proc.stderr).text();
-      const combined = stdout + stderr;
-      const exitCode = await proc.exited;
-      // Should show help/usage info — not crash
-      expect(exitCode).not.toBe(0);
-      expect(combined).toMatch(/alias/i);
     });
   });
 
@@ -475,9 +402,8 @@ describe('P1: CLI parsing', () => {
       expect(parsed.prompt).toBe('test prompt here');
     });
 
-    test('`sauna alias list` routes to alias subcommand, not alias resolution', async () => {
-      // Even if "alias" were somehow an alias name, `alias list` should go to subcommand
-      const proc = spawnSauna(['alias', 'list']);
+    test('`sauna alias-list` routes to alias-list subcommand, not alias resolution', async () => {
+      const proc = spawnSauna(['alias-list']);
       const stdout = await new Response(proc.stdout).text();
       const exitCode = await proc.exited;
       expect(exitCode).toBe(0);

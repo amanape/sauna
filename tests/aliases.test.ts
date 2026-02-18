@@ -183,9 +183,9 @@ prompt = "test"
     expect(() => loadAliases(TMP)).toThrow(/name/i);
   });
 
-  test("rejects reserved name 'alias'", () => {
+  test("rejects reserved name 'alias-list'", () => {
     writeAliasFile(`
-[alias]
+[alias-list]
 prompt = "test"
 `);
     expect(() => loadAliases(TMP)).toThrow(/reserved/i);

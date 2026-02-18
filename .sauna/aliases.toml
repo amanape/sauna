@@ -1,5 +1,4 @@
 
-[build]
+[plan]
 prompt = ".sauna/prompts/plan.md"
 context = [".sauna/specs", ".sauna/tasks.md"]
-model = "opus"
