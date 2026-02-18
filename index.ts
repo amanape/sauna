@@ -1,10 +1,33 @@
-import { cli } from "cleye";
+import { cli, command } from "cleye";
 import { resolveModel } from "./src/cli";
 import { findClaude } from "./src/claude";
 import { runSession } from "./src/session";
 import { runLoop } from "./src/loop";
 import { runInteractive } from "./src/interactive";
+import { loadAliases, expandAlias } from "./src/aliases";
+import { aliasList, aliasShow, aliasSet, aliasRm } from "./src/alias-commands";
 import pkg from "./package.json";
+
+// --- Alias resolution: expand alias names before cleye parses argv ---
+// Must run before cli() so the expanded argv reaches cleye.
+// Skip if the first arg is a subcommand name (e.g. "alias").
+let customArgv: string[] | undefined;
+const firstArg = process.argv[2];
+
+if (firstArg && firstArg !== "alias" && !firstArg.startsWith("-")) {
+  try {
+    const aliases = loadAliases();
+    const alias = aliases[firstArg];
+    if (alias) {
+      const extraArgs = process.argv.slice(3);
+      customArgv = expandAlias(alias, extraArgs);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`error: ${message}\n`);
+    process.exit(1);
+  }
+}
 
 const argv = cli(
   {
@@ -37,10 +60,68 @@ const argv = cli(
         description: "File/directory paths to include as context",
       },
     },
+    commands: [
+      command({
+        name: "alias",
+        parameters: ["<action>", "[name]"],
+      }),
+    ],
   },
   undefined,
-  undefined
+  customArgv
 );
+
+// Handle `sauna alias <action> [name]` subcommand
+if (argv.command === "alias") {
+  const action = argv._.action;
+  const name = argv._.name;
+  const write = (s: string) => process.stdout.write(s);
+
+  try {
+    switch (action) {
+      case "list": {
+        const aliases = loadAliases();
+        aliasList(aliases, write);
+        break;
+      }
+      case "show": {
+        if (!name) {
+          process.stderr.write("error: alias show requires a name\n");
+          process.exit(1);
+        }
+        const aliases = loadAliases();
+        aliasShow(aliases, name, write);
+        break;
+      }
+      case "set": {
+        if (!name) {
+          process.stderr.write("error: alias set requires a name\n");
+          process.exit(1);
+        }
+        aliasSet(name, undefined, write);
+        break;
+      }
+      case "rm": {
+        if (!name) {
+          process.stderr.write("error: alias rm requires a name\n");
+          process.exit(1);
+        }
+        aliasRm(name, undefined, write);
+        break;
+      }
+      default:
+        process.stderr.write(
+          `error: unknown alias action "${action}". Use: list, show, set, rm\n`
+        );
+        process.exit(1);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`error: ${message}\n`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
 
 const prompt = argv._.prompt;
 const model = resolveModel(argv.flags.model);

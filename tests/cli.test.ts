@@ -1,5 +1,6 @@
-import { test, expect, describe } from 'bun:test';
+import { test, expect, describe, beforeEach, afterEach } from 'bun:test';
 import { resolve } from 'node:path';
+import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { resolveModel } from '../src/cli';
 
 const ROOT = resolve(import.meta.dir, '..');
@@ -263,6 +264,224 @@ describe('P1: CLI parsing', () => {
       await proc.exited;
       expect(stdout).toContain('foo.md');
       expect(stdout).toContain('bar/');
+    });
+  });
+
+  describe('alias subcommand', () => {
+    const tmpDir = resolve(ROOT, 'tests', '.tmp-cli-alias-test');
+
+    function setupAliasFile(content: string) {
+      const saunaDir = resolve(tmpDir, '.sauna');
+      mkdirSync(saunaDir, { recursive: true });
+      writeFileSync(resolve(saunaDir, 'aliases.toml'), content);
+    }
+
+    beforeEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+      mkdirSync(tmpDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    // Helper that runs the CLI from the temp directory
+    function spawnSauna(args: string[]) {
+      return Bun.spawn(['bun', resolve(ROOT, 'index.ts'), ...args], {
+        cwd: tmpDir,
+        stdout: 'pipe',
+        stderr: 'pipe',
+        env: { ...process.env, SAUNA_DRY_RUN: '1' },
+      });
+    }
+
+    test('`sauna alias list` prints aliases when file exists', async () => {
+      setupAliasFile(
+        '[build]\nprompt = "do the build"\ncount = 3\n\n[review]\nprompt = "review code"\nmodel = "opus"\n',
+      );
+      const proc = spawnSauna(['alias', 'list']);
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('build');
+      expect(stdout).toContain('review');
+    });
+
+    test('`sauna alias list` prints helpful message when no aliases', async () => {
+      const proc = spawnSauna(['alias', 'list']);
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('No aliases defined');
+    });
+
+    test('`sauna alias show <name>` prints TOML for a known alias', async () => {
+      setupAliasFile('[build]\nprompt = "do the build"\ncount = 3\n');
+      const proc = spawnSauna(['alias', 'show', 'build']);
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('[build]');
+      expect(stdout).toContain('do the build');
+    });
+
+    test('`sauna alias show <name>` errors for unknown alias', async () => {
+      setupAliasFile('[build]\nprompt = "do the build"\n');
+      const proc = spawnSauna(['alias', 'show', 'nope']);
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('nope');
+      expect(stderr).toContain('not found');
+    });
+
+    test('`sauna alias set <name>` creates a stub alias', async () => {
+      const proc = spawnSauna(['alias', 'set', 'deploy']);
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('deploy');
+      // Verify the file was created
+      const content = readFileSync(
+        resolve(tmpDir, '.sauna', 'aliases.toml'),
+        'utf-8',
+      );
+      expect(content).toContain('[deploy]');
+    });
+
+    test('`sauna alias set <name>` rejects reserved names', async () => {
+      const proc = spawnSauna(['alias', 'set', 'help']);
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('Reserved');
+    });
+
+    test('`sauna alias rm <name>` removes an alias', async () => {
+      setupAliasFile('[build]\nprompt = "do the build"\n');
+      const proc = spawnSauna(['alias', 'rm', 'build']);
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('Removed');
+      expect(stdout).toContain('build');
+    });
+
+    test('`sauna alias rm <name>` errors for unknown alias', async () => {
+      setupAliasFile('[build]\nprompt = "do the build"\n');
+      const proc = spawnSauna(['alias', 'rm', 'nope']);
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('nope');
+      expect(stderr).toContain('not found');
+    });
+
+    test('`sauna alias` with no action shows help', async () => {
+      const proc = spawnSauna(['alias']);
+      const stdout = await new Response(proc.stdout).text();
+      const stderr = await new Response(proc.stderr).text();
+      const combined = stdout + stderr;
+      const exitCode = await proc.exited;
+      // Should show help/usage info — not crash
+      expect(exitCode).not.toBe(0);
+      expect(combined).toMatch(/alias/i);
+    });
+  });
+
+  describe('alias resolution', () => {
+    const tmpDir = resolve(ROOT, 'tests', '.tmp-cli-resolution-test');
+
+    function setupAliasFile(content: string) {
+      const saunaDir = resolve(tmpDir, '.sauna');
+      mkdirSync(saunaDir, { recursive: true });
+      writeFileSync(resolve(saunaDir, 'aliases.toml'), content);
+    }
+
+    beforeEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+      mkdirSync(tmpDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    function spawnSauna(args: string[]) {
+      return Bun.spawn(['bun', resolve(ROOT, 'index.ts'), ...args], {
+        cwd: tmpDir,
+        stdout: 'pipe',
+        stderr: 'pipe',
+        env: { ...process.env, SAUNA_DRY_RUN: '1' },
+      });
+    }
+
+    test('`sauna <alias>` expands and runs via SAUNA_DRY_RUN', async () => {
+      setupAliasFile(
+        '[build]\nprompt = ".sauna/prompts/build.md"\ncontext = [".sauna/specs", ".sauna/tasks.md"]\ncount = 5\n',
+      );
+      const proc = spawnSauna(['build']);
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.prompt).toBe('.sauna/prompts/build.md');
+      expect(parsed.count).toBe(5);
+      expect(parsed.context).toContain('.sauna/specs');
+      expect(parsed.context).toContain('.sauna/tasks.md');
+    });
+
+    test('`sauna <alias> -n 2` overrides count', async () => {
+      setupAliasFile('[build]\nprompt = "do build"\ncount = 5\n');
+      const proc = spawnSauna(['build', '-n', '2']);
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.prompt).toBe('do build');
+      expect(parsed.count).toBe(2);
+    });
+
+    test('`sauna <alias> -c /extra` appends context', async () => {
+      setupAliasFile(
+        '[build]\nprompt = "do build"\ncontext = [".sauna/specs"]\n',
+      );
+      const proc = spawnSauna(['build', '-c', '/extra']);
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.context).toContain('.sauna/specs');
+      expect(parsed.context).toContain('/extra');
+    });
+
+    test('`sauna <not-an-alias>` falls through unchanged', async () => {
+      setupAliasFile('[build]\nprompt = "do build"\n');
+      const proc = spawnSauna(['my-custom-prompt']);
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.prompt).toBe('my-custom-prompt');
+    });
+
+    test('missing .sauna/aliases.toml — existing behavior unchanged', async () => {
+      // No alias file in tmpDir
+      const proc = spawnSauna(['test prompt here']);
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.prompt).toBe('test prompt here');
+    });
+
+    test('`sauna alias list` routes to alias subcommand, not alias resolution', async () => {
+      // Even if "alias" were somehow an alias name, `alias list` should go to subcommand
+      const proc = spawnSauna(['alias', 'list']);
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('No aliases defined');
     });
   });
 });
