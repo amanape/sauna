@@ -1,35 +1,59 @@
-# Enhanced Tool Display -- Implementation Tasks
+# Enhanced Tool Display -- Tasks
 
-## Priority-Ordered Implementation Tasks
+**STATUS: BLOCKED** - Security vulnerability identified (credential exposure in terminal output)
 
-- [ ] Create a `getToolDetails(name, input)` helper function in `src/stream.ts` that maps tool names to relevant parameters (file_path for Read/Write/Edit, command for Bash, description for Task, pattern for Glob/Grep)
-- [ ] Update `formatToolTag(name, details?)` signature to accept optional details string and produce `[ToolName] details` format (space-separated)
-- [ ] Ensure dim ANSI formatting wraps the entire line including details (extend DIM_OFF to come after details string)
-- [ ] Handle edge case: empty string details -- treat empty string same as undefined (no trailing space after `[ToolName]`)
-- [ ] Handle edge case: multiline tool arguments -- extract only first line of multi-line values before passing to `formatToolTag`
-- [ ] Update the `content_block_start` branch in `processMessage()` to extract `event.content_block.input`, call `getToolDetails()`, and pass result to `formatToolTag()`
-- [ ] Update existing `formatToolTag` unit tests in `tests/stream.test.ts` to cover new details parameter (with details, without details, empty string)
-- [ ] Add unit tests for `getToolDetails()` covering each tool mapping (Read, Write, Edit, Bash, Task, Glob, Grep) plus unknown tool names
-- [ ] Update `processMessage` stateful tests that assert exact output strings to account for new format when input contains relevant parameters
-- [ ] Verify no signature changes to `processMessage()` -- confirm `content_block.input` is already present in event payload
-- [ ] Run `bun test` and confirm all tests pass after implementation
+## P0: BLOCKERS (Must Resolve Before Implementation)
 
-## Implementation Notes
+- [ ] Design credential redaction for Bash commands (`export API_KEY=***`, `FOO=***`, `Authorization: Bearer ***`)
+- [ ] Add opt-in mechanism (flag `--show-tool-details` or config file)
+- [ ] Research SDK docs for `event.content_block.input` format stability guarantees
+- [ ] Define multiline handling spec (first line extraction, heredocs, escape sequences)
+- [ ] Add runtime validation: fail visibly if `input` is not an object
+- [ ] Document privacy implications in user-facing docs
 
-### Scope
-- Changes confined to `src/stream.ts` and `tests/stream.test.ts`
-- No changes needed in `src/loop.ts`, `src/interactive.ts`, or other files
-- `processMessage()` signature remains unchanged (per spec constraint)
+## P1: Architecture Decisions
 
-### Key Technical Details
-- `event.content_block.input` object is already available in SDK event payload
-- Current format: `[ToolName]` with dim formatting
-- Target format: `[ToolName] details` with dim formatting for entire line
-- Tools without meaningful details display just `[ToolName]`
+- [ ] Keep extraction inline in `processMessage()` (avoid new `getToolDetails()` helper)
+- [ ] Use lookup table for tool-to-parameter mapping (not switch statement)
+- [ ] Document SDK wire format assumptions in code comments
+- [ ] Create security checklist for future features
 
-### Tool-to-Parameter Mapping
-- Read, Write, Edit → `file_path`
-- Bash → `command` (full command, no truncation)
-- Task → `description`
-- Glob, Grep → `pattern`
-- Other tools → no details (undefined)
+## P2: Core Implementation (After Blockers Resolved)
+
+- [ ] Extract parameter inline: `input.file_path || input.command || input.description || input.pattern`
+- [ ] Implement credential redaction before display
+- [ ] Implement multiline truncation (first line only)
+- [ ] Update `formatToolTag()` call with sanitized details
+- [ ] Ensure dim ANSI wraps entire line
+
+## P3: Testing
+
+- [ ] Test SDK validation failures (undefined input, non-object input, missing properties)
+- [ ] Test credential redaction patterns (export, assignment, auth headers)
+- [ ] Test multiline handling (heredocs, `\n` in strings)
+- [ ] Update `formatToolTag` tests for new behavior
+- [ ] Add integration test with varied SDK event shapes
+
+## P4: Documentation
+
+- [ ] Add `--show-tool-details` flag to README (if opt-in used)
+- [ ] Document SDK assumptions and validation strategy in comments
+- [ ] Document known redaction limitations
+
+---
+
+## Alternative: Minimal Safe Implementation
+
+If full security review fails:
+- [ ] Implement ONLY for Read/Write/Edit (low secret risk)
+- [ ] NEVER display Bash commands (high credential exposure)
+- [ ] Default OFF, require explicit opt-in
+- [ ] Show warning on first use about privacy
+
+---
+
+## Notes
+
+**Risk**: HIGH - will expose credentials in terminal (API keys, tokens, secrets in Bash commands)
+**See**: analysis.md lines 469-504 (security), 433-468 (SDK coupling), 545-588 (multiline)
+**Next**: Create BLOCKED.md, research SDK docs, design opt-in strategy
