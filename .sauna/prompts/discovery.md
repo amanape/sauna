@@ -6,7 +6,7 @@ Ask me questions to clarify the JTBD and expected results.
 
 Use the `AskUserQuestion` tool to ask questions and gather information.
 
-Use parallel subagents to study the existing source code.
+Use up to 10 parallel subagents to study the existing source code.
 
 Assume not implemented, search before asking questions.
 
