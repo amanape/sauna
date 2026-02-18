@@ -14,7 +14,7 @@ In interactive mode, there is no visual distinction between what the user typed 
 
 Agent text output should be rendered in a **subtle, non-distracting color** so it's visually distinct from user input without being loud.
 
-Chosen color: **ANSI 245** (`\x1b[38;5;245m`) — a neutral mid-gray from the 256-color palette. It reads clearly on both dark and light terminal themes but is clearly "different" from the default foreground color.
+Chosen color: **ANSI 250** (`\x1b[38;5;250m`) — a neutral mid-gray from the 256-color palette. It reads clearly on both dark and light terminal themes but is clearly "different" from the default foreground color.
 
 The color is applied to:
 - `text_delta` content (the agent's streamed text)
@@ -26,15 +26,15 @@ The color is **not** applied to:
 
 ## Implementation
 
-- Add a new ANSI constant in `src/stream.ts`: `const AGENT_COLOR = "\x1b[38;5;245m"` and use `RESET` to turn it off.
+- Add a new ANSI constant in `src/stream.ts`: `const AGENT_COLOR = "\x1b[38;5;250m"` and use `RESET` to turn it off.
 - In `processMessage()`, wrap `text_delta` writes: `write(AGENT_COLOR + text + RESET)`.
 - The color codes should not interfere with newline tracking in `StreamState` (they don't contain `\n`).
 - The `isFirstTextOutput` leading-newline stripping happens before coloring (strip first, then color the result).
 
 ## Acceptance Criteria
 
-- [ ] Agent text in interactive mode renders in ANSI 245 (mid-gray)
-- [ ] Agent text in non-interactive (single-run, loop) mode also renders in ANSI 245 for consistency
+- [ ] Agent text in interactive mode renders in ANSI 250 (mid-gray)
+- [ ] Agent text in non-interactive (single-run, loop) mode also renders in ANSI 250 for consistency
 - [ ] Tool tags, summary lines, and error messages are unchanged
 - [ ] Color codes do not break `StreamState.lastCharWasNewline` tracking
 - [ ] Color reset occurs at end of each text chunk so tool tags / summaries aren't accidentally colored

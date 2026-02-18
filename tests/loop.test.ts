@@ -13,15 +13,15 @@ describe('formatLoopHeader', () => {
   test('infinite mode shows iteration number only', () => {
     const header = formatLoopHeader(3);
     expect(header).toContain('loop 3');
-    // Should be dim (ANSI dim code)
-    expect(header).toContain('\x1b[2m');
+    // Should be bold (ANSI bold code)
+    expect(header).toContain('\x1b[1m');
     expect(header).not.toContain('/');
   });
 
   test('fixed count mode shows iteration and total', () => {
     const header = formatLoopHeader(2, 5);
     expect(header).toContain('loop 2 / 5');
-    expect(header).toContain('\x1b[2m');
+    expect(header).toContain('\x1b[1m');
   });
 });
 
