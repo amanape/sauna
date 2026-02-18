@@ -585,3 +585,117 @@ describe("P4: error output routing to stderr", () => {
     expect(stdoutJoined).not.toContain("agent failed");
   });
 });
+
+const BOLD_GREEN_PROMPT = "\x1b[1;32m> \x1b[0m";
+
+describe("P5: prompt visibility", () => {
+  test("initial prompt (no CLI --prompt) writes bold green > to promptOutput", async () => {
+    const mockQuery = createMockQuery();
+    const stdin = createFakeStdin();
+    const promptOutput = new PassThrough();
+    const promptChunks: string[] = [];
+    promptOutput.on("data", (chunk: Buffer) => promptChunks.push(chunk.toString()));
+
+    mockQuery.queueTurn([textDelta("hi\n"), successResult()]);
+
+    // Send first prompt via stdin, then empty to exit
+    setTimeout(() => stdin.writeLine("hello"), 50);
+    setTimeout(() => stdin.writeLine(""), 150);
+
+    await runInteractive(
+      { model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
+      () => {},
+      {
+        input: stdin.stream,
+        promptOutput,
+        createQuery: mockQuery.createQuery,
+      },
+    );
+
+    const promptText = promptChunks.join("");
+    // The initial prompt should contain bold green "> "
+    expect(promptText).toContain(BOLD_GREEN_PROMPT);
+  });
+
+  test("after agent result, bold green > appears on promptOutput", async () => {
+    const mockQuery = createMockQuery();
+    const stdin = createFakeStdin();
+    const promptOutput = new PassThrough();
+    const promptChunks: string[] = [];
+    promptOutput.on("data", (chunk: Buffer) => promptChunks.push(chunk.toString()));
+
+    mockQuery.queueTurn([textDelta("response\n"), successResult()]);
+
+    // Send empty line after result to exit
+    setTimeout(() => stdin.writeLine(""), 50);
+
+    await runInteractive(
+      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
+      () => {},
+      {
+        input: stdin.stream,
+        promptOutput,
+        createQuery: mockQuery.createQuery,
+      },
+    );
+
+    const promptText = promptChunks.join("");
+    expect(promptText).toContain(BOLD_GREEN_PROMPT);
+  });
+
+  test("writePrompt inserts newline when lastCharWasNewline is false", () => {
+    const { writePrompt } = require("../src/interactive");
+    const { createStreamState } = require("../src/stream");
+    const output = new PassThrough();
+    const chunks: string[] = [];
+    output.on("data", (chunk: Buffer) => chunks.push(chunk.toString()));
+
+    const state = createStreamState();
+    state.lastCharWasNewline = false;
+
+    writePrompt(output, state);
+
+    const text = chunks.join("");
+    expect(text).toBe("\n" + BOLD_GREEN_PROMPT);
+  });
+
+  test("writePrompt omits newline when lastCharWasNewline is true", () => {
+    const { writePrompt } = require("../src/interactive");
+    const { createStreamState } = require("../src/stream");
+    const output = new PassThrough();
+    const chunks: string[] = [];
+    output.on("data", (chunk: Buffer) => chunks.push(chunk.toString()));
+
+    const state = createStreamState();
+    state.lastCharWasNewline = true;
+
+    writePrompt(output, state);
+
+    const text = chunks.join("");
+    expect(text).toBe(BOLD_GREEN_PROMPT);
+  });
+
+  test("prompt does not appear on stdout (piped output stays clean)", async () => {
+    const mockQuery = createMockQuery();
+    const stdin = createFakeStdin();
+    const stdout: string[] = [];
+
+    mockQuery.queueTurn([textDelta("hi\n"), successResult()]);
+    setTimeout(() => stdin.writeLine(""), 50);
+
+    await runInteractive(
+      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], claudePath: "/fake/claude" },
+      (s) => stdout.push(s),
+      {
+        input: stdin.stream,
+        promptOutput: new PassThrough(),
+        createQuery: mockQuery.createQuery,
+      },
+    );
+
+    const fullOutput = stdout.join("");
+    // stdout should NOT contain the prompt characters
+    expect(fullOutput).not.toContain(BOLD_GREEN_PROMPT);
+    expect(fullOutput).not.toContain("> ");
+  });
+});

@@ -8,9 +8,21 @@
  */
 import { query, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { createInterface } from "node:readline";
-import { processMessage, createStreamState } from "./stream";
+import { processMessage, createStreamState, type StreamState } from "./stream";
 import { buildPrompt } from "./session";
 import type { Readable, Writable } from "node:stream";
+
+const BOLD_GREEN = "\x1b[1;32m";
+const RESET = "\x1b[0m";
+
+/** Writes a bold green "> " prompt to the output stream.
+ *  Inserts a newline first if the last output didn't end with one. */
+export function writePrompt(output: Writable, state: StreamState): void {
+  if (!state.lastCharWasNewline) {
+    output.write("\n");
+  }
+  output.write(`${BOLD_GREEN}> ${RESET}`);
+}
 
 export type InteractiveConfig = {
   prompt?: string;
@@ -104,15 +116,18 @@ export async function runInteractive(
   const rl = createInterface({
     input: overrides?.input ?? process.stdin,
     output: overrides?.promptOutput ?? process.stderr,
-    prompt: "> ",
+    prompt: "",
   });
+
+  const promptOutput = overrides?.promptOutput ?? process.stderr;
 
   // Determine first prompt: from CLI arg or first readline input
   let firstInput: string;
   if (config.prompt) {
     firstInput = config.prompt;
   } else {
-    rl.prompt();
+    const initialState = createStreamState();
+    writePrompt(promptOutput, initialState);
     const line = await readLine(rl);
     if (line === null || line.trim() === "") {
       rl.close();
@@ -173,7 +188,7 @@ export async function runInteractive(
 
       // After a result message, prompt for follow-up input
       if (msg.type === "result") {
-        rl.prompt();
+        writePrompt(promptOutput, state);
         const input = await readLine(rl);
 
         // Empty input or EOF exits
