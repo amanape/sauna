@@ -1,16 +1,42 @@
-import { cli } from "cleye";
+import { cli, command } from "cleye";
 import { resolveModel } from "./src/cli";
 import { findClaude } from "./src/claude";
 import { runSession } from "./src/session";
 import { runLoop } from "./src/loop";
 import { runInteractive } from "./src/interactive";
+import { loadAliases, expandAlias } from "./src/aliases";
+import { aliasList } from "./src/alias-commands";
 import pkg from "./package.json";
+
+// --- Alias resolution: expand alias names before cleye parses argv ---
+// Must run before cli() so the expanded argv reaches cleye.
+// Skip if the first arg is a subcommand name (e.g. "alias-list").
+let customArgv: string[] | undefined;
+const firstArg = process.argv[2];
+
+if (firstArg && firstArg !== "alias-list" && !firstArg.startsWith("-")) {
+  try {
+    const aliases = loadAliases();
+    const alias = aliases[firstArg];
+    if (alias) {
+      const extraArgs = process.argv.slice(3);
+      customArgv = expandAlias(alias, extraArgs);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`error: ${message}\n`);
+    process.exit(1);
+  }
+}
 
 const argv = cli(
   {
     name: "sauna",
     version: pkg.version,
     parameters: ["[prompt]"],
+    help: {
+      description: "A lightweight CLI wrapper around the Claude Agent SDK",
+    },
     flags: {
       model: {
         type: String,
@@ -37,10 +63,31 @@ const argv = cli(
         description: "File/directory paths to include as context",
       },
     },
+    commands: [
+      command({
+        name: "alias-list",
+        help: {
+          description: "List all prompt aliases defined in .sauna/aliases.toml",
+        },
+      }),
+    ],
   },
   undefined,
-  undefined
+  customArgv
 );
+
+// Handle `sauna alias-list` subcommand
+if (argv.command === "alias-list") {
+  try {
+    const aliases = loadAliases();
+    aliasList(aliases, (s: string) => process.stdout.write(s));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`error: ${message}\n`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
 
 const prompt = argv._.prompt;
 const model = resolveModel(argv.flags.model);

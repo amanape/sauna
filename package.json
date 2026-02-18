@@ -1,6 +1,6 @@
 {
   "name": "sauna",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "module": "index.ts",
   "type": "module",
   "bin": "./sauna",
@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.42",
-    "cleye": "^2.2.1"
+    "cleye": "^2.2.1",
+    "smol-toml": "^1.6.0"
   }
 }
