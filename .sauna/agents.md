@@ -18,8 +18,13 @@
 
 ## Dependencies
 - `cleye@2.2.1` — CLI argument parsing
-- `@anthropic-ai/claude-agent-sdk@0.2.42` — Claude agent session
+- `@anthropic-ai/claude-agent-sdk@0.2.42` — Claude agent session (Anthropic provider)
+- `@openai/codex-sdk@0.104.0` — Codex agent session (OpenAI provider)
 
 ## Modules
-- `src/claude.ts` — `findClaude()` resolves the Claude Code executable path; called once from `index.ts` at startup
-- `index.ts` — CLI entry point; calls `findClaude()` at startup and passes resolved `claudePath` to `runLoop`/`runInteractive`
+- `src/cli.ts` — `resolveProvider(model, errWrite?)` → `{ provider, model }` routing; `ResolvedProvider` type
+- `src/claude.ts` — `findClaude()` resolves the Claude Code executable path; only called for Anthropic provider
+- `src/codex-stream-adapter.ts` — `adaptCodexEvents(events, startTime)` translates Codex SDK ThreadEvents → sauna message format; `classifyOpenAIError(err)` maps auth/rate-limit/network SDK errors to user-friendly messages
+- `src/codex-session.ts` — `runCodexSession(config)` single-turn Codex session (OpenAI equivalent of runSession)
+- `src/codex-interactive.ts` — `runCodexInteractive(config, write, overrides?, errWrite?)` multi-turn Codex REPL
+- `index.ts` — CLI entry point; uses `resolveProvider()`, dispatches to Anthropic or OpenAI path

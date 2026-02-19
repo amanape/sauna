@@ -31,6 +31,11 @@ describe("P0: package setup", () => {
     expect(pkg.dependencies?.["@anthropic-ai/claude-agent-sdk"]).toBeDefined();
   });
 
+  test("@openai/codex-sdk is listed as a dependency", async () => {
+    const pkg = await Bun.file("package.json").json();
+    expect(pkg.dependencies?.["@openai/codex-sdk"]).toBeDefined();
+  });
+
   test("cleye is importable", async () => {
     const { cli } = await import("cleye");
     expect(typeof cli).toBe("function");

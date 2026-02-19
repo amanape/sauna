@@ -1,32 +1,58 @@
 import { test, expect, describe } from 'bun:test';
 import { resolve } from 'node:path';
-import { resolveModel } from '../src/cli';
+import { resolveProvider } from '../src/cli';
 
 const ROOT = resolve(import.meta.dir, '..');
 
 describe('P1: CLI parsing', () => {
   describe('model resolution', () => {
-    test("resolves 'sonnet' to full model ID", () => {
-      expect(resolveModel('sonnet')).toBe('claude-sonnet-4-20250514');
+    test("resolves 'sonnet' to anthropic full model ID", () => {
+      expect(resolveProvider('sonnet')).toEqual({
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-20250514',
+      });
     });
 
-    test("resolves 'opus' to full model ID", () => {
-      expect(resolveModel('opus')).toBe('claude-opus-4-20250514');
+    test("resolves 'opus' to anthropic full model ID", () => {
+      expect(resolveProvider('opus')).toEqual({
+        provider: 'anthropic',
+        model: 'claude-opus-4-20250514',
+      });
     });
 
-    test("resolves 'haiku' to full model ID", () => {
-      expect(resolveModel('haiku')).toBe('claude-haiku-4-20250414');
+    test("resolves 'haiku' to anthropic full model ID", () => {
+      expect(resolveProvider('haiku')).toEqual({
+        provider: 'anthropic',
+        model: 'claude-haiku-4-20250414',
+      });
     });
 
-    test('passes through unrecognized model name as-is', () => {
-      expect(resolveModel('claude-sonnet-4-20250514')).toBe(
-        'claude-sonnet-4-20250514',
-      );
-      expect(resolveModel('my-custom-model')).toBe('my-custom-model');
+    test("resolves 'gpt-4o' to openai provider", () => {
+      expect(resolveProvider('gpt-4o')).toEqual({
+        provider: 'openai',
+        model: 'gpt-4o',
+      });
     });
 
-    test('returns undefined when no model provided', () => {
-      expect(resolveModel(undefined)).toBeUndefined();
+    test("resolves 'o1' to openai provider", () => {
+      expect(resolveProvider('o1')).toEqual({
+        provider: 'openai',
+        model: 'o1',
+      });
+    });
+
+    test('passes through unrecognized bare string as anthropic (backward compat)', () => {
+      expect(resolveProvider('my-custom-model')).toEqual({
+        provider: 'anthropic',
+        model: 'my-custom-model',
+      });
+    });
+
+    test('returns anthropic with undefined model when no model provided', () => {
+      expect(resolveProvider(undefined)).toEqual({
+        provider: 'anthropic',
+        model: undefined,
+      });
     });
   });
 
