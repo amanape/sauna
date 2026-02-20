@@ -8,7 +8,6 @@
 
 import { Codex } from "@openai/codex-sdk";
 import { Agent } from "@openai/agents-sdk";
-import { spawn } from "child_process";
 
 // Start Codex as MCP server
 async function startCodexMCPServer(): Promise<{
@@ -17,9 +16,9 @@ async function startCodexMCPServer(): Promise<{
 }> {
   console.log("Starting Codex MCP server...");
 
-  const codexProcess = spawn("codex", ["mcp-server"], {
+  const codexProcess = Bun.spawn(["codex", "mcp-server"], {
     env: {
-      ...process.env,
+      ...Bun.env,
       CODEX_MCP_PORT: "8080"
     }
   });

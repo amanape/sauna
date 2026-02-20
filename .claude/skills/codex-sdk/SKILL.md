@@ -62,9 +62,10 @@ Configure model in thread options:
 
 ```typescript
 const thread = codex.startThread({
-  model: 'gpt-5.3-codex', // Latest, most capable
-  // Or: "gpt-5.3-codex-spark" for real-time focus
-  // Or: "gpt-5.2-codex" for previous version
+  model: 'gpt-5.3-codex', // Latest, most capable — recommended default
+  // Or: "gpt-5.3-codex-spark" — text-only, 1000+ tokens/s (ChatGPT Pro only, no vision)
+  // Or: "gpt-5.1-codex-max" — long-horizon agentic tasks
+  // Or: "gpt-5.2-codex" — previous generation
 });
 ```
 
@@ -154,21 +155,22 @@ const thread = codex.startThread({
 
 | Option                 | Purpose                | Values                                                  |
 | ---------------------- | ---------------------- | ------------------------------------------------------- |
-| `model`                | Model selection        | `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `gpt-5.2-codex` |
+| `model`                | Model selection        | `gpt-5.3-codex` (default), `gpt-5.3-codex-spark`, `gpt-5.1-codex-max`, `gpt-5.2-codex`, etc. |
 | `workingDirectory`     | Working directory      | Path string                                             |
 | `skipGitRepoCheck`     | Disable Git validation | Boolean                                                 |
 | `outputSchema`         | Structured output      | JSON Schema object                                      |
 | `reasoning_effort`     | Reasoning intensity    | `low`, `medium`, `high`                                 |
 | `networkAccessEnabled` | Enable web access      | Boolean                                                 |
 | `webSearchMode`        | Search mode            | `cached`, `live`                                        |
-| `approvalPolicy`       | Approval requirements  | `auto`, `manual`                                        |
+| `approvalPolicy`       | Approval requirements  | `untrusted`, `on-request`, `never`                      |
+| `sandbox`              | Filesystem access mode | `read-only`, `workspace-write`, `danger-full-access`    |
 
 ### Authentication
 
 Codex supports multiple authentication methods:
 
 1. **ChatGPT Login** - Browser OAuth flow
-2. **API Key** - Direct key from OpenAI dashboard
+2. **API Key** - Set `OPENAI_API_KEY` or `CODEX_API_KEY` environment variable, or pass `apiKey` to the constructor
 3. **Device Code** - Headless environments (beta)
 
 Credentials cache in `~/.codex/auth.json` or OS credential store.

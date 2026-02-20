@@ -46,7 +46,8 @@ Creates a new conversation thread.
 | `reasoning_effort` | `string` | Reasoning level | `medium` |
 | `networkAccessEnabled` | `boolean` | Allow web access | `true` |
 | `webSearchMode` | `string` | Search mode | `cached` |
-| `approvalPolicy` | `string` | Approval mode | `auto` |
+| `approvalPolicy` | `string` | Approval mode (`untrusted`, `on-request`, `never`) | `on-request` |
+| `sandbox` | `string` | Filesystem access (`read-only`, `workspace-write`, `danger-full-access`) | `workspace-write` |
 
 #### resumeThread()
 
@@ -297,11 +298,16 @@ const result = await thread.run("Task", {
 
 ### Available Models
 
-| Model | Description | Context | Speed |
-|-------|-------------|---------|-------|
-| `gpt-5.3-codex` | Latest, most capable | 128K | Fast |
-| `gpt-5.3-codex-spark` | Real-time focus | 128K | 1000+ tokens/s |
-| `gpt-5.2-codex` | Previous version | 128K | Fast |
+| Model | Description | Notes |
+|-------|-------------|-------|
+| `gpt-5.3-codex` | Most capable agentic coding model, best reasoning | Recommended default |
+| `gpt-5.3-codex-spark` | Near-instant real-time coding iteration (text-only) | ChatGPT Pro only; no vision |
+| `gpt-5.2-codex` | Advanced engineering model | Superseded by 5.3 |
+| `gpt-5.1-codex-max` | Long-horizon agentic coding tasks | Extended task support |
+| `gpt-5.1-codex` | Extended coding tasks | Superseded by 5.1-max |
+| `gpt-5.1-codex-mini` | Cost-effective coding variant | Smaller/faster |
+| `gpt-5-codex` | Long-running agentic coding | Replaced by 5.1-codex |
+| `gpt-5-codex-mini` | Cost-effective smaller variant | Older generation |
 
 ### Model Capabilities
 
@@ -309,11 +315,13 @@ const result = await thread.run("Task", {
 |---------|---------------|---------------------|---------------|
 | Code generation | ✓ | ✓ | ✓ |
 | Code analysis | ✓ | ✓ | ✓ |
-| Vision | ✓ | ✓ | ✓ |
+| Vision (images) | ✓ | ✗ (text-only) | ✓ |
 | Web access | ✓ | ✓ | ✓ |
 | File operations | ✓ | ✓ | ✓ |
 | Structured output | ✓ | ✓ | ✓ |
 | Reasoning effort | ✓ | Limited | ✓ |
+
+> **Note:** `gpt-5.3-codex-spark` is a research preview limited to ChatGPT Pro users. It is optimized for speed (1000+ tokens/s) but does not support image inputs.
 
 ## Configuration Files
 
@@ -361,7 +369,8 @@ Authentication storage:
 
 | Variable | Description |
 |----------|-------------|
-| `OPENAI_API_KEY` | API key |
+| `OPENAI_API_KEY` | Primary API key |
+| `CODEX_API_KEY` | Alternative API key (takes precedence over `OPENAI_API_KEY`) |
 | `CODEX_CONFIG` | Config file path |
 | `CODEX_HOME` | Data directory |
 | `CODEX_DEBUG` | Enable debug |
