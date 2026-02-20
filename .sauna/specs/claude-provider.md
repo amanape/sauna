@@ -9,8 +9,8 @@ The `ClaudeProvider` implements the `Provider` interface by locating the Claude 
 - `name` is `"claude"`
 - `isAvailable()` returns `true` if `which claude` succeeds and the path resolves through symlinks; returns `false` otherwise (never throws)
 - `createSession(config)` returns an `AsyncGenerator<ProviderEvent>` that:
-  - Prepends context paths as `"Context: <path>"` references to the prompt (reuses shared `buildPrompt()`)
-  - Calls `query()` from `@anthropic-ai/claude-agent-sdk` with: `pathToClaudeCodeExecutable`, `systemPrompt: { type: 'preset', preset: 'claude_code' }`, `settingSources: ['user', 'project']`, `permissionMode: 'bypassPermissions'`, `allowDangerouslySkipPermissions: true`, `includePartialMessages: true`
+  - Builds the full prompt via shared `buildPrompt(prompt, context)` (e.g., `Context: ./src\n\nfix the bug`)
+  - Calls `query()` from `@anthropic-ai/claude-agent-sdk` with `pathToClaudeCodeExecutable`, `systemPrompt: { type: 'preset', preset: 'claude_code' }`, `settingSources: ['user', 'project']`, `permissionMode: 'bypassPermissions'`, `allowDangerouslySkipPermissions: true`, `includePartialMessages: true`
   - Passes `model` to the SDK only when `config.model` is defined
   - Yields `ProviderEvent` objects by piping each SDK message through the Claude event adapter
 - When `isAvailable()` returns `false`, calling `createSession()` throws with a descriptive error message mentioning Claude Code installation
@@ -19,16 +19,16 @@ The `ClaudeProvider` implements the `Provider` interface by locating the Claude 
 
 ## Edge Cases
 
-- Authentication failure during session: SDK error propagates as a `result` event with `success: false`
 - Claude binary is a dangling symlink: `isAvailable()` returns `false`
 - `claude` exists on `$PATH` but is not executable: `isAvailable()` returns `false`
-- Multiple `claude` binaries on `$PATH`: the first one wins (standard `which` behavior)
+- Multiple `claude` binaries on `$PATH`: first one wins (standard `which` behavior)
+- Authentication failure during session: SDK error propagates as a `result` event with `success: false`
 
 ## Constraints
 
 - `findClaude()` logic (from current `src/claude.ts`) is absorbed into this provider — `src/claude.ts` is deleted
 - `runSession()` logic (from current `src/session.ts`) is absorbed — `src/session.ts` is deleted
-- `buildPrompt()` is extracted to a shared utility `src/prompt.ts` (it is provider-agnostic)
+- `buildPrompt()` is extracted to a shared `src/prompt.ts` (provider-agnostic)
 - No fallback search beyond `$PATH` for the binary
 
 ## Files

@@ -15,6 +15,7 @@ Each provider maps short human-friendly model names to full model IDs, with unkn
   - `codex-mini` → `codex-mini-latest`
 - Unknown alias names are returned unchanged (pass-through)
 - `undefined` model input returns `undefined` (SDK default applies)
+- Empty string model is treated as `undefined`
 - `knownAliases()` returns the full alias map for each provider (used by help text and validation)
 - Model resolution happens after provider selection — the selected provider's `resolveModel()` is called, not a global function
 - The existing `src/cli.ts` `resolveModel()` function is replaced by provider-scoped resolution
@@ -22,7 +23,6 @@ Each provider maps short human-friendly model names to full model IDs, with unkn
 ## Edge Cases
 
 - A Claude alias passed to the Codex provider (e.g., `--provider codex --model sonnet`): `sonnet` passes through as-is since Codex doesn't recognize it
-- Empty string model: treated as `undefined`
 
 ## Constraints
 

@@ -9,21 +9,20 @@ The CLI entry point adds a `--provider` flag and uses the provider system to dis
 - A new `--provider` / `-p` flag is added accepting a string value
 - The help description changes from "A lightweight CLI wrapper around the Claude Agent SDK" to "A lightweight CLI wrapper for AI coding agents"
 - `--model` description updates to mention Codex models alongside Claude models
-- `findClaude()` is no longer called directly — replaced by `resolveProvider()` + `provider.isAvailable()` check
+- Provider is selected via `resolveProvider(providerFlag, modelFlag)` instead of calling `findClaude()` directly
+- After resolution, `provider.isAvailable()` is checked; if `false`, the CLI exits with a provider-specific error message (e.g., "Install Claude Code" or "Set OPENAI_API_KEY")
+- Model alias is resolved via `provider.resolveModel(model)` instead of a global `resolveModel()`
 - The session factory becomes `() => provider.createSession({ prompt, model, context })` instead of `() => runSession({ prompt, model, context, claudePath })`
-- `SAUNA_DRY_RUN=1` JSON output includes `provider` field (the provider name string)
-- Import of `findClaude` from `./src/claude` is removed
-- Import of `runSession` from `./src/session` is removed
-- Import of `resolveModel` from `./src/cli` is replaced by provider-scoped resolution
+- `SAUNA_DRY_RUN=1` JSON output includes `provider` field (e.g., `{ "prompt": "...", "model": "...", "provider": "claude" }`)
 - `--interactive` mode continues to use Claude only (no provider dispatch) until interactive mode is extended
-- All existing CLI validation (--count, --forever, --interactive mutual exclusivity) is unchanged
+- All existing CLI validation (`--count`, `--forever`, `--interactive` mutual exclusivity) is unchanged
 - Alias expansion is unchanged
 
 ## Edge Cases
 
 - `--provider codex --interactive`: error message telling user interactive mode is not yet supported for Codex
-- `--provider invalidname`: error listing valid providers
-- No prompt and no --interactive: shows help (unchanged behavior)
+- `--provider invalidname`: error listing valid providers (thrown by `resolveProvider()`)
+- No prompt and no `--interactive`: shows help (unchanged behavior)
 
 ## Constraints
 
