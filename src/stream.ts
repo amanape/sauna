@@ -34,8 +34,13 @@ export function formatSummary(info: SummaryInfo): string {
 /** Formats a bold full-width loop header divider with centered label.
  *  Uses box-drawing horizontal character (─) to fill the line.
  *  Falls back to bold label only when terminal is too narrow. */
-export function formatLoopHeader(iteration: number, total?: number, columns?: number): string {
-  const label = total !== undefined ? `loop ${iteration} / ${total}` : `loop ${iteration}`;
+export function formatLoopHeader(
+  iteration: number,
+  total?: number,
+  columns?: number,
+): string {
+  const label =
+    total !== undefined ? `loop ${iteration} / ${total}` : `loop ${iteration}`;
   const cols = columns ?? process.stdout.columns ?? 40;
   // label + 2 spaces + at least 1 bar on each side = label.length + 4
   if (cols < label.length + 4) {
@@ -62,14 +67,11 @@ export function formatError(subtype: string, errors: string[]): string {
  */
 export function redactSecrets(command: string): string {
   // Redact: export VAR=value or VAR=value (env var assignments)
-  let result = command.replace(
-    /\b([A-Z_][A-Z0-9_]*)=(\S+)/g,
-    '$1=***'
-  );
+  let result = command.replace(/\b([A-Z_][A-Z0-9_]*)=(\S+)/g, "$1=***");
   // Redact: Authorization: Bearer <token>
   result = result.replace(
     /Authorization:\s*Bearer\s+[^\s"]+/gi,
-    'Authorization: Bearer ***'
+    "Authorization: Bearer ***",
   );
   return result;
 }
@@ -79,8 +81,8 @@ export function redactSecrets(command: string): string {
  * Returns undefined if the value is not a string, is empty, or starts with \n.
  */
 export function extractFirstLine(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const firstLine = value.split('\n')[0] ?? '';
+  if (typeof value !== "string") return undefined;
+  const firstLine = value.split("\n")[0] ?? "";
   return firstLine.length > 0 ? firstLine : undefined;
 }
 
@@ -118,7 +120,7 @@ export function processProviderEvent(
   event: ProviderEvent,
   write: WriteFn,
   state: StreamState,
-  errWrite?: WriteFn
+  errWrite?: WriteFn,
 ): void {
   if (event.type === "text_delta") {
     let text = event.text;
@@ -157,9 +159,10 @@ export function processProviderEvent(
     } else {
       const target = errWrite ?? write;
       const errors = event.errors ?? [];
-      const msg = errors.length > 0
-        ? errors.map(e => `${RED}${e}${RESET}`).join("\n")
-        : `${RED}error${RESET}`;
+      const msg =
+        errors.length > 0
+          ? errors.map((e) => `${RED}${e}${RESET}`).join("\n")
+          : `${RED}error${RESET}`;
       target(sep + msg + "\n");
     }
     state.lastCharWasNewline = true;

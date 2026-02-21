@@ -26,7 +26,7 @@ function validateSchema(schema: any): {
   } catch (error: any) {
     return {
       valid: false,
-      errors: [error.message]
+      errors: [error.message],
     };
   }
 }
@@ -36,7 +36,7 @@ function validateSchema(schema: any): {
  */
 function testSchema(
   schema: any,
-  testData: any
+  testData: any,
 ): {
   valid: boolean;
   errors?: string[];
@@ -47,9 +47,7 @@ function testSchema(
   if (!valid) {
     return {
       valid: false,
-      errors: validate.errors?.map(e =>
-        `${e.instancePath} ${e.message}`
-      )
+      errors: validate.errors?.map((e) => `${e.instancePath} ${e.message}`),
     };
   }
 
@@ -62,7 +60,7 @@ function testSchema(
 function convertZodSchema(zodSchema: z.ZodSchema): any {
   return zodToJsonSchema(zodSchema, {
     target: "openAi",
-    errorMessages: true
+    errorMessages: true,
   });
 }
 
@@ -113,9 +111,11 @@ function analyzeSchema(schema: any): {
   traverse(schema);
 
   const complexity =
-    depth > 5 || propertyCount > 20 ? "complex" :
-    depth > 3 || propertyCount > 10 ? "moderate" :
-    "simple";
+    depth > 5 || propertyCount > 20
+      ? "complex"
+      : depth > 3 || propertyCount > 10
+        ? "moderate"
+        : "simple";
 
   return {
     depth,
@@ -123,7 +123,7 @@ function analyzeSchema(schema: any): {
     hasRequired,
     hasEnums,
     hasPatterns,
-    complexity
+    complexity,
   };
 }
 
@@ -172,7 +172,7 @@ Options:
     const validation = validateSchema(schema);
     if (!validation.valid) {
       console.error("❌ Schema validation failed:");
-      validation.errors?.forEach(e => console.error(`   ${e}`));
+      validation.errors?.forEach((e) => console.error(`   ${e}`));
       process.exit(1);
     }
 
@@ -184,11 +184,17 @@ Options:
     console.log(`   Depth: ${analysis.depth}`);
     console.log(`   Properties: ${analysis.propertyCount}`);
     console.log(`   Complexity: ${analysis.complexity}`);
-    console.log(`   Features: ${[
-      analysis.hasRequired && "required fields",
-      analysis.hasEnums && "enums",
-      analysis.hasPatterns && "patterns"
-    ].filter(Boolean).join(", ") || "none"}`);
+    console.log(
+      `   Features: ${
+        [
+          analysis.hasRequired && "required fields",
+          analysis.hasEnums && "enums",
+          analysis.hasPatterns && "patterns",
+        ]
+          .filter(Boolean)
+          .join(", ") || "none"
+      }`,
+    );
 
     // Test with sample data if provided
     if (testDataFile) {
@@ -200,7 +206,7 @@ Options:
       const testResult = testSchema(schema, testData);
       if (!testResult.valid) {
         console.error("❌ Test data validation failed:");
-        testResult.errors?.forEach(e => console.error(`   ${e}`));
+        testResult.errors?.forEach((e) => console.error(`   ${e}`));
         process.exit(1);
       }
 
@@ -216,7 +222,6 @@ Options:
     console.log("  { outputSchema: schema }");
     console.log(");");
     console.log("```");
-
   } catch (error: any) {
     console.error(`\n❌ Error: ${error.message}`);
     process.exit(1);
@@ -228,85 +233,93 @@ function showExamples() {
 📚 Example Schemas for Codex SDK
 
 1️⃣ Simple Review Schema:
-${JSON.stringify({
-  type: "object",
-  properties: {
-    verdict: {
-      type: "string",
-      enum: ["approve", "request_changes", "comment"]
-    },
-    summary: {
-      type: "string",
-      description: "Brief summary of the review"
-    },
-    issues: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          severity: { type: "string", enum: ["error", "warning", "info"] },
-          message: { type: "string" }
-        },
-        required: ["severity", "message"]
-      }
-    }
-  },
-  required: ["verdict", "summary", "issues"]
-}, null, 2)}
-
-2️⃣ Complex Analysis Schema:
-${JSON.stringify({
-  type: "object",
-  properties: {
-    analysis: {
-      type: "object",
-      properties: {
-        complexity: {
+${JSON.stringify(
+  {
+    type: "object",
+    properties: {
+      verdict: {
+        type: "string",
+        enum: ["approve", "request_changes", "comment"],
+      },
+      summary: {
+        type: "string",
+        description: "Brief summary of the review",
+      },
+      issues: {
+        type: "array",
+        items: {
           type: "object",
           properties: {
-            cyclomatic: { type: "number", minimum: 0 },
-            cognitive: { type: "number", minimum: 0 },
-            loc: { type: "integer", minimum: 0 }
-          }
+            severity: { type: "string", enum: ["error", "warning", "info"] },
+            message: { type: "string" },
+          },
+          required: ["severity", "message"],
         },
-        dependencies: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              version: { type: "string", pattern: "^\\d+\\.\\d+\\.\\d+$" },
-              isDevDependency: { type: "boolean" }
-            }
-          }
-        }
-      }
+      },
     },
-    recommendations: {
-      type: "array",
-      items: {
+    required: ["verdict", "summary", "issues"],
+  },
+  null,
+  2,
+)}
+
+2️⃣ Complex Analysis Schema:
+${JSON.stringify(
+  {
+    type: "object",
+    properties: {
+      analysis: {
         type: "object",
         properties: {
-          type: {
-            type: "string",
-            enum: ["refactor", "update", "security", "performance"]
+          complexity: {
+            type: "object",
+            properties: {
+              cyclomatic: { type: "number", minimum: 0 },
+              cognitive: { type: "number", minimum: 0 },
+              loc: { type: "integer", minimum: 0 },
+            },
           },
-          priority: {
-            type: "integer",
-            minimum: 1,
-            maximum: 5
+          dependencies: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                version: { type: "string", pattern: "^\\d+\\.\\d+\\.\\d+$" },
+                isDevDependency: { type: "boolean" },
+              },
+            },
           },
-          description: { type: "string" },
-          estimatedEffort: {
-            type: "string",
-            enum: ["minutes", "hours", "days", "weeks"]
-          }
         },
-        required: ["type", "priority", "description"]
-      }
-    }
-  }
-}, null, 2)}
+      },
+      recommendations: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            type: {
+              type: "string",
+              enum: ["refactor", "update", "security", "performance"],
+            },
+            priority: {
+              type: "integer",
+              minimum: 1,
+              maximum: 5,
+            },
+            description: { type: "string" },
+            estimatedEffort: {
+              type: "string",
+              enum: ["minutes", "hours", "days", "weeks"],
+            },
+          },
+          required: ["type", "priority", "description"],
+        },
+      },
+    },
+  },
+  null,
+  2,
+)}
 
 3️⃣ Using with Zod (TypeScript):
 \`\`\`typescript

@@ -28,7 +28,7 @@ async function checkAuth(): Promise<{
     return {
       method: "api_key",
       valid: true,
-      details: "API key found in environment variable"
+      details: "API key found in environment variable",
     };
   }
 
@@ -39,15 +39,15 @@ async function checkAuth(): Promise<{
     const auth = JSON.parse(authContent);
 
     if (auth.access_token) {
-      const expired = auth.expires_at &&
-        new Date(auth.expires_at * 1000) < new Date();
+      const expired =
+        auth.expires_at && new Date(auth.expires_at * 1000) < new Date();
 
       return {
         method: "chatgpt",
         valid: !expired,
-        details: expired ?
-          "ChatGPT auth token expired" :
-          "ChatGPT auth token found"
+        details: expired
+          ? "ChatGPT auth token expired"
+          : "ChatGPT auth token found",
       };
     }
   } catch {
@@ -57,7 +57,7 @@ async function checkAuth(): Promise<{
   return {
     method: "none",
     valid: false,
-    details: "No authentication configured"
+    details: "No authentication configured",
   };
 }
 
@@ -73,23 +73,20 @@ async function testBasicFunctionality(): Promise<{
     const codex = new Codex();
     const thread = codex.startThread();
 
-    const result = await thread.run(
-      "Return the number 42",
-      {
-        outputSchema: {
-          type: "number"
-        }
-      }
-    );
+    const result = await thread.run("Return the number 42", {
+      outputSchema: {
+        type: "number",
+      },
+    });
 
     return {
       success: result === 42,
-      model: thread.options.model
+      model: thread.options.model,
     };
   } catch (error: any) {
     return {
       success: false,
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -113,8 +110,8 @@ async function checkConfig(): Promise<{
       exists: true,
       model,
       settings: {
-        hasCustomModel: !!model
-      }
+        hasCustomModel: !!model,
+      },
     };
   } catch {
     return { exists: false };
@@ -137,7 +134,9 @@ async function setupAuth() {
   switch (choice) {
     case "1":
       console.log("\n📝 API Key Setup:");
-      console.log("1. Get your API key from: https://platform.openai.com/api-keys");
+      console.log(
+        "1. Get your API key from: https://platform.openai.com/api-keys",
+      );
       console.log("2. Set the environment variable:");
       console.log("   export OPENAI_API_KEY='your-key-here'");
       console.log("\nOr add to your shell profile for persistence.");

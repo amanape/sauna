@@ -17,7 +17,7 @@ class CodexThreadPool {
     if (!this.threads.has(purpose)) {
       const thread = this.codex.startThread({
         model: "gpt-5.3-codex",
-        workingDirectory: process.cwd()
+        workingDirectory: process.cwd(),
       });
       this.threads.set(purpose, thread);
     }
@@ -47,14 +47,14 @@ async function exploreApproaches(baseThread: any, approaches: string[]) {
       const fork = await codex.forkThread(baseThread.id);
       return {
         approach,
-        result: await fork.run(`Implement using ${approach}`)
+        result: await fork.run(`Implement using ${approach}`),
       };
-    })
+    }),
   );
 
   // Compare results
-  return results.sort((a, b) =>
-    a.result.usage.total_tokens - b.result.usage.total_tokens
+  return results.sort(
+    (a, b) => a.result.usage.total_tokens - b.result.usage.total_tokens,
   );
 }
 ```
@@ -70,19 +70,21 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 // Define schema with Zod
 const CodeReviewSchema = z.object({
   summary: z.string().describe("Overall review summary"),
-  issues: z.array(z.object({
-    file: z.string(),
-    line: z.number().positive(),
-    severity: z.enum(["error", "warning", "info"]),
-    message: z.string(),
-    suggestion: z.string().optional()
-  })),
+  issues: z.array(
+    z.object({
+      file: z.string(),
+      line: z.number().positive(),
+      severity: z.enum(["error", "warning", "info"]),
+      message: z.string(),
+      suggestion: z.string().optional(),
+    }),
+  ),
   metrics: z.object({
     complexity: z.number().min(0).max(100),
     maintainability: z.number().min(0).max(100),
-    testCoverage: z.number().min(0).max(100)
+    testCoverage: z.number().min(0).max(100),
   }),
-  verdict: z.enum(["approve", "request_changes", "comment"])
+  verdict: z.enum(["approve", "request_changes", "comment"]),
 });
 
 // Type inference
@@ -90,14 +92,11 @@ type CodeReview = z.infer<typeof CodeReviewSchema>;
 
 // Use with Codex
 async function performCodeReview(thread: any): Promise<CodeReview> {
-  const result = await thread.run(
-    "Perform comprehensive code review",
-    {
-      outputSchema: zodToJsonSchema(CodeReviewSchema, {
-        target: "openAi"
-      })
-    }
-  );
+  const result = await thread.run("Perform comprehensive code review", {
+    outputSchema: zodToJsonSchema(CodeReviewSchema, {
+      target: "openAi",
+    }),
+  });
 
   // Result is typed as CodeReview
   return result;
@@ -187,7 +186,7 @@ class ContextAwareThread {
         // Create new thread with summary
         this.thread = codex.startThread({
           ...this.thread.options,
-          systemPrompt: `Previous context: ${summary}`
+          systemPrompt: `Previous context: ${summary}`,
         });
 
         return await this.thread.run(prompt, options);
@@ -202,8 +201,8 @@ class ContextAwareThread {
       "Summarize the key points of this conversation",
       {
         messages: this.thread.messages,
-        outputSchema: { type: "string" }
-      }
+        outputSchema: { type: "string" },
+      },
     );
     return result;
   }
@@ -223,14 +222,14 @@ async function retryWithBackoff<T>(
     maxDelay?: number;
     factor?: number;
     jitter?: boolean;
-  } = {}
+  } = {},
 ): Promise<T> {
   const {
     maxRetries = 3,
     initialDelay = 1000,
     maxDelay = 30000,
     factor = 2,
-    jitter = true
+    jitter = true,
   } = options;
 
   let lastError: Error;
@@ -249,7 +248,7 @@ async function retryWithBackoff<T>(
         delay = delay * (0.5 + Math.random() * 0.5);
       }
 
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
@@ -257,10 +256,10 @@ async function retryWithBackoff<T>(
 }
 
 // Usage
-const result = await retryWithBackoff(
-  () => thread.run("Complex operation"),
-  { maxRetries: 5, jitter: true }
-);
+const result = await retryWithBackoff(() => thread.run("Complex operation"), {
+  maxRetries: 5,
+  jitter: true,
+});
 ```
 
 ## Performance Optimization
@@ -278,18 +277,18 @@ async function batchCodeReviews(files: string[]) {
     const batch = files.slice(i, i + batchSize);
 
     const batchResults = await Promise.all(
-      batch.map(file =>
+      batch.map((file) =>
         thread.run(`Review ${file}`, {
-          outputSchema: ReviewSchema
-        })
-      )
+          outputSchema: ReviewSchema,
+        }),
+      ),
     );
 
     results.push(...batchResults);
 
     // Avoid rate limits
     if (i + batchSize < files.length) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
 
@@ -351,7 +350,7 @@ interface ImageAnalysis {
 
 async function analyzeScreenshot(
   thread: any,
-  imagePath: string
+  imagePath: string,
 ): Promise<ImageAnalysis> {
   return await thread.run(
     "Analyze this UI screenshot. Identify all objects, text, and UI elements.",
@@ -371,11 +370,11 @@ async function analyzeScreenshot(
                   type: "array",
                   items: { type: "number" },
                   minItems: 4,
-                  maxItems: 4
+                  maxItems: 4,
                 },
-                confidence: { type: "number" }
-              }
-            }
+                confidence: { type: "number" },
+              },
+            },
           },
           text: {
             type: "array",
@@ -387,10 +386,10 @@ async function analyzeScreenshot(
                   type: "array",
                   items: { type: "number" },
                   minItems: 2,
-                  maxItems: 2
-                }
-              }
-            }
+                  maxItems: 2,
+                },
+              },
+            },
           },
           uiElements: {
             type: "array",
@@ -399,13 +398,13 @@ async function analyzeScreenshot(
               properties: {
                 type: { type: "string" },
                 label: { type: "string" },
-                state: { type: "string" }
-              }
-            }
-          }
-        }
-      }
-    }
+                state: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    },
   );
 }
 ```
@@ -422,7 +421,7 @@ import { Octokit } from "@octokit/rest";
 async function reviewPullRequest(
   owner: string,
   repo: string,
-  pullNumber: number
+  pullNumber: number,
 ) {
   const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
@@ -431,33 +430,30 @@ async function reviewPullRequest(
     owner,
     repo,
     pull_number: pullNumber,
-    mediaType: { format: "diff" }
+    mediaType: { format: "diff" },
   });
 
   // Review with Codex
-  const review = await thread.run(
-    `Review this pull request diff:\n\n${diff}`,
-    {
-      outputSchema: {
-        type: "object",
-        properties: {
-          body: { type: "string" },
-          event: { enum: ["APPROVE", "REQUEST_CHANGES", "COMMENT"] },
-          comments: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                path: { type: "string" },
-                line: { type: "number" },
-                body: { type: "string" }
-              }
-            }
-          }
-        }
-      }
-    }
-  );
+  const review = await thread.run(`Review this pull request diff:\n\n${diff}`, {
+    outputSchema: {
+      type: "object",
+      properties: {
+        body: { type: "string" },
+        event: { enum: ["APPROVE", "REQUEST_CHANGES", "COMMENT"] },
+        comments: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              path: { type: "string" },
+              line: { type: "number" },
+              body: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+  });
 
   // Post review
   await octokit.pulls.createReview({
@@ -466,7 +462,7 @@ async function reviewPullRequest(
     pull_number: pullNumber,
     body: review.body,
     event: review.event,
-    comments: review.comments
+    comments: review.comments,
   });
 }
 ```
@@ -476,14 +472,14 @@ async function reviewPullRequest(
 Create VS Code commands:
 
 ```typescript
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
 
 export function activate(context: vscode.ExtensionContext) {
   const codex = new Codex();
   let thread: any;
 
   const reviewCommand = vscode.commands.registerCommand(
-    'codex.reviewCode',
+    "codex.reviewCode",
     async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
@@ -498,27 +494,29 @@ export function activate(context: vscode.ExtensionContext) {
       const review = await thread.run(
         `Review this ${language} code:\n\n${code}`,
         {
-          outputSchema: ReviewSchema
-        }
+          outputSchema: ReviewSchema,
+        },
       );
 
       // Show results in problems panel
-      const diagnostics: vscode.Diagnostic[] = review.issues.map(issue => {
+      const diagnostics: vscode.Diagnostic[] = review.issues.map((issue) => {
         const line = issue.line - 1;
         const range = new vscode.Range(line, 0, line, 1000);
 
-        const severity = issue.severity === "error"
-          ? vscode.DiagnosticSeverity.Error
-          : issue.severity === "warning"
-          ? vscode.DiagnosticSeverity.Warning
-          : vscode.DiagnosticSeverity.Information;
+        const severity =
+          issue.severity === "error"
+            ? vscode.DiagnosticSeverity.Error
+            : issue.severity === "warning"
+              ? vscode.DiagnosticSeverity.Warning
+              : vscode.DiagnosticSeverity.Information;
 
         return new vscode.Diagnostic(range, issue.message, severity);
       });
 
-      const diagnosticCollection = vscode.languages.createDiagnosticCollection('codex');
+      const diagnosticCollection =
+        vscode.languages.createDiagnosticCollection("codex");
       diagnosticCollection.set(editor.document.uri, diagnostics);
-    }
+    },
   );
 
   context.subscriptions.push(reviewCommand);
@@ -546,7 +544,7 @@ class MockCodex {
           return this.responses.get(prompt);
         }
         throw new Error(`No mock response for: ${prompt}`);
-      }
+      },
     };
   }
 }
@@ -554,10 +552,7 @@ class MockCodex {
 // In tests
 test("code review integration", async () => {
   const mockCodex = new MockCodex();
-  mockCodex.setResponse(
-    "Review this code",
-    { verdict: "pass", issues: [] }
-  );
+  mockCodex.setResponse("Review this code", { verdict: "pass", issues: [] });
 
   // Inject mock into system under test
   const result = await performReview(mockCodex);
@@ -581,10 +576,10 @@ class SecureCodex {
 
     if (!apiKey) {
       // Try OS keychain
-      const keychain = require('keychain');
+      const keychain = require("keychain");
       apiKey = keychain.getPassword({
-        account: 'codex',
-        service: 'openai'
+        account: "codex",
+        service: "openai",
       });
     }
 
@@ -605,8 +600,8 @@ Validate and sanitize inputs:
 function sanitizePrompt(prompt: string): string {
   // Remove potential injection attempts
   return prompt
-    .replace(/\{\{.*?\}\}/g, '') // Remove template syntax
-    .replace(/<script.*?>.*?<\/script>/gi, '') // Remove scripts
+    .replace(/\{\{.*?\}\}/g, "") // Remove template syntax
+    .replace(/<script.*?>.*?<\/script>/gi, "") // Remove scripts
     .trim();
 }
 

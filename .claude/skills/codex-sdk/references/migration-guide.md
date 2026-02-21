@@ -6,13 +6,13 @@ This guide helps migrate from other tools to the OpenAI Codex SDK.
 
 ### Key Differences
 
-| Feature | Chat Completions | Codex SDK |
-|---------|------------------|-----------|
-| Purpose | General chat | Agentic coding |
-| Tools | Manual function calling | Built-in file/web tools |
-| State | Stateless | Thread persistence |
-| Context | Manual management | Automatic with directories |
-| Output | Text/JSON | Structured + file operations |
+| Feature | Chat Completions        | Codex SDK                    |
+| ------- | ----------------------- | ---------------------------- |
+| Purpose | General chat            | Agentic coding               |
+| Tools   | Manual function calling | Built-in file/web tools      |
+| State   | Stateless               | Thread persistence           |
+| Context | Manual management       | Automatic with directories   |
+| Output  | Text/JSON               | Structured + file operations |
 
 ### Migration Example
 
@@ -29,12 +29,12 @@ async function reviewCode(code: string) {
     messages: [
       {
         role: "system",
-        content: "You are a code reviewer."
+        content: "You are a code reviewer.",
       },
       {
         role: "user",
-        content: `Review this code:\n\n${code}`
-      }
+        content: `Review this code:\n\n${code}`,
+      },
     ],
     functions: [
       {
@@ -45,7 +45,7 @@ async function reviewCode(code: string) {
           properties: {
             verdict: {
               type: "string",
-              enum: ["approve", "request_changes"]
+              enum: ["approve", "request_changes"],
             },
             comments: {
               type: "array",
@@ -53,20 +53,18 @@ async function reviewCode(code: string) {
                 type: "object",
                 properties: {
                   line: { type: "number" },
-                  message: { type: "string" }
-                }
-              }
-            }
-          }
-        }
-      }
+                  message: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+      },
     ],
-    function_call: { name: "submit_review" }
+    function_call: { name: "submit_review" },
   });
 
-  return JSON.parse(
-    response.choices[0].message.function_call.arguments
-  );
+  return JSON.parse(response.choices[0].message.function_call.arguments);
 }
 ```
 
@@ -80,30 +78,27 @@ const codex = new Codex();
 async function reviewCode(code: string) {
   const thread = codex.startThread();
 
-  return await thread.run(
-    `Review this code:\n\n${code}`,
-    {
-      outputSchema: {
-        type: "object",
-        properties: {
-          verdict: {
-            type: "string",
-            enum: ["approve", "request_changes"]
+  return await thread.run(`Review this code:\n\n${code}`, {
+    outputSchema: {
+      type: "object",
+      properties: {
+        verdict: {
+          type: "string",
+          enum: ["approve", "request_changes"],
+        },
+        comments: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              line: { type: "number" },
+              message: { type: "string" },
+            },
           },
-          comments: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                line: { type: "number" },
-                message: { type: "string" }
-              }
-            }
-          }
-        }
-      }
-    }
-  );
+        },
+      },
+    },
+  });
 }
 ```
 
@@ -119,22 +114,24 @@ async function reviewCode(code: string) {
 
 ### Key Differences
 
-| Aspect | Claude Agent SDK | Codex SDK |
-|--------|------------------|-----------|
-| Focus | System operations | Code generation/analysis |
-| Tools | Bash, file ops | ApplyPatch, code-specific |
-| Models | Claude models | GPT-5.x-Codex models |
-| Deployment | Terminal/IDE | Terminal/IDE/Cloud |
+| Aspect     | Claude Agent SDK  | Codex SDK                 |
+| ---------- | ----------------- | ------------------------- |
+| Focus      | System operations | Code generation/analysis  |
+| Tools      | Bash, file ops    | ApplyPatch, code-specific |
+| Models     | Claude models     | GPT-5.x-Codex models      |
+| Deployment | Terminal/IDE      | Terminal/IDE/Cloud        |
 
 ### Use Cases Comparison
 
 **Use Claude Agent SDK when:**
+
 - Building system automation
 - Terminal operations
 - General file management
 - Infrastructure tasks
 
 **Use Codex SDK when:**
+
 - Code generation/modification
 - Code review automation
 - Debugging assistance
@@ -153,9 +150,7 @@ async function generateCode(spec: string) {
   const codex = new Codex();
   const thread = codex.startThread();
 
-  return await thread.run(
-    `Generate TypeScript code based on: ${spec}`
-  );
+  return await thread.run(`Generate TypeScript code based on: ${spec}`);
 }
 
 // Use Claude for system setup
@@ -170,12 +165,12 @@ async function setupEnvironment() {
 
 ### Key Differences
 
-| Feature | GitHub Copilot | Codex SDK |
-|---------|----------------|-----------|
-| Integration | IDE only | Programmatic API |
+| Feature     | GitHub Copilot      | Codex SDK            |
+| ----------- | ------------------- | -------------------- |
+| Integration | IDE only            | Programmatic API     |
 | Suggestions | Inline autocomplete | Full implementations |
-| Context | Current file | Entire project |
-| Automation | Interactive only | Fully automatable |
+| Context     | Current file        | Entire project       |
+| Automation  | Interactive only    | Fully automatable    |
 
 ### Building Copilot-like Features
 
@@ -183,7 +178,7 @@ Create custom IDE integration:
 
 ```typescript
 // VS Code extension example
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
 import { Codex } from "@openai/codex-sdk";
 
 class CodexCompletionProvider {
@@ -192,7 +187,7 @@ class CodexCompletionProvider {
 
   async provideInlineCompletionItems(
     document: vscode.TextDocument,
-    position: vscode.Position
+    position: vscode.Position,
   ) {
     const linePrefix = document
       .lineAt(position)
@@ -202,14 +197,16 @@ class CodexCompletionProvider {
       `Complete this code: ${linePrefix}`,
       {
         outputSchema: { type: "string" },
-        maxTokens: 150
-      }
+        maxTokens: 150,
+      },
     );
 
-    return [{
-      insertText: completion,
-      range: new vscode.Range(position, position)
-    }];
+    return [
+      {
+        insertText: completion,
+        range: new vscode.Range(position, position),
+      },
+    ];
   }
 }
 ```
@@ -225,7 +222,7 @@ While Cursor/Windsurf provide IDE AI features, Codex SDK enables automation:
 async function refactorCodebase() {
   const codex = new Codex();
   const thread = codex.startThread({
-    workingDirectory: process.cwd()
+    workingDirectory: process.cwd(),
   });
 
   // Analyze codebase
@@ -243,21 +240,19 @@ async function refactorCodebase() {
                 file: { type: "string" },
                 type: { type: "string" },
                 description: { type: "string" },
-                priority: { type: "number" }
-              }
-            }
-          }
-        }
-      }
-    }
+                priority: { type: "number" },
+              },
+            },
+          },
+        },
+      },
+    },
   );
 
   // Apply refactorings
   for (const opp of analysis.opportunities) {
     if (opp.priority > 7) {
-      await thread.run(
-        `Apply ${opp.type} refactoring to ${opp.file}`
-      );
+      await thread.run(`Apply ${opp.type} refactoring to ${opp.file}`);
     }
   }
 }
@@ -274,7 +269,7 @@ class CodeReviewer {
 
   async review(filePath: string) {
     // Manual file reading
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(filePath, "utf8");
 
     // Manual prompt construction
     const prompt = this.buildPrompt(content);
@@ -304,18 +299,15 @@ const codex = new Codex();
 const thread = codex.startThread();
 
 async function review(filePath: string) {
-  return await thread.run(
-    `Review the code in ${filePath}`,
-    {
-      outputSchema: {
-        type: "object",
-        properties: {
-          issues: { type: "array" },
-          verdict: { type: "string" }
-        }
-      }
-    }
-  );
+  return await thread.run(`Review the code in ${filePath}`, {
+    outputSchema: {
+      type: "object",
+      properties: {
+        issues: { type: "array" },
+        verdict: { type: "string" },
+      },
+    },
+  });
 }
 ```
 
@@ -361,6 +353,7 @@ async function review(filePath: string) {
 ### 1. Over-Engineering Prompts
 
 ❌ **Don't:**
+
 ```typescript
 const complexPrompt = `
 You are an expert code reviewer with 20 years experience...
@@ -370,16 +363,18 @@ Please review this code...
 ```
 
 ✅ **Do:**
+
 ```typescript
 const result = await thread.run(
   "Review this code for bugs and security issues",
-  { outputSchema: reviewSchema }
+  { outputSchema: reviewSchema },
 );
 ```
 
 ### 2. Ignoring Thread State
 
 ❌ **Don't:**
+
 ```typescript
 // Creating new thread for each call
 async function analyze() {
@@ -392,6 +387,7 @@ async function analyze() {
 ```
 
 ✅ **Do:**
+
 ```typescript
 // Reuse thread for context
 async function analyze() {
@@ -404,6 +400,7 @@ async function analyze() {
 ### 3. Not Using Structured Output
 
 ❌ **Don't:**
+
 ```typescript
 const result = await thread.run("Review code");
 // Attempt to parse free-form text
@@ -411,13 +408,14 @@ const verdict = result.match(/verdict: (\w+)/)?.[1];
 ```
 
 ✅ **Do:**
+
 ```typescript
 const result = await thread.run("Review code", {
   outputSchema: {
     properties: {
-      verdict: { enum: ["pass", "fail"] }
-    }
-  }
+      verdict: { enum: ["pass", "fail"] },
+    },
+  },
 });
 // Guaranteed structure
 console.log(result.verdict);

@@ -19,16 +19,16 @@ async function startCodexMCPServer(): Promise<{
   const codexProcess = Bun.spawn(["codex", "mcp-server"], {
     env: {
       ...Bun.env,
-      CODEX_MCP_PORT: "8080"
-    }
+      CODEX_MCP_PORT: "8080",
+    },
   });
 
   // Wait for server to be ready
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await new Promise((resolve) => setTimeout(resolve, 2000));
 
   return {
     url: "http://localhost:8080",
-    cleanup: () => codexProcess.kill()
+    cleanup: () => codexProcess.kill(),
   };
 }
 
@@ -43,48 +43,57 @@ class MultiAgentReviewPipeline {
     // Initialize specialized agents
     this.pmAgent = new Agent({
       name: "PM-Agent",
-      systemPrompt: "You are a product manager reviewing code for feature completeness.",
-      tools: [{
-        type: "mcp",
-        url: codexUrl,
-        tools: ["codex", "codex-reply"]
-      }]
+      systemPrompt:
+        "You are a product manager reviewing code for feature completeness.",
+      tools: [
+        {
+          type: "mcp",
+          url: codexUrl,
+          tools: ["codex", "codex-reply"],
+        },
+      ],
     });
 
     this.securityAgent = new Agent({
       name: "Security-Agent",
-      systemPrompt: "You are a security expert reviewing code for vulnerabilities.",
-      tools: [{
-        type: "mcp",
-        url: codexUrl,
-        tools: ["codex", "codex-reply"]
-      }]
+      systemPrompt:
+        "You are a security expert reviewing code for vulnerabilities.",
+      tools: [
+        {
+          type: "mcp",
+          url: codexUrl,
+          tools: ["codex", "codex-reply"],
+        },
+      ],
     });
 
     this.performanceAgent = new Agent({
       name: "Performance-Agent",
-      systemPrompt: "You are a performance engineer optimizing code efficiency.",
-      tools: [{
-        type: "mcp",
-        url: codexUrl,
-        tools: ["codex", "codex-reply"]
-      }]
+      systemPrompt:
+        "You are a performance engineer optimizing code efficiency.",
+      tools: [
+        {
+          type: "mcp",
+          url: codexUrl,
+          tools: ["codex", "codex-reply"],
+        },
+      ],
     });
 
     this.architectAgent = new Agent({
       name: "Architect-Agent",
       systemPrompt: "You are a software architect reviewing design patterns.",
-      tools: [{
-        type: "mcp",
-        url: codexUrl,
-        tools: ["codex", "codex-reply"]
-      }]
+      tools: [
+        {
+          type: "mcp",
+          url: codexUrl,
+          tools: ["codex", "codex-reply"],
+        },
+      ],
     });
   }
 
-  async reviewPullRequest(
-    prUrl: string
-  ): Promise<ComprehensiveReview> {
+  async reviewPullRequest(prUrl: string): Promise<ComprehensiveReview> {
     console.log(`\n🔍 Starting multi-agent review of ${prUrl}\n`);
 
     // Phase 1: Parallel specialized reviews
@@ -93,12 +102,12 @@ class MultiAgentReviewPipeline {
       featureReview,
       securityReview,
       performanceReview,
-      architectureReview
+      architectureReview,
     ] = await Promise.all([
       this.getFeatureReview(prUrl),
       this.getSecurityReview(prUrl),
       this.getPerformanceReview(prUrl),
-      this.getArchitectureReview(prUrl)
+      this.getArchitectureReview(prUrl),
     ]);
 
     // Phase 2: Synthesize reviews
@@ -107,7 +116,7 @@ class MultiAgentReviewPipeline {
       featureReview,
       securityReview,
       performanceReview,
-      architectureReview
+      architectureReview,
     });
 
     // Phase 3: Generate action items
@@ -120,7 +129,7 @@ class MultiAgentReviewPipeline {
       performanceReview,
       architectureReview,
       synthesis,
-      actionItems
+      actionItems,
     };
   }
 
@@ -130,7 +139,7 @@ class MultiAgentReviewPipeline {
       - Feature completeness
       - User experience impact
       - Documentation coverage
-      Return structured output with findings.`
+      Return structured output with findings.`,
     );
 
     return JSON.parse(result);
@@ -143,14 +152,14 @@ class MultiAgentReviewPipeline {
       - Review authentication/authorization
       - Identify sensitive data handling
       - Check for injection vulnerabilities
-      Return structured findings with severity levels.`
+      Return structured findings with severity levels.`,
     );
 
     return JSON.parse(result);
   }
 
   private async getPerformanceReview(
-    prUrl: string
+    prUrl: string,
   ): Promise<PerformanceReview> {
     const result = await this.performanceAgent.run(
       `Use codex to analyze performance aspects of ${prUrl}:
@@ -158,14 +167,14 @@ class MultiAgentReviewPipeline {
       - Database query efficiency
       - Memory usage patterns
       - Potential bottlenecks
-      Return metrics and optimization suggestions.`
+      Return metrics and optimization suggestions.`,
     );
 
     return JSON.parse(result);
   }
 
   private async getArchitectureReview(
-    prUrl: string
+    prUrl: string,
   ): Promise<ArchitectureReview> {
     const result = await this.architectAgent.run(
       `Use codex to review architectural aspects of ${prUrl}:
@@ -173,25 +182,27 @@ class MultiAgentReviewPipeline {
       - SOLID principles
       - Code modularity
       - Dependency management
-      Return architectural assessment.`
+      Return architectural assessment.`,
     );
 
     return JSON.parse(result);
   }
 
   private async synthesizeReviews(
-    reviews: SpecializedReviews
+    reviews: SpecializedReviews,
   ): Promise<Synthesis> {
     // Create a synthesis agent for this specific task
     const synthesisAgent = new Agent({
       name: "Synthesis-Agent",
       systemPrompt: `You synthesize multiple code reviews into actionable insights.
       You have access to Codex for additional analysis if needed.`,
-      tools: [{
-        type: "mcp",
-        url: this.codexUrl,
-        tools: ["codex"]
-      }]
+      tools: [
+        {
+          type: "mcp",
+          url: this.codexUrl,
+          tools: ["codex"],
+        },
+      ],
     });
 
     const result = await synthesisAgent.run(
@@ -202,23 +213,25 @@ class MultiAgentReviewPipeline {
       1. Critical issues that need immediate attention
       2. Conflicts between different review perspectives
       3. Overall code quality assessment
-      4. Recommended merge decision`
+      4. Recommended merge decision`,
     );
 
     return JSON.parse(result);
   }
 
   private async generateActionItems(
-    synthesis: Synthesis
+    synthesis: Synthesis,
   ): Promise<ActionItem[]> {
     const actionAgent = new Agent({
       name: "Action-Agent",
       systemPrompt: "You convert review findings into concrete action items.",
-      tools: [{
-        type: "mcp",
-        url: this.codexUrl,
-        tools: ["codex"]
-      }]
+      tools: [
+        {
+          type: "mcp",
+          url: this.codexUrl,
+          tools: ["codex"],
+        },
+      ],
     });
 
     const result = await actionAgent.run(
@@ -230,7 +243,7 @@ class MultiAgentReviewPipeline {
       - Priority (critical/high/medium/low)
       - Assignee type (author/reviewer/team)
       - Estimated effort
-      - Specific steps to complete`
+      - Specific steps to complete`,
     );
 
     return JSON.parse(result);
@@ -247,32 +260,38 @@ async function collaborativeDebugging() {
       tracer: new Agent({
         name: "Tracer",
         systemPrompt: "You trace code execution and identify flow issues.",
-        tools: [{
-          type: "mcp",
-          url: codexUrl,
-          tools: ["codex", "codex-reply"]
-        }]
+        tools: [
+          {
+            type: "mcp",
+            url: codexUrl,
+            tools: ["codex", "codex-reply"],
+          },
+        ],
       }),
 
       analyzer: new Agent({
         name: "Analyzer",
         systemPrompt: "You analyze error patterns and root causes.",
-        tools: [{
-          type: "mcp",
-          url: codexUrl,
-          tools: ["codex", "codex-reply"]
-        }]
+        tools: [
+          {
+            type: "mcp",
+            url: codexUrl,
+            tools: ["codex", "codex-reply"],
+          },
+        ],
       }),
 
       fixer: new Agent({
         name: "Fixer",
         systemPrompt: "You implement fixes for identified issues.",
-        tools: [{
-          type: "mcp",
-          url: codexUrl,
-          tools: ["codex", "codex-reply"]
-        }]
-      })
+        tools: [
+          {
+            type: "mcp",
+            url: codexUrl,
+            tools: ["codex", "codex-reply"],
+          },
+        ],
+      }),
     };
 
     // Collaborative debugging workflow
@@ -282,7 +301,7 @@ async function collaborativeDebugging() {
     console.log("Step 1: Tracing execution flow...");
     const trace = await agents.tracer.run(
       `Use codex to trace the execution flow of the authentication
-      module and identify where the login failure occurs.`
+      module and identify where the login failure occurs.`,
     );
 
     // Step 2: Analyze the root cause
@@ -290,7 +309,7 @@ async function collaborativeDebugging() {
     const analysis = await agents.analyzer.run(
       `Based on this trace: ${trace}
       Use codex to analyze the root cause and identify all
-      contributing factors to the authentication failure.`
+      contributing factors to the authentication failure.`,
     );
 
     // Step 3: Implement fix
@@ -298,12 +317,11 @@ async function collaborativeDebugging() {
     const fix = await agents.fixer.run(
       `Based on this analysis: ${analysis}
       Use codex to implement a comprehensive fix that addresses
-      all identified issues. Include tests.`
+      all identified issues. Include tests.`,
     );
 
     console.log("\n✅ Debugging session complete!");
     console.log("Fix implemented:", fix);
-
   } finally {
     cleanup();
   }
@@ -327,18 +345,18 @@ async function refactoringPipeline() {
             type: { type: "string" },
             location: { type: "string" },
             impact: { type: "string" },
-            effort: { type: "number" }
-          }
-        }
-      }
-    }
+            effort: { type: "number" },
+          },
+        },
+      },
+    },
   };
 
   console.log("🔧 Analyzing codebase for refactoring opportunities...\n");
 
   const analysis = await thread.run(
     "Analyze the codebase for refactoring opportunities",
-    { outputSchema: analysisSchema }
+    { outputSchema: analysisSchema },
   );
 
   // Now use agents for specialized refactoring
@@ -349,11 +367,13 @@ async function refactoringPipeline() {
       name: "Refactoring-Specialist",
       systemPrompt: `You are an expert at code refactoring.
       You apply specific refactoring patterns safely.`,
-      tools: [{
-        type: "mcp",
-        url: codexUrl,
-        tools: ["codex", "codex-reply"]
-      }]
+      tools: [
+        {
+          type: "mcp",
+          url: codexUrl,
+          tools: ["codex", "codex-reply"],
+        },
+      ],
     });
 
     // Apply each refactoring
@@ -363,11 +383,10 @@ async function refactoringPipeline() {
 
         await refactoringAgent.run(
           `Use codex to apply ${opportunity.type} refactoring at
-          ${opportunity.location}. Ensure all tests still pass.`
+          ${opportunity.location}. Ensure all tests still pass.`,
         );
       }
     }
-
   } finally {
     cleanup();
   }
@@ -449,7 +468,7 @@ async function runExamples() {
   try {
     const pipeline = new MultiAgentReviewPipeline(url);
     const review = await pipeline.reviewPullRequest(
-      "https://github.com/example/repo/pull/123"
+      "https://github.com/example/repo/pull/123",
     );
     console.log("\nReview complete:", review);
   } finally {
@@ -467,7 +486,4 @@ if (import.meta.main) {
   runExamples().catch(console.error);
 }
 
-export {
-  MultiAgentReviewPipeline,
-  startCodexMCPServer
-};
+export { MultiAgentReviewPipeline, startCodexMCPServer };

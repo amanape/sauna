@@ -143,7 +143,9 @@ describe("CodexProvider", () => {
     });
 
     test("resolves 'codex-mini' alias", () => {
-      expect(CodexProvider.resolveModel("codex-mini")).toBe("codex-mini-latest");
+      expect(CodexProvider.resolveModel("codex-mini")).toBe(
+        "codex-mini-latest",
+      );
     });
 
     test("passes through unknown model IDs unchanged", () => {
@@ -166,7 +168,7 @@ describe("CodexProvider", () => {
   describe("knownAliases()", () => {
     test("returns map containing both Codex aliases", () => {
       const aliases = CodexProvider.knownAliases();
-      expect(aliases["codex"]).toBe("gpt-5.2-codex");
+      expect(aliases.codex).toBe("gpt-5.2-codex");
       expect(aliases["codex-mini"]).toBe("codex-mini-latest");
     });
 
@@ -246,7 +248,9 @@ describe("CodexProvider", () => {
     });
 
     test("throws when provider is unavailable", async () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "codex-test-interactive-unavail-"));
+      const tmpDir = mkdtempSync(
+        join(tmpdir(), "codex-test-interactive-unavail-"),
+      );
       try {
         const script = `
           const { CodexProvider } = require("${ROOT}/src/providers/codex.ts");
@@ -280,7 +284,9 @@ describe("CodexProvider", () => {
       // (which integrates with Bun's ESM loader) and run it as a subprocess.
       const tmpDir = mkdtempSync(join(tmpdir(), "codex-buildprompt-test-"));
       const testFile = join(tmpDir, "buildprompt.test.ts");
-      writeFileSync(testFile, `
+      writeFileSync(
+        testFile,
+        `
         import { test, expect, mock } from "bun:test";
 
         let capturedMessage: string | undefined;
@@ -308,7 +314,8 @@ describe("CodexProvider", () => {
           const expected = buildPrompt("hello world", ["README.md", "src/"]);
           expect(capturedMessage).toBe(expected);
         });
-      `);
+      `,
+      );
       try {
         const proc = Bun.spawn([BUN, "test", testFile], {
           cwd: ROOT,

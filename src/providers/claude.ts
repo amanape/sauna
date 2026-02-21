@@ -1,7 +1,13 @@
 import { realpathSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { Provider, ProviderSessionConfig, ProviderEvent, InteractiveSessionConfig, InteractiveSession } from "../provider";
+import type {
+  Provider,
+  ProviderSessionConfig,
+  ProviderEvent,
+  InteractiveSessionConfig,
+  InteractiveSession,
+} from "../provider";
 import { buildPrompt } from "../prompt";
 import { redactSecrets, extractFirstLine } from "../stream";
 
@@ -17,7 +23,11 @@ export type ClaudeAdapterState = {
 
 /** Creates a fresh ClaudeAdapterState — call once per session. */
 export function createClaudeAdapterState(): ClaudeAdapterState {
-  return { pendingToolName: undefined, pendingToolJson: "", hasEmittedText: false };
+  return {
+    pendingToolName: undefined,
+    pendingToolJson: "",
+    hasEmittedText: false,
+  };
 }
 
 /**
@@ -26,7 +36,10 @@ export function createClaudeAdapterState(): ClaudeAdapterState {
  * Pure function — no I/O, no ANSI formatting, no writes. Mutates `state` to track
  * tool accumulation and text emission across a stream of messages.
  */
-export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): ProviderEvent[] {
+export function adaptClaudeMessage(
+  msg: any,
+  state: ClaudeAdapterState,
+): ProviderEvent[] {
   if (msg.type === "result") {
     const events: ProviderEvent[] = [];
 
@@ -55,14 +68,20 @@ export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): Provide
   if (msg.type === "stream_event") {
     const event = msg.event;
 
-    if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+    if (
+      event.type === "content_block_delta" &&
+      event.delta?.type === "text_delta"
+    ) {
       const text: string = event.delta.text;
       if (text.length === 0) return [];
       state.hasEmittedText = true;
       return [{ type: "text_delta", text }];
     }
 
-    if (event.type === "content_block_start" && event.content_block?.type === "tool_use") {
+    if (
+      event.type === "content_block_start" &&
+      event.content_block?.type === "tool_use"
+    ) {
       // Abandon any incomplete prior tool accumulation
       state.pendingToolName = event.content_block.name;
       state.pendingToolJson = "";
@@ -78,7 +97,10 @@ export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): Provide
       return [];
     }
 
-    if (event.type === "content_block_stop" && state.pendingToolName !== undefined) {
+    if (
+      event.type === "content_block_stop" &&
+      state.pendingToolName !== undefined
+    ) {
       const name = state.pendingToolName;
       state.pendingToolName = undefined;
 
@@ -88,7 +110,11 @@ export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): Provide
           const input = JSON.parse(state.pendingToolJson);
           if (input && typeof input === "object") {
             const raw =
-              input.file_path ?? input.command ?? input.description ?? input.pattern ?? input.query;
+              input.file_path ??
+              input.command ??
+              input.description ??
+              input.pattern ??
+              input.query;
             detail = extractFirstLine(raw);
             if (detail !== undefined && input.command !== undefined) {
               detail = redactSecrets(detail);
@@ -101,9 +127,10 @@ export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): Provide
 
       state.pendingToolJson = "";
 
-      const toolEnd: ProviderEvent = detail !== undefined
-        ? { type: "tool_end", name, detail }
-        : { type: "tool_end", name };
+      const toolEnd: ProviderEvent =
+        detail !== undefined
+          ? { type: "tool_end", name, detail }
+          : { type: "tool_end", name };
       return [toolEnd];
     }
   }
@@ -183,14 +210,16 @@ export const ClaudeProvider: Provider = {
     return CLAUDE_ALIASES;
   },
 
-  async *createSession(config: ProviderSessionConfig): AsyncGenerator<ProviderEvent> {
+  async *createSession(
+    config: ProviderSessionConfig,
+  ): AsyncGenerator<ProviderEvent> {
     let claudePath: string;
     try {
       const which = execSync("which claude", { encoding: "utf-8" }).trim();
       claudePath = realpathSync(which);
     } catch {
       throw new Error(
-        "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH"
+        "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH",
       );
     }
 
@@ -217,14 +246,16 @@ export const ClaudeProvider: Provider = {
     }
   },
 
-  createInteractiveSession(config: InteractiveSessionConfig): InteractiveSession {
+  createInteractiveSession(
+    config: InteractiveSessionConfig,
+  ): InteractiveSession {
     let claudePath: string;
     try {
       const which = execSync("which claude", { encoding: "utf-8" }).trim();
       claudePath = realpathSync(which);
     } catch {
       throw new Error(
-        "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH"
+        "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH",
       );
     }
 

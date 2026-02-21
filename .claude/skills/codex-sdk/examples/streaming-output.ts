@@ -55,7 +55,7 @@ class ProgressTracker {
 
     if (this.filesChanged.length > 0) {
       console.log(`📝 Files Modified: ${this.filesChanged.length}`);
-      this.filesChanged.slice(-5).forEach(file => {
+      this.filesChanged.slice(-5).forEach((file) => {
         console.log(`   ${file}`);
       });
       if (this.filesChanged.length > 5) {
@@ -71,7 +71,7 @@ async function streamingExample() {
   const codex = new Codex();
   const thread = codex.startThread({
     model: "gpt-5.3-codex",
-    workingDirectory: process.cwd()
+    workingDirectory: process.cwd(),
   });
 
   const tracker = new ProgressTracker();
@@ -88,15 +88,15 @@ async function streamingExample() {
           filesAnalyzed: { type: "number" },
           documentationCreated: {
             type: "array",
-            items: { type: "string" }
+            items: { type: "string" },
           },
           recommendations: {
             type: "array",
-            items: { type: "string" }
-          }
-        }
-      }
-    }
+            items: { type: "string" },
+          },
+        },
+      },
+    },
   );
 
   // Process events in real-time
@@ -164,7 +164,7 @@ class StreamProcessor {
   static async processBatched<T>(
     events: AsyncIterable<any>,
     batchSize: number,
-    processor: (batch: any[]) => Promise<T>
+    processor: (batch: any[]) => Promise<T>,
   ): Promise<T[]> {
     const results: T[] = [];
     let batch: any[] = [];
@@ -191,10 +191,7 @@ class StreamProcessor {
   /**
    * Filter events by type
    */
-  static async* filterByType(
-    events: AsyncIterable<any>,
-    ...types: string[]
-  ) {
+  static async *filterByType(events: AsyncIterable<any>, ...types: string[]) {
     for await (const event of events) {
       if (types.includes(event.type)) {
         yield event;
@@ -205,9 +202,9 @@ class StreamProcessor {
   /**
    * Transform events
    */
-  static async* transform<T, U>(
+  static async *transform<T, U>(
     events: AsyncIterable<T>,
-    transformer: (event: T) => U | Promise<U>
+    transformer: (event: T) => U | Promise<U>,
   ): AsyncIterable<U> {
     for await (const event of events) {
       yield await transformer(event);
@@ -217,9 +214,9 @@ class StreamProcessor {
   /**
    * Timeout wrapper
    */
-  static async* withTimeout<T>(
+  static async *withTimeout<T>(
     events: AsyncIterable<T>,
-    timeoutMs: number
+    timeoutMs: number,
   ): AsyncIterable<T> {
     const start = Date.now();
 
@@ -252,14 +249,14 @@ async function codeMigrationExample() {
               properties: {
                 original: { type: "string" },
                 migrated: { type: "string" },
-                types_added: { type: "number" }
-              }
-            }
+                types_added: { type: "number" },
+              },
+            },
           },
-          summary: { type: "string" }
-        }
-      }
-    }
+          summary: { type: "string" },
+        },
+      },
+    },
   );
 
   // Track migration progress
@@ -289,8 +286,9 @@ async function codeMigrationExample() {
   // Summary
   console.log("\n📊 Migration Summary:");
   console.log(`Files processed: ${migrations.size}`);
-  const completed = Array.from(migrations.values())
-    .filter(m => m.status === "completed").length;
+  const completed = Array.from(migrations.values()).filter(
+    (m) => m.status === "completed",
+  ).length;
   console.log(`Successfully migrated: ${completed}`);
 }
 
@@ -302,7 +300,7 @@ async function progressBarExample() {
   const progressBar = new ProgressBar(50);
 
   const { events } = await thread.runStreamed(
-    "Analyze and optimize all images in the project"
+    "Analyze and optimize all images in the project",
   );
 
   let processed = 0;

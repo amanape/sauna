@@ -39,7 +39,8 @@ const argv = cli(
       model: {
         type: String,
         alias: "m",
-        description: "Model to use (e.g. sonnet, opus, haiku for Claude; codex, codex-mini for Codex; or full model ID)",
+        description:
+          "Model to use (e.g. sonnet, opus, haiku for Claude; codex, codex-mini for Codex; or full model ID)",
       },
       provider: {
         type: String,
@@ -76,7 +77,7 @@ const argv = cli(
     ],
   },
   undefined,
-  customArgv
+  customArgv,
 );
 
 // Handle `sauna alias-list` subcommand
@@ -115,7 +116,7 @@ if (count !== undefined) {
   }
   if (count <= 0) {
     process.stderr.write(
-      "error: --count must be a positive integer (at least 1)\n"
+      "error: --count must be a positive integer (at least 1)\n",
     );
     process.exit(1);
   }
@@ -130,7 +131,9 @@ if (forever && count !== undefined) {
 // Mutual exclusivity: --interactive cannot be combined with --count or --forever
 if (interactive && (count !== undefined || forever)) {
   const conflict = count !== undefined ? "--count" : "--forever";
-  process.stderr.write(`error: --interactive and ${conflict} are mutually exclusive\n`);
+  process.stderr.write(
+    `error: --interactive and ${conflict} are mutually exclusive\n`,
+  );
   process.exit(1);
 }
 
@@ -150,16 +153,25 @@ const model = provider.resolveModel(argv.flags.model);
 // In dry-run mode, print parsed config as JSON and exit
 if (process.env.SAUNA_DRY_RUN === "1") {
   console.log(
-    JSON.stringify({ prompt, model, forever, count, interactive, context, provider: provider.name })
+    JSON.stringify({
+      prompt,
+      model,
+      forever,
+      count,
+      interactive,
+      context,
+      provider: provider.name,
+    }),
   );
   process.exit(0);
 }
 
 // Check provider availability before starting any session
 if (!provider.isAvailable()) {
-  const msg = provider.name === "claude"
-    ? "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH"
-    : "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY, or run `codex login` to authenticate";
+  const msg =
+    provider.name === "claude"
+      ? "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH"
+      : "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY, or run `codex login` to authenticate";
   process.stderr.write(`error: ${msg}\n`);
   process.exit(1);
 }
@@ -169,11 +181,16 @@ try {
   const errWrite = (s: string) => process.stderr.write(s);
 
   if (interactive) {
-    await runInteractive({ prompt, model, context, provider }, write, undefined, errWrite);
+    await runInteractive(
+      { prompt, model, context, provider },
+      write,
+      undefined,
+      errWrite,
+    );
   } else {
     // Wire SIGINT/SIGTERM to an AbortController so loop modes can stop between iterations
     const abort = new AbortController();
-    const onSignal = () => abort.abort();
+    const onSignal = () => { abort.abort(); };
     process.on("SIGINT", onSignal);
     process.on("SIGTERM", onSignal);
 
@@ -183,7 +200,7 @@ try {
         () => provider.createSession({ prompt: prompt!, model, context }),
         write,
         abort.signal,
-        errWrite
+        errWrite,
       );
       if (!ok) process.exit(1);
     } finally {

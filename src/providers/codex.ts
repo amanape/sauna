@@ -2,7 +2,13 @@ import { Codex } from "@openai/codex-sdk";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { ProviderEvent, Provider, ProviderSessionConfig, InteractiveSessionConfig, InteractiveSession } from "../provider";
+import type {
+  ProviderEvent,
+  Provider,
+  ProviderSessionConfig,
+  InteractiveSessionConfig,
+  InteractiveSession,
+} from "../provider";
 import { redactSecrets } from "../stream";
 import { buildPrompt } from "../prompt";
 
@@ -13,7 +19,7 @@ import { buildPrompt } from "../prompt";
 
 type ThreadItem =
   | { type: "command_execution"; command: string; exitCode: number | null }
-  | { type: "file_change"; changes: Array<{ path: string }> }
+  | { type: "file_change"; changes: { path: string }[] }
   | { type: "mcp_tool_call"; tool: string }
   | { type: "web_search"; query: string }
   | { type: "agent_message"; text: string }
@@ -23,32 +29,54 @@ type ThreadItem =
 export type ThreadEvent =
   | { type: "thread.started" }
   | { type: "turn.started" }
-  | { type: "turn.completed"; usage: { input_tokens: number; output_tokens: number } }
+  | {
+      type: "turn.completed";
+      usage: { input_tokens: number; output_tokens: number };
+    }
   | { type: "turn.failed"; error: { message: string } }
   | { type: "item.started"; item: ThreadItem }
   | { type: "item.updated"; item: ThreadItem }
   | { type: "item.completed"; item: ThreadItem }
   | { type: string; [key: string]: unknown };
 
-export function adaptCodexEvent(event: ThreadEvent, durationMs: number): ProviderEvent[] {
+export function adaptCodexEvent(
+  event: ThreadEvent,
+  durationMs: number,
+): ProviderEvent[] {
   if (event.type === "item.started") {
-    return adaptItemStarted((event as { type: "item.started"; item: ThreadItem }).item);
+    return adaptItemStarted(
+      (event as { type: "item.started"; item: ThreadItem }).item,
+    );
   }
   if (event.type === "item.completed") {
-    return adaptItemCompleted((event as { type: "item.completed"; item: ThreadItem }).item);
+    return adaptItemCompleted(
+      (event as { type: "item.completed"; item: ThreadItem }).item,
+    );
   }
   if (event.type === "turn.completed") {
-    const { input_tokens, output_tokens } = (event as { type: "turn.completed"; usage: { input_tokens: number; output_tokens: number } }).usage;
+    const { input_tokens, output_tokens } = (
+      event as {
+        type: "turn.completed";
+        usage: { input_tokens: number; output_tokens: number };
+      }
+    ).usage;
     return [
       {
         type: "result",
         success: true,
-        summary: { inputTokens: input_tokens, outputTokens: output_tokens, numTurns: 1, durationMs },
+        summary: {
+          inputTokens: input_tokens,
+          outputTokens: output_tokens,
+          numTurns: 1,
+          durationMs,
+        },
       },
     ];
   }
   if (event.type === "turn.failed") {
-    const { message } = (event as { type: "turn.failed"; error: { message: string } }).error;
+    const { message } = (
+      event as { type: "turn.failed"; error: { message: string } }
+    ).error;
     return [{ type: "result", success: false, errors: [message] }];
   }
   // thread.started, turn.started, item.updated, unknown top-level events: ignored
@@ -62,7 +90,12 @@ function adaptItemStarted(item: ThreadItem): ProviderEvent[] {
     case "file_change":
       return [{ type: "tool_start", name: "Edit" }];
     case "mcp_tool_call":
-      return [{ type: "tool_start", name: (item as { type: "mcp_tool_call"; tool: string }).tool }];
+      return [
+        {
+          type: "tool_start",
+          name: (item as { type: "mcp_tool_call"; tool: string }).tool,
+        },
+      ];
     default:
       // reasoning, todo_list, unknown item types: ignored
       return [];
@@ -72,14 +105,25 @@ function adaptItemStarted(item: ThreadItem): ProviderEvent[] {
 function adaptItemCompleted(item: ThreadItem): ProviderEvent[] {
   switch (item.type) {
     case "command_execution": {
-      const { command, exitCode } = item as { type: "command_execution"; command: string; exitCode: number | null };
+      const { command, exitCode } = item as {
+        type: "command_execution";
+        command: string;
+        exitCode: number | null;
+      };
       if (exitCode === null) return [];
-      return [{ type: "tool_end", name: "Bash", detail: redactSecrets(command) }];
+      return [
+        { type: "tool_end", name: "Bash", detail: redactSecrets(command) },
+      ];
     }
     case "file_change": {
-      const { changes } = item as { type: "file_change"; changes: Array<{ path: string }> };
+      const { changes } = item as {
+        type: "file_change";
+        changes: { path: string }[];
+      };
       const detail = changes[0]?.path;
-      return detail ? [{ type: "tool_end", name: "Edit", detail }] : [{ type: "tool_end", name: "Edit" }];
+      return detail
+        ? [{ type: "tool_end", name: "Edit", detail }]
+        : [{ type: "tool_end", name: "Edit" }];
     }
     case "mcp_tool_call": {
       const { tool } = item as { type: "mcp_tool_call"; tool: string };
@@ -140,10 +184,12 @@ export const CodexProvider: Provider = {
     return CODEX_ALIASES;
   },
 
-  async *createSession(config: ProviderSessionConfig): AsyncGenerator<ProviderEvent> {
+  async *createSession(
+    config: ProviderSessionConfig,
+  ): AsyncGenerator<ProviderEvent> {
     if (!this.isAvailable()) {
       throw new Error(
-        "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY, or run `codex login` to authenticate"
+        "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY, or run `codex login` to authenticate",
       );
     }
 
@@ -166,16 +212,21 @@ export const CodexProvider: Provider = {
       // `exitCode` on CommandExecutionItem. Real SDK events use `exit_code`
       // (snake_case); the adapter uses `exitCode` (camelCase). This mismatch
       // only affects the "null exit code → skip tool_end" edge case.
-      for (const providerEvent of adaptCodexEvent(sdkEvent as unknown as ThreadEvent, durationMs)) {
+      for (const providerEvent of adaptCodexEvent(
+        sdkEvent as unknown as ThreadEvent,
+        durationMs,
+      )) {
         yield providerEvent;
       }
     }
   },
 
-  createInteractiveSession(config: InteractiveSessionConfig): InteractiveSession {
+  createInteractiveSession(
+    config: InteractiveSessionConfig,
+  ): InteractiveSession {
     if (!this.isAvailable()) {
       throw new Error(
-        "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY, or run `codex login` to authenticate"
+        "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY, or run `codex login` to authenticate",
       );
     }
 
@@ -208,7 +259,10 @@ export const CodexProvider: Provider = {
         const { events } = await thread.runStreamed(msg);
         for await (const sdkEvent of events) {
           const durationMs = Date.now() - startMs;
-          for (const providerEvent of adaptCodexEvent(sdkEvent as unknown as ThreadEvent, durationMs)) {
+          for (const providerEvent of adaptCodexEvent(
+            sdkEvent as unknown as ThreadEvent,
+            durationMs,
+          )) {
             yield providerEvent;
           }
         }

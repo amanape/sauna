@@ -18,17 +18,17 @@ bun add @openai/codex-sdk
 Basic usage:
 
 ```typescript
-import { Codex } from '@openai/codex-sdk';
+import { Codex } from "@openai/codex-sdk";
 
 const codex = new Codex();
 const thread = codex.startThread();
 
 // Execute single turn
-const result = await thread.run('Diagnose and fix the CI failures');
+const result = await thread.run("Diagnose and fix the CI failures");
 console.log(result);
 
 // Continue conversation
-const nextTurn = await thread.run('Implement the fix');
+const nextTurn = await thread.run("Implement the fix");
 ```
 
 ## Core Concepts
@@ -53,7 +53,7 @@ const threadId = thread.id;
 
 // Later, resume conversation
 const resumedThread = codex.resumeThread(threadId);
-const result = await resumedThread.run('Continue the task');
+const result = await resumedThread.run("Continue the task");
 ```
 
 ### Model Selection
@@ -62,7 +62,7 @@ Configure model in thread options:
 
 ```typescript
 const thread = codex.startThread({
-  model: 'gpt-5.3-codex', // Latest, most capable — recommended default
+  model: "gpt-5.3-codex", // Latest, most capable — recommended default
   // Or: "gpt-5.3-codex-spark" — text-only, 1000+ tokens/s (ChatGPT Pro only, no vision)
   // Or: "gpt-5.1-codex-max" — long-horizon agentic tasks
   // Or: "gpt-5.2-codex" — previous generation
@@ -77,25 +77,25 @@ Use JSON Schema for reliable structured responses:
 
 ```typescript
 const schema = {
-  type: 'object',
+  type: "object",
   properties: {
     findings: {
-      type: 'array',
+      type: "array",
       items: {
-        type: 'object',
+        type: "object",
         properties: {
-          file: { type: 'string' },
-          line: { type: 'number' },
-          severity: { enum: ['error', 'warning', 'info'] },
-          message: { type: 'string' },
+          file: { type: "string" },
+          line: { type: "number" },
+          severity: { enum: ["error", "warning", "info"] },
+          message: { type: "string" },
         },
       },
     },
-    verdict: { enum: ['pass', 'needs_changes'] },
+    verdict: { enum: ["pass", "needs_changes"] },
   },
 };
 
-const result = await thread.run('Review this code', {
+const result = await thread.run("Review this code", {
   outputSchema: schema,
 });
 ```
@@ -105,26 +105,26 @@ const result = await thread.run('Review this code', {
 Get real-time feedback with `runStreamed()`:
 
 ```typescript
-const { events } = await thread.runStreamed('Analyze repository status', {
+const { events } = await thread.runStreamed("Analyze repository status", {
   outputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      summary: { type: 'string' },
-      status: { enum: ['ok', 'action_required'] },
+      summary: { type: "string" },
+      status: { enum: ["ok", "action_required"] },
     },
   },
 });
 
 for await (const event of events) {
   switch (event.type) {
-    case 'item.completed':
-      console.log('Item:', event.item);
+    case "item.completed":
+      console.log("Item:", event.item);
       break;
-    case 'tool.call':
-      console.log('Tool called:', event.toolName);
+    case "tool.call":
+      console.log("Tool called:", event.toolName);
       break;
-    case 'turn.completed':
-      console.log('Usage stats:', event.usage);
+    case "turn.completed":
+      console.log("Usage stats:", event.usage);
       break;
   }
 }
@@ -135,8 +135,8 @@ for await (const event of events) {
 Attach images for visual analysis:
 
 ```typescript
-const result = await thread.run('Analyze this UI screenshot', {
-  images: ['/path/to/screenshot.png'],
+const result = await thread.run("Analyze this UI screenshot", {
+  images: ["/path/to/screenshot.png"],
 });
 ```
 
@@ -144,8 +144,8 @@ Configure working directory and additional context:
 
 ```typescript
 const thread = codex.startThread({
-  workingDirectory: '/path/to/project',
-  additionalDirectories: ['/path/to/tests', '/path/to/config'],
+  workingDirectory: "/path/to/project",
+  additionalDirectories: ["/path/to/tests", "/path/to/config"],
 });
 ```
 
@@ -153,17 +153,17 @@ const thread = codex.startThread({
 
 ### Thread Options
 
-| Option                 | Purpose                | Values                                                  |
-| ---------------------- | ---------------------- | ------------------------------------------------------- |
+| Option                 | Purpose                | Values                                                                                       |
+| ---------------------- | ---------------------- | -------------------------------------------------------------------------------------------- |
 | `model`                | Model selection        | `gpt-5.3-codex` (default), `gpt-5.3-codex-spark`, `gpt-5.1-codex-max`, `gpt-5.2-codex`, etc. |
-| `workingDirectory`     | Working directory      | Path string                                             |
-| `skipGitRepoCheck`     | Disable Git validation | Boolean                                                 |
-| `outputSchema`         | Structured output      | JSON Schema object                                      |
-| `reasoning_effort`     | Reasoning intensity    | `low`, `medium`, `high`                                 |
-| `networkAccessEnabled` | Enable web access      | Boolean                                                 |
-| `webSearchMode`        | Search mode            | `cached`, `live`                                        |
-| `approvalPolicy`       | Approval requirements  | `untrusted`, `on-request`, `never`                      |
-| `sandbox`              | Filesystem access mode | `read-only`, `workspace-write`, `danger-full-access`    |
+| `workingDirectory`     | Working directory      | Path string                                                                                  |
+| `skipGitRepoCheck`     | Disable Git validation | Boolean                                                                                      |
+| `outputSchema`         | Structured output      | JSON Schema object                                                                           |
+| `reasoning_effort`     | Reasoning intensity    | `low`, `medium`, `high`                                                                      |
+| `networkAccessEnabled` | Enable web access      | Boolean                                                                                      |
+| `webSearchMode`        | Search mode            | `cached`, `live`                                                                             |
+| `approvalPolicy`       | Approval requirements  | `untrusted`, `on-request`, `never`                                                           |
+| `sandbox`              | Filesystem access mode | `read-only`, `workspace-write`, `danger-full-access`                                         |
 
 ### Authentication
 
@@ -181,12 +181,12 @@ Credentials cache in `~/.codex/auth.json` or OS credential store.
 
 ```typescript
 const review = await thread.run(
-  'Review for correctness, performance, security, and maintainability',
+  "Review for correctness, performance, security, and maintainability",
   {
     outputSchema: {
       properties: {
-        findings: { type: 'array' },
-        verdict: { enum: ['pass', 'needs_changes'] },
+        findings: { type: "array" },
+        verdict: { enum: ["pass", "needs_changes"] },
       },
     },
   },
@@ -198,11 +198,11 @@ const review = await thread.run(
 Use headless mode with structured output:
 
 ```typescript
-const result = await thread.run('Fix failing tests', {
+const result = await thread.run("Fix failing tests", {
   outputSchema: {
     properties: {
-      fixed: { type: 'boolean' },
-      changes: { type: 'array' },
+      fixed: { type: "boolean" },
+      changes: { type: "array" },
     },
   },
 });
@@ -230,10 +230,10 @@ Handle common error scenarios:
 try {
   const result = await thread.run(prompt);
 } catch (error) {
-  if (error.code === 'rate_limit_exceeded') {
+  if (error.code === "rate_limit_exceeded") {
     // Implement exponential backoff
   }
-  if (error.code === 'context_window_exceeded') {
+  if (error.code === "context_window_exceeded") {
     // Handle context overflow
   }
 }

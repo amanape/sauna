@@ -10,7 +10,9 @@ describe("buildPrompt", () => {
     const result = buildPrompt("do something", ["foo.md"]);
     expect(result).toContain("foo.md");
     expect(result).toContain("do something");
-    expect(result.indexOf("foo.md")).toBeLessThan(result.indexOf("do something"));
+    expect(result.indexOf("foo.md")).toBeLessThan(
+      result.indexOf("do something"),
+    );
   });
 
   test("prepends multiple context paths as references", () => {
@@ -19,6 +21,8 @@ describe("buildPrompt", () => {
     expect(result).toContain("bar/");
     expect(result).toContain("baz.ts");
     expect(result).toContain("do something");
-    expect(result.indexOf("baz.ts")).toBeLessThan(result.indexOf("do something"));
+    expect(result.indexOf("baz.ts")).toBeLessThan(
+      result.indexOf("do something"),
+    );
   });
 });
