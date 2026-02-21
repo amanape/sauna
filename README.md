@@ -94,8 +94,8 @@ Then swap in whatever documentation you need:
 
 ```bash
 sauna build-skill -c node_modules/zod/README.md -n 3
-sauna build-skill -c node_modules/prisma/README.md -n 5
-sauna build-skill -c docs/api-design-guide.md
+sauna build-skill -c "Official Prisma docs" -n 5
+sauna build-skill -c https://reactrouter.com/home -n 7
 ```
 
 Use `--count` to iteratively refine. Each pass reviews the skill's current state against the source material, finds what's missing or weak, and improves it.
