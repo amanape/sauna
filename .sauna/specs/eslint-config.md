@@ -32,6 +32,10 @@ Create `eslint.config.mjs` at project root using `tseslint.config()` helper.
 - `coverage/`
 - `.sauna/`
 
+### Global Rule Overrides
+
+- `@typescript-eslint/consistent-type-definitions`: `off` — the codebase consistently uses `type` for object shapes; forcing `interface` would cause mass churn with no correctness benefit.
+
 ## Acceptance Criteria
 
 - [ ] `eslint.config.mjs` exists at project root
@@ -41,4 +45,5 @@ Create `eslint.config.mjs` at project root using `tseslint.config()` helper.
 - [ ] `eslint-config-prettier` is applied last
 - [ ] `projectService: true` is set with correct `tsconfigRootDir`
 - [ ] Ignored directories are excluded from linting
-- [ ] `bun run lint` executes without crashing (lint errors are acceptable)
+- [ ] `consistent-type-definitions` is disabled globally
+- [ ] `bun run lint` executes without crashing (lint errors are acceptable at this stage)

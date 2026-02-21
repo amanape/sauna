@@ -41,4 +41,4 @@ Create `.prettierignore` at project root.
 - [ ] `.prettierignore` exists at project root with all ignored paths
 - [ ] `prettier` is installed as a devDependency
 - [ ] `bunx prettier --check .` runs without crashing
-- [ ] Formatting rules match existing source code style (no unnecessary churn in `src/`)
+- [ ] Formatting rules match existing source code style (minimal churn in `src/`)
