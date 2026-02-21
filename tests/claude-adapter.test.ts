@@ -1,5 +1,8 @@
 import { describe, test, expect } from "bun:test";
-import { adaptClaudeMessage, createClaudeAdapterState } from "../src/providers/claude";
+import {
+  adaptClaudeMessage,
+  createClaudeAdapterState,
+} from "../src/providers/claude";
 
 // Helpers to build fake SDK messages
 function streamEvent(event: object) {
@@ -7,15 +10,24 @@ function streamEvent(event: object) {
 }
 
 function textDeltaMsg(text: string) {
-  return streamEvent({ type: "content_block_delta", delta: { type: "text_delta", text } });
+  return streamEvent({
+    type: "content_block_delta",
+    delta: { type: "text_delta", text },
+  });
 }
 
 function toolStartMsg(name: string) {
-  return streamEvent({ type: "content_block_start", content_block: { type: "tool_use", name } });
+  return streamEvent({
+    type: "content_block_start",
+    content_block: { type: "tool_use", name },
+  });
 }
 
 function jsonDeltaMsg(partial_json: string) {
-  return streamEvent({ type: "content_block_delta", delta: { type: "input_json_delta", partial_json } });
+  return streamEvent({
+    type: "content_block_delta",
+    delta: { type: "input_json_delta", partial_json },
+  });
 }
 
 function toolStopMsg() {
@@ -100,7 +112,9 @@ describe("adaptClaudeMessage", () => {
       adaptClaudeMessage(toolStartMsg("Read"), state);
       adaptClaudeMessage(jsonDeltaMsg('{"file_path": "/src/main.ts"}'), state);
       const events = adaptClaudeMessage(toolStopMsg(), state);
-      expect(events).toEqual([{ type: "tool_end", name: "Read", detail: "/src/main.ts" }]);
+      expect(events).toEqual([
+        { type: "tool_end", name: "Read", detail: "/src/main.ts" },
+      ]);
       expect(state.pendingToolName).toBeUndefined();
       expect(state.pendingToolJson).toBe("");
     });
@@ -108,25 +122,46 @@ describe("adaptClaudeMessage", () => {
     test("detail extraction fallback chain: command over description", () => {
       const state = createClaudeAdapterState();
       adaptClaudeMessage(toolStartMsg("Bash"), state);
-      adaptClaudeMessage(jsonDeltaMsg('{"command": "ls -la", "description": "list files"}'), state);
+      adaptClaudeMessage(
+        jsonDeltaMsg('{"command": "ls -la", "description": "list files"}'),
+        state,
+      );
       const events = adaptClaudeMessage(toolStopMsg(), state);
-      expect(events[0]).toMatchObject({ type: "tool_end", name: "Bash", detail: "ls -la" });
+      expect(events[0]).toMatchObject({
+        type: "tool_end",
+        name: "Bash",
+        detail: "ls -la",
+      });
     });
 
     test("detail extraction fallback chain: description over pattern", () => {
       const state = createClaudeAdapterState();
       adaptClaudeMessage(toolStartMsg("Glob"), state);
-      adaptClaudeMessage(jsonDeltaMsg('{"description": "find files", "pattern": "*.ts"}'), state);
+      adaptClaudeMessage(
+        jsonDeltaMsg('{"description": "find files", "pattern": "*.ts"}'),
+        state,
+      );
       const events = adaptClaudeMessage(toolStopMsg(), state);
-      expect(events[0]).toMatchObject({ type: "tool_end", name: "Glob", detail: "find files" });
+      expect(events[0]).toMatchObject({
+        type: "tool_end",
+        name: "Glob",
+        detail: "find files",
+      });
     });
 
     test("detail extraction fallback chain: pattern over query", () => {
       const state = createClaudeAdapterState();
       adaptClaudeMessage(toolStartMsg("Glob"), state);
-      adaptClaudeMessage(jsonDeltaMsg('{"pattern": "*.ts", "query": "typescript files"}'), state);
+      adaptClaudeMessage(
+        jsonDeltaMsg('{"pattern": "*.ts", "query": "typescript files"}'),
+        state,
+      );
       const events = adaptClaudeMessage(toolStopMsg(), state);
-      expect(events[0]).toMatchObject({ type: "tool_end", name: "Glob", detail: "*.ts" });
+      expect(events[0]).toMatchObject({
+        type: "tool_end",
+        name: "Glob",
+        detail: "*.ts",
+      });
     });
 
     test("detail extraction fallback chain: query as last resort", () => {
@@ -134,21 +169,35 @@ describe("adaptClaudeMessage", () => {
       adaptClaudeMessage(toolStartMsg("Search"), state);
       adaptClaudeMessage(jsonDeltaMsg('{"query": "find providers"}'), state);
       const events = adaptClaudeMessage(toolStopMsg(), state);
-      expect(events[0]).toMatchObject({ type: "tool_end", name: "Search", detail: "find providers" });
+      expect(events[0]).toMatchObject({
+        type: "tool_end",
+        name: "Search",
+        detail: "find providers",
+      });
     });
 
     test("only uses first line of detail", () => {
       const state = createClaudeAdapterState();
       adaptClaudeMessage(toolStartMsg("Read"), state);
-      adaptClaudeMessage(jsonDeltaMsg('{"file_path": "/foo/bar\\nsecond line"}'), state);
+      adaptClaudeMessage(
+        jsonDeltaMsg('{"file_path": "/foo/bar\\nsecond line"}'),
+        state,
+      );
       const events = adaptClaudeMessage(toolStopMsg(), state);
-      expect(events[0]).toMatchObject({ type: "tool_end", name: "Read", detail: "/foo/bar" });
+      expect(events[0]).toMatchObject({
+        type: "tool_end",
+        name: "Read",
+        detail: "/foo/bar",
+      });
     });
 
     test("redacts secrets in command detail", () => {
       const state = createClaudeAdapterState();
       adaptClaudeMessage(toolStartMsg("Bash"), state);
-      adaptClaudeMessage(jsonDeltaMsg('{"command": "API_KEY=secret curl http://example.com"}'), state);
+      adaptClaudeMessage(
+        jsonDeltaMsg('{"command": "API_KEY=secret curl http://example.com"}'),
+        state,
+      );
       const events = adaptClaudeMessage(toolStopMsg(), state);
       expect(events[0]).toMatchObject({
         type: "tool_end",
@@ -183,7 +232,9 @@ describe("adaptClaudeMessage", () => {
       adaptClaudeMessage(jsonDeltaMsg('{"command": "ls"}'), state);
       const end2 = adaptClaudeMessage(toolStopMsg(), state);
 
-      expect(end1).toEqual([{ type: "tool_end", name: "Read", detail: "/a.ts" }]);
+      expect(end1).toEqual([
+        { type: "tool_end", name: "Read", detail: "/a.ts" },
+      ]);
       expect(end2).toEqual([{ type: "tool_end", name: "Bash", detail: "ls" }]);
     });
   });
@@ -197,15 +248,25 @@ describe("adaptClaudeMessage", () => {
         {
           type: "result",
           success: true,
-          summary: { inputTokens: 100, outputTokens: 50, numTurns: 2, durationMs: 1234 },
+          summary: {
+            inputTokens: 100,
+            outputTokens: 50,
+            numTurns: 2,
+            durationMs: 1234,
+          },
         },
       ]);
     });
 
     test("maps failure result to result event with errors", () => {
       const state = createClaudeAdapterState();
-      const events = adaptClaudeMessage(resultFailureMsg(["auth failed"]), state);
-      expect(events).toEqual([{ type: "result", success: false, errors: ["auth failed"] }]);
+      const events = adaptClaudeMessage(
+        resultFailureMsg(["auth failed"]),
+        state,
+      );
+      expect(events).toEqual([
+        { type: "result", success: false, errors: ["auth failed"] },
+      ]);
     });
 
     test("fallback: emits text_delta before result when no text was emitted and result.result has text", () => {
@@ -213,10 +274,13 @@ describe("adaptClaudeMessage", () => {
       // hasEmittedText is false (default)
       const events = adaptClaudeMessage(
         resultSuccessMsg({ result: "here is the answer" }),
-        state
+        state,
       );
       expect(events).toHaveLength(2);
-      expect(events[0]).toEqual({ type: "text_delta", text: "here is the answer" });
+      expect(events[0]).toEqual({
+        type: "text_delta",
+        text: "here is the answer",
+      });
       expect(events[1]).toMatchObject({ type: "result", success: true });
     });
 
@@ -225,7 +289,7 @@ describe("adaptClaudeMessage", () => {
       state.hasEmittedText = true;
       const events = adaptClaudeMessage(
         resultSuccessMsg({ result: "here is the answer" }),
-        state
+        state,
       );
       expect(events).toHaveLength(1);
       expect(events[0]).toMatchObject({ type: "result", success: true });
@@ -233,7 +297,10 @@ describe("adaptClaudeMessage", () => {
 
     test("no fallback text when result.result is empty", () => {
       const state = createClaudeAdapterState();
-      const events = adaptClaudeMessage(resultSuccessMsg({ result: "" }), state);
+      const events = adaptClaudeMessage(
+        resultSuccessMsg({ result: "" }),
+        state,
+      );
       expect(events).toHaveLength(1);
       expect(events[0]).toMatchObject({ type: "result", success: true });
     });
@@ -248,7 +315,10 @@ describe("adaptClaudeMessage", () => {
 
     test("silently ignores unknown stream_event types", () => {
       const state = createClaudeAdapterState();
-      const events = adaptClaudeMessage(streamEvent({ type: "message_start" }), state);
+      const events = adaptClaudeMessage(
+        streamEvent({ type: "message_start" }),
+        state,
+      );
       expect(events).toEqual([]);
     });
   });

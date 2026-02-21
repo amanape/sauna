@@ -4,7 +4,7 @@ import { adaptCodexEvent } from "../src/providers/codex";
 // Local ThreadEvent types mirroring @openai/codex-sdk shape (used for test fixtures only)
 type ThreadItem =
   | { type: "command_execution"; command: string; exitCode: number | null }
-  | { type: "file_change"; changes: Array<{ path: string }> }
+  | { type: "file_change"; changes: { path: string }[] }
   | { type: "mcp_tool_call"; tool: string }
   | { type: "web_search"; query: string }
   | { type: "agent_message"; text: string }
@@ -15,7 +15,10 @@ type ThreadItem =
 type ThreadEvent =
   | { type: "thread.started" }
   | { type: "turn.started" }
-  | { type: "turn.completed"; usage: { input_tokens: number; output_tokens: number } }
+  | {
+      type: "turn.completed";
+      usage: { input_tokens: number; output_tokens: number };
+    }
   | { type: "turn.failed"; error: { message: string } }
   | { type: "item.started"; item: ThreadItem }
   | { type: "item.updated"; item: ThreadItem }
@@ -27,7 +30,9 @@ describe("adaptCodexEvent — command_execution", () => {
       type: "item.started",
       item: { type: "command_execution", command: "ls -la", exitCode: null },
     };
-    expect(adaptCodexEvent(event, 1000)).toEqual([{ type: "tool_start", name: "Bash" }]);
+    expect(adaptCodexEvent(event, 1000)).toEqual([
+      { type: "tool_start", name: "Bash" },
+    ]);
   });
 
   test("item.completed + command_execution → tool_end Bash with detail", () => {
@@ -35,15 +40,23 @@ describe("adaptCodexEvent — command_execution", () => {
       type: "item.completed",
       item: { type: "command_execution", command: "ls -la", exitCode: 0 },
     };
-    expect(adaptCodexEvent(event, 1000)).toEqual([{ type: "tool_end", name: "Bash", detail: "ls -la" }]);
+    expect(adaptCodexEvent(event, 1000)).toEqual([
+      { type: "tool_end", name: "Bash", detail: "ls -la" },
+    ]);
   });
 
   test("item.completed + command_execution redacts secrets in detail", () => {
     const event: ThreadEvent = {
       type: "item.completed",
-      item: { type: "command_execution", command: "SECRET=value ls", exitCode: 0 },
+      item: {
+        type: "command_execution",
+        command: "SECRET=value ls",
+        exitCode: 0,
+      },
     };
-    expect(adaptCodexEvent(event, 1000)).toEqual([{ type: "tool_end", name: "Bash", detail: "SECRET=*** ls" }]);
+    expect(adaptCodexEvent(event, 1000)).toEqual([
+      { type: "tool_end", name: "Bash", detail: "SECRET=*** ls" },
+    ]);
   });
 
   test("item.completed + command_execution with null exit code → no events", () => {
@@ -61,15 +74,22 @@ describe("adaptCodexEvent — file_change", () => {
       type: "item.started",
       item: { type: "file_change", changes: [{ path: "src/foo.ts" }] },
     };
-    expect(adaptCodexEvent(event, 1000)).toEqual([{ type: "tool_start", name: "Edit" }]);
+    expect(adaptCodexEvent(event, 1000)).toEqual([
+      { type: "tool_start", name: "Edit" },
+    ]);
   });
 
   test("item.completed + file_change with changes → tool_end Edit with first path", () => {
     const event: ThreadEvent = {
       type: "item.completed",
-      item: { type: "file_change", changes: [{ path: "src/foo.ts" }, { path: "src/bar.ts" }] },
+      item: {
+        type: "file_change",
+        changes: [{ path: "src/foo.ts" }, { path: "src/bar.ts" }],
+      },
     };
-    expect(adaptCodexEvent(event, 1000)).toEqual([{ type: "tool_end", name: "Edit", detail: "src/foo.ts" }]);
+    expect(adaptCodexEvent(event, 1000)).toEqual([
+      { type: "tool_end", name: "Edit", detail: "src/foo.ts" },
+    ]);
   });
 
   test("item.completed + file_change with empty changes → tool_end Edit without detail", () => {
@@ -77,7 +97,9 @@ describe("adaptCodexEvent — file_change", () => {
       type: "item.completed",
       item: { type: "file_change", changes: [] },
     };
-    expect(adaptCodexEvent(event, 1000)).toEqual([{ type: "tool_end", name: "Edit" }]);
+    expect(adaptCodexEvent(event, 1000)).toEqual([
+      { type: "tool_end", name: "Edit" },
+    ]);
   });
 });
 
@@ -87,7 +109,9 @@ describe("adaptCodexEvent — mcp_tool_call", () => {
       type: "item.started",
       item: { type: "mcp_tool_call", tool: "my_tool" },
     };
-    expect(adaptCodexEvent(event, 1000)).toEqual([{ type: "tool_start", name: "my_tool" }]);
+    expect(adaptCodexEvent(event, 1000)).toEqual([
+      { type: "tool_start", name: "my_tool" },
+    ]);
   });
 
   test("item.completed + mcp_tool_call → tool_end with tool name", () => {
@@ -95,7 +119,9 @@ describe("adaptCodexEvent — mcp_tool_call", () => {
       type: "item.completed",
       item: { type: "mcp_tool_call", tool: "my_tool" },
     };
-    expect(adaptCodexEvent(event, 1000)).toEqual([{ type: "tool_end", name: "my_tool" }]);
+    expect(adaptCodexEvent(event, 1000)).toEqual([
+      { type: "tool_end", name: "my_tool" },
+    ]);
   });
 });
 
@@ -118,7 +144,9 @@ describe("adaptCodexEvent — agent_message", () => {
       type: "item.completed",
       item: { type: "agent_message", text: "Hello world" },
     };
-    expect(adaptCodexEvent(event, 1000)).toEqual([{ type: "text_delta", text: "Hello world" }]);
+    expect(adaptCodexEvent(event, 1000)).toEqual([
+      { type: "text_delta", text: "Hello world" },
+    ]);
   });
 
   test("item.completed + agent_message with empty text → no events", () => {
@@ -136,7 +164,9 @@ describe("adaptCodexEvent — error", () => {
       type: "item.completed",
       item: { type: "error", message: "something failed" },
     };
-    expect(adaptCodexEvent(event, 1000)).toEqual([{ type: "error", message: "something failed" }]);
+    expect(adaptCodexEvent(event, 1000)).toEqual([
+      { type: "error", message: "something failed" },
+    ]);
   });
 });
 
@@ -150,7 +180,12 @@ describe("adaptCodexEvent — turn lifecycle", () => {
       {
         type: "result",
         success: true,
-        summary: { inputTokens: 100, outputTokens: 50, numTurns: 1, durationMs: 2000 },
+        summary: {
+          inputTokens: 100,
+          outputTokens: 50,
+          numTurns: 1,
+          durationMs: 2000,
+        },
       },
     ]);
   });
@@ -184,17 +219,26 @@ describe("adaptCodexEvent — ignored events", () => {
   });
 
   test("item.started + reasoning → no events", () => {
-    const event: ThreadEvent = { type: "item.started", item: { type: "reasoning" } };
+    const event: ThreadEvent = {
+      type: "item.started",
+      item: { type: "reasoning" },
+    };
     expect(adaptCodexEvent(event, 0)).toEqual([]);
   });
 
   test("item.started + todo_list → no events", () => {
-    const event: ThreadEvent = { type: "item.started", item: { type: "todo_list" } };
+    const event: ThreadEvent = {
+      type: "item.started",
+      item: { type: "todo_list" },
+    };
     expect(adaptCodexEvent(event, 0)).toEqual([]);
   });
 
   test("item.completed + unknown item type → no events", () => {
-    const event = { type: "item.completed", item: { type: "unknown_future_item" } } as any;
+    const event = {
+      type: "item.completed",
+      item: { type: "unknown_future_item" },
+    } as any;
     expect(adaptCodexEvent(event, 0)).toEqual([]);
   });
 });

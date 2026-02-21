@@ -74,5 +74,7 @@ export type Provider = {
   /** Runs a single-turn session, yielding ProviderEvent objects. */
   createSession(config: ProviderSessionConfig): AsyncGenerator<ProviderEvent>;
   /** Creates a stateful multi-turn interactive session. */
-  createInteractiveSession(config: InteractiveSessionConfig): InteractiveSession;
+  createInteractiveSession(
+    config: InteractiveSessionConfig,
+  ): InteractiveSession;
 };

@@ -1,54 +1,45 @@
-# Notes
+# Notes — SAU-85: Extend CI (ESLint + Prettier)
 
-## codex-auth-detection (done)
+## Why these linting choices were made
 
-- `isAvailable()` checks `OPENAI_API_KEY`, `CODEX_API_KEY`, then `$CODEX_HOME/auth.json` (or `~/.codex/auth.json` via `homedir()`).
-- Entire auth.json check is wrapped in try/catch — method never throws.
-- File existence alone is sufficient; contents are not validated.
-- Error messages in `createSession()`, `createInteractiveSession()`, and `index.ts` all mention all three options: `OPENAI_API_KEY`, `CODEX_API_KEY`, and `codex login`.
-- The `returns false` test sets `CODEX_HOME` to an empty temp dir to prevent host machine's real `~/.codex/auth.json` from causing a false positive.
-- Was already implemented alongside the codex-interactive-session work; retroactively documented here.
+### `strictTypeChecked` + `stylisticTypeChecked`
+We chose the strictest typescript-eslint presets because the codebase is fully typed. Weaker presets would miss real bugs in the SDK adapter code. The upfront remediation cost was acceptable given the long-term safety benefit.
 
-## interactive-session-contract (done)
+### `eslint-config-prettier` last
+Prettier and typescript-eslint share overlapping formatting rules (e.g., `@typescript-eslint/no-extra-semi`). Placing `prettierConfig` last disables all ESLint rules that could conflict with Prettier's output, preventing double-formatting fights in CI.
 
-- Added `InteractiveSessionConfig`, `InteractiveSession` types and `createInteractiveSession` to `src/provider.ts`.
-- Added `createInteractiveSession` as a **required** method on the `Provider` type — all providers must implement it.
-- Added stubs to `ClaudeProvider` and `CodexProvider` (throw "not yet implemented") to satisfy TypeScript until the real implementations land in `claude-interactive-session` and `codex-interactive-session` tasks.
-- Tests in `tests/provider.test.ts`: `InteractiveSessionConfig` shape, `InteractiveSession` method existence, `stream()` yields `ProviderEvent`, mock `Provider` round-trips through `createInteractiveSession`.
-- bun strips `import type` at runtime — type-only TDD tests always pass at runtime. Validate by temporarily breaking an assertion, not the import.
+### `consistent-type-definitions` disabled globally
+The codebase uses `type` aliases uniformly for object shapes (e.g., `type ProviderEvent = ...`). Enabling this rule would force a mass rename to `interface` with no correctness benefit and high diff noise.
 
-## codex-interactive-session (done)
+### Test override block instead of inline `eslint-disable`
+Mock objects and stub providers in `tests/` routinely trigger `no-unsafe-*` and `no-explicit-any`. Rather than scatter `eslint-disable` comments through every test file, a single `files: ["tests/**/*.ts"]` override block disables the noisy rules cleanly. Source files in `src/` remain at full strictness.
 
-- `CodexProvider.createInteractiveSession()` creates a `Codex` client and `Thread` at construction time; throws synchronously if `isAvailable()` is false.
-- `send()` stores a pending message; first call uses `buildPrompt(message, context)`, subsequent calls store raw input.
-- `stream()` calls `thread.runStreamed(pendingMessage)` per turn and adapts events via `adaptCodexEvent()`.
-- `close()` is a no-op — the Codex CLI process exits naturally after each `runStreamed()` turn.
-- **`@openai/codex-sdk` is ESM-only** (`"type": "module"`) — `require()` on it silently exits in Bun's `-e` subprocess mode. Tests that need to mock it must use a temp `.test.ts` file run via `bun test`, which supports `mock.module()` for ESM interop.
-- `require()` of an ESM-only package in Bun `-e` scripts: the process exits silently with code 0 after the require call — no error, no output. This is the tell-tale sign of an ESM-only package.
+### `send()` returns `Promise<void>` without `async`
+`InteractiveSession.send()` must return `Promise<void>`. Implementing it as `async` triggers `require-await` because the body has no `await`. Solution: non-async method body returning `Promise.resolve()` satisfies both the interface and the linter.
 
-## claude-interactive-session (done)
+### Block `eslint-disable` in `src/providers/claude.ts`
+The Claude Agent SDK returns untyped `any` from `adaptClaudeMessage` and `createMessageChannel`. A block disable (not line-level) is used with a `TODO` comment to surface these when the SDK ships proper types.
 
-- `ClaudeProvider.createInteractiveSession()` creates a message channel and calls `query()` once at construction time.
-- `send()`: first call uses `buildPrompt(message, config.context)`; subsequent calls push raw input with the captured `session_id`.
-- `stream()`: resets `ClaudeAdapterState` per turn, captures `session_id` from messages, adapts via `adaptClaudeMessage()`, returns after a `result` message.
-- `close()` delegates to `q.close()` on the underlying query generator.
-- `createMessageChannel()` is now defined in `src/providers/claude.ts` (copied from `interactive.ts`; removal from `interactive.ts` is deferred to `interactive-repl-abstraction`).
-- Tests in `tests/session.test.ts`: options check, model omission, first-send buildPrompt (via channel inspection), close tracking (via `Object.assign` on the mock generator).
+## Patterns discovered during remediation
 
-## interactive-repl-abstraction (done)
+- `while (true)` → needs `// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition`
+- Numbers in template literals → `String(n)` to satisfy `restrict-template-expressions`
+- Non-null assertions on `Object.keys()` results → inline disable with explanation comment
+- Signal handler `args` → type as `unknown[]` instead of `any[]`
 
-- `src/interactive.ts` is now provider-agnostic — no Claude SDK imports, no `adaptClaudeMessage`, no `buildPrompt`.
-- `InteractiveConfig` uses `provider: Provider` instead of `claudePath: string`.
-- `InteractiveOverrides` uses `session?: InteractiveSession` instead of `createQuery?`.
-- Session is created via `overrides?.session ?? config.provider.createInteractiveSession({ model, context })`.
-- REPL loop: `session.send()` then `for await (event of session.stream())` per turn; `createStreamState()` reset at start of each follow-up.
-- `createMessageChannel()` and all Claude SDK imports were moved to `src/providers/claude.ts`.
-- `tests/interactive.test.ts` now uses `createMockSession()` with queued `ProviderEvent[]` turns; `mock.module("@anthropic-ai/claude-agent-sdk")` removed.
+## CI workflow structure
 
-## cli-interactive-provider-wiring (done)
+Two workflows are intentionally separate:
+- `release.yml` — triggered on tag push (`v*`), builds cross-platform binaries, creates GitHub Release. Does not need lint/format gates since those are enforced on the PR that lands the tag commit.
+- `ci.yml` — triggered on push/PR to `main`, runs `format:check → lint → test`. Fast feedback loop; no binary builds.
 
-- `index.ts` no longer imports `realpathSync` or `execSync` (those were only used in the removed Claude path resolution block).
-- The `if (provider.name === "codex" && interactive)` guard blocking Codex from interactive mode is gone.
-- `runInteractive()` is called with `{ prompt, model, context, provider }` — provider-agnostic.
-- All providers reach the same `runInteractive()` code path via `Provider.createInteractiveSession()`.
-- Test: `--provider codex --interactive` in dry-run succeeds with exit 0, JSON includes `provider: "codex"` and `interactive: true`.
+Step order in `ci.yml` is intentional: formatting is cheapest to check, lint is next, tests are slowest. Fast-fail on cheaper checks first.
+
+### `?? []` on array flags is unnecessary with cleye
+cleye types `type: [String]` flags as `string[]` (defaults to `[]`), never `undefined`. Using `?? []` triggers `no-unnecessary-condition`. Fix: remove the `?? []`.
+
+### Non-null assertion after `&&`-exit guard
+TypeScript doesn't narrow `prompt` to `string` inside a nested else block when the guard is `if (!prompt && !interactive) { process.exit(1) }`. The non-null assertion (`!`) is needed but forbidden by `no-non-null-assertion`. Fix: inline `eslint-disable-next-line` with a TODO, consistent with the project's disable-comment pattern.
+
+## Test count baseline
+280 tests across 15 files. Any new test addition should be verified by first making the assertion fail, then reverting.

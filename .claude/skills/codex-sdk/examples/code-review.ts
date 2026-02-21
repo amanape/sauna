@@ -16,39 +16,55 @@ import { join } from "path";
 const ReviewSchema = z.object({
   summary: z.string().describe("Brief summary of the code quality"),
 
-  issues: z.array(z.object({
-    file: z.string(),
-    line: z.number().positive(),
-    column: z.number().optional(),
-    severity: z.enum(["error", "warning", "info"]),
-    category: z.enum([
-      "bug",
-      "security",
-      "performance",
-      "style",
-      "maintainability",
-      "best-practice"
-    ]),
-    message: z.string(),
-    suggestion: z.string().optional(),
-    codeSnippet: z.string().optional()
-  })).describe("List of issues found"),
+  issues: z
+    .array(
+      z.object({
+        file: z.string(),
+        line: z.number().positive(),
+        column: z.number().optional(),
+        severity: z.enum(["error", "warning", "info"]),
+        category: z.enum([
+          "bug",
+          "security",
+          "performance",
+          "style",
+          "maintainability",
+          "best-practice",
+        ]),
+        message: z.string(),
+        suggestion: z.string().optional(),
+        codeSnippet: z.string().optional(),
+      }),
+    )
+    .describe("List of issues found"),
 
-  metrics: z.object({
-    complexity: z.number().min(0).max(100).describe("Code complexity score"),
-    maintainability: z.number().min(0).max(100).describe("Maintainability index"),
-    testability: z.number().min(0).max(100).describe("How testable the code is"),
-    security: z.number().min(0).max(100).describe("Security score")
-  }).describe("Quality metrics"),
+  metrics: z
+    .object({
+      complexity: z.number().min(0).max(100).describe("Code complexity score"),
+      maintainability: z
+        .number()
+        .min(0)
+        .max(100)
+        .describe("Maintainability index"),
+      testability: z
+        .number()
+        .min(0)
+        .max(100)
+        .describe("How testable the code is"),
+      security: z.number().min(0).max(100).describe("Security score"),
+    })
+    .describe("Quality metrics"),
 
   suggestions: z.array(z.string()).describe("General improvement suggestions"),
 
-  verdict: z.enum([
-    "approve",
-    "approve_with_suggestions",
-    "request_changes",
-    "needs_major_refactor"
-  ]).describe("Overall review verdict")
+  verdict: z
+    .enum([
+      "approve",
+      "approve_with_suggestions",
+      "request_changes",
+      "needs_major_refactor",
+    ])
+    .describe("Overall review verdict"),
 });
 
 type Review = z.infer<typeof ReviewSchema>;
@@ -61,7 +77,7 @@ class CodeReviewer {
     this.codex = new Codex();
     this.thread = this.codex.startThread({
       model: "gpt-5.3-codex",
-      reasoning_effort: "high"
+      reasoning_effort: "high",
     });
   }
 
@@ -88,7 +104,7 @@ ${content}
 `;
 
     return await this.thread.run(prompt, {
-      outputSchema: zodToJsonSchema(ReviewSchema, { target: "openAi" })
+      outputSchema: zodToJsonSchema(ReviewSchema, { target: "openAi" }),
     });
   }
 
@@ -122,10 +138,9 @@ ${content}
    * Generate summary across all reviewed files
    */
   private async generateProjectSummary(
-    reviews: Map<string, Review>
+    reviews: Map<string, Review>,
   ): Promise<ProjectSummary> {
-    const allIssues = Array.from(reviews.values())
-      .flatMap(r => r.issues);
+    const allIssues = Array.from(reviews.values()).flatMap((r) => r.issues);
 
     const ProjectSummarySchema = z.object({
       totalFiles: z.number(),
@@ -134,7 +149,7 @@ ${content}
       issuesByCategory: z.record(z.number()),
       overallHealth: z.number().min(0).max(100),
       topPriorities: z.array(z.string()).max(5),
-      verdict: z.enum(["ready", "needs_work", "requires_refactor"])
+      verdict: z.enum(["ready", "needs_work", "requires_refactor"]),
     });
 
     const summaryPrompt = `
@@ -145,8 +160,8 @@ ${JSON.stringify(Array.from(reviews.entries()), null, 2)}
 
     return await this.thread.run(summaryPrompt, {
       outputSchema: zodToJsonSchema(ProjectSummarySchema, {
-        target: "openAi"
-      })
+        target: "openAi",
+      }),
     });
   }
 
@@ -155,7 +170,7 @@ ${JSON.stringify(Array.from(reviews.entries()), null, 2)}
    */
   async generateReport(
     reviews: Map<string, Review>,
-    summary: ProjectSummary
+    summary: ProjectSummary,
   ): Promise<string> {
     let report = `# Code Review Report
 
@@ -202,19 +217,21 @@ ${Object.entries(summary.issuesByCategory)
 
       if (review.issues.length > 0) {
         report += review.issues
-          .map(issue => `
+          .map(
+            (issue) => `
 **[${issue.severity.toUpperCase()}]** Line ${issue.line}: ${issue.message}
 - Category: ${issue.category}
 ${issue.suggestion ? `- Suggestion: ${issue.suggestion}` : ""}
 ${issue.codeSnippet ? `\`\`\`\n${issue.codeSnippet}\n\`\`\`` : ""}
-`)
+`,
+          )
           .join("\n");
       }
 
       if (review.suggestions.length > 0) {
         report += `
 #### Suggestions
-${review.suggestions.map(s => `- ${s}`).join("\n")}
+${review.suggestions.map((s) => `- ${s}`).join("\n")}
 `;
       }
 
@@ -230,29 +247,30 @@ ${review.suggestions.map(s => `- ${s}`).join("\n")}
   async exportResults(
     reviews: Map<string, Review>,
     summary: ProjectSummary,
-    outputDir: string
+    outputDir: string,
   ) {
     // Markdown report
     const mdReport = await this.generateReport(reviews, summary);
-    await writeFile(
-      join(outputDir, "code-review.md"),
-      mdReport
-    );
+    await writeFile(join(outputDir, "code-review.md"), mdReport);
 
     // JSON export
     await writeFile(
       join(outputDir, "code-review.json"),
-      JSON.stringify({
-        summary,
-        reviews: Object.fromEntries(reviews)
-      }, null, 2)
+      JSON.stringify(
+        {
+          summary,
+          reviews: Object.fromEntries(reviews),
+        },
+        null,
+        2,
+      ),
     );
 
     // GitHub-compatible annotations
     const annotations = this.generateGitHubAnnotations(reviews);
     await writeFile(
       join(outputDir, "github-annotations.json"),
-      JSON.stringify(annotations, null, 2)
+      JSON.stringify(annotations, null, 2),
     );
   }
 
@@ -273,7 +291,7 @@ ${review.suggestions.map(s => `- ${s}`).join("\n")}
           annotation_level: this.mapSeverityToGitHub(issue.severity),
           message: issue.message,
           title: issue.category,
-          raw_details: issue.suggestion
+          raw_details: issue.suggestion,
         });
       }
     }
@@ -282,12 +300,15 @@ ${review.suggestions.map(s => `- ${s}`).join("\n")}
   }
 
   private mapSeverityToGitHub(
-    severity: "error" | "warning" | "info"
+    severity: "error" | "warning" | "info",
   ): "failure" | "warning" | "notice" {
     switch (severity) {
-      case "error": return "failure";
-      case "warning": return "warning";
-      case "info": return "notice";
+      case "error":
+        return "failure";
+      case "warning":
+        return "warning";
+      case "info":
+        return "notice";
     }
   }
 }
@@ -319,7 +340,7 @@ async function main() {
     "./src/index.ts",
     "./src/utils/auth.ts",
     "./src/api/users.ts",
-    "./src/db/connection.ts"
+    "./src/db/connection.ts",
   ];
 
   const { fileReviews, projectSummary } = await reviewer.reviewProject(files);
@@ -328,11 +349,7 @@ async function main() {
 
   // Example 3: Generate reports
   console.log("\nExample 3: Generating reports");
-  await reviewer.exportResults(
-    fileReviews,
-    projectSummary,
-    "./review-output"
-  );
+  await reviewer.exportResults(fileReviews, projectSummary, "./review-output");
   console.log("Reports saved to ./review-output");
 }
 

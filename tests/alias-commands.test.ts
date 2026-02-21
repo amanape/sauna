@@ -21,12 +21,18 @@ function writeAliasFile(content: string) {
 }
 
 /** Capture all output written via the injected write callback */
-function captureWrite(): { lines: string[]; output: () => string; write: (s: string) => void } {
+function captureWrite(): {
+  lines: string[];
+  output: () => string;
+  write: (s: string) => void;
+} {
   const lines: string[] = [];
   return {
     lines,
     output: () => lines.join(""),
-    write: (s: string) => { lines.push(s); },
+    write: (s: string) => {
+      lines.push(s);
+    },
   };
 }
 

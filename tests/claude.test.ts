@@ -7,7 +7,13 @@
  */
 import { test, expect, describe } from "bun:test";
 import { resolve } from "node:path";
-import { mkdirSync, symlinkSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  symlinkSync,
+  writeFileSync,
+  chmodSync,
+  rmSync,
+} from "node:fs";
 import { ClaudeProvider } from "../src/providers/claude";
 
 const ROOT = resolve(import.meta.dir, "..");
@@ -82,19 +88,27 @@ describe("ClaudeProvider", () => {
 
   describe("resolveModel()", () => {
     test("resolves 'sonnet' alias", () => {
-      expect(ClaudeProvider.resolveModel("sonnet")).toBe("claude-sonnet-4-20250514");
+      expect(ClaudeProvider.resolveModel("sonnet")).toBe(
+        "claude-sonnet-4-20250514",
+      );
     });
 
     test("resolves 'opus' alias", () => {
-      expect(ClaudeProvider.resolveModel("opus")).toBe("claude-opus-4-20250514");
+      expect(ClaudeProvider.resolveModel("opus")).toBe(
+        "claude-opus-4-20250514",
+      );
     });
 
     test("resolves 'haiku' alias", () => {
-      expect(ClaudeProvider.resolveModel("haiku")).toBe("claude-haiku-4-20250414");
+      expect(ClaudeProvider.resolveModel("haiku")).toBe(
+        "claude-haiku-4-20250414",
+      );
     });
 
     test("passes through unknown model IDs unchanged", () => {
-      expect(ClaudeProvider.resolveModel("claude-opus-4-20250514")).toBe("claude-opus-4-20250514");
+      expect(ClaudeProvider.resolveModel("claude-opus-4-20250514")).toBe(
+        "claude-opus-4-20250514",
+      );
     });
 
     test("returns undefined for undefined input", () => {
@@ -109,9 +123,9 @@ describe("ClaudeProvider", () => {
   describe("knownAliases()", () => {
     test("returns map containing all three Claude aliases", () => {
       const aliases = ClaudeProvider.knownAliases();
-      expect(aliases["sonnet"]).toBe("claude-sonnet-4-20250514");
-      expect(aliases["opus"]).toBe("claude-opus-4-20250514");
-      expect(aliases["haiku"]).toBe("claude-haiku-4-20250414");
+      expect(aliases.sonnet).toBe("claude-sonnet-4-20250514");
+      expect(aliases.opus).toBe("claude-opus-4-20250514");
+      expect(aliases.haiku).toBe("claude-haiku-4-20250414");
     });
   });
 });

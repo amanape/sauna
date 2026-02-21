@@ -1,35 +1,14 @@
 # Tasks
 
-## Priority 2 — Codex auth detection
+All SAU-85 tasks complete. See `.sauna/notes.md` for implementation learnings.
 
-- [x] **Codex auth detection** (`codex-auth-detection`) — DONE
-  - `isAvailable()` checks `OPENAI_API_KEY`, `CODEX_API_KEY`, and `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`)
-  - Never throws; wraps everything in try/catch
-  - Error messages in `createSession()` + `index.ts` mention all three options including `codex login`
-  - Files: `src/providers/codex.ts`, `index.ts`, `tests/codex.test.ts`
+> Note: Two residual lint errors in `index.ts` were fixed post-completion (line 105 unnecessary `?? []`, line 202 `no-non-null-assertion`).
 
-## Priority 3 — Provider sessions
-
-- [x] **Claude interactive session** (`claude-interactive-session`) — DONE
-- [x] **Codex interactive session** (`codex-interactive-session`) — DONE
-
-## Priority 4 — REPL refactor
-
-- [x] **Interactive REPL abstraction** (`interactive-repl-abstraction`) — DONE
-  - Removed Claude SDK imports from `interactive.ts`
-  - Removed `createMessageChannel()`, `QueryOptions` export
-  - `InteractiveConfig.provider: Provider` (was `claudePath`)
-  - `InteractiveOverrides.session?: InteractiveSession` (was `createQuery?`)
-  - REPL loop uses `session.send()` + `session.stream()`
-  - Tests rewritten: `createMockSession()` + `ProviderEvent` fixtures, 3 query-option tests removed (covered in session.test.ts)
-  - Files: `src/interactive.ts`, `tests/interactive.test.ts`
-
-## Priority 5 — Final integration
-
-- [x] **CLI interactive provider wiring** (`cli-interactive-provider-wiring`) — DONE
-  - Removed `realpathSync`/`execSync` imports from `index.ts`
-  - Removed the `if (provider.name === "codex" && interactive)` guard
-  - Removed Claude path resolution block from interactive branch
-  - `runInteractive({ prompt, model, context, provider })` wired correctly
-  - `tests/cli.test.ts`: `--provider codex --interactive` now succeeds (exit 0, `provider: "codex"`, `interactive: true`)
-  - Files: `index.ts`, `tests/cli.test.ts`
+## Completed
+- [x] Install tooling packages (eslint, prettier, typescript-eslint, eslint-config-prettier)
+- [x] Prettier config (`.prettierrc`, `.prettierignore`)
+- [x] ESLint flat config (`eslint.config.mjs`, strict type-checked + stylistic + prettier)
+- [x] Test lint policy (override block disabling unsafe-* rules for `tests/**/*.ts`)
+- [x] Lint & format scripts in `package.json`
+- [x] Lint remediation — `bun run lint` exits with 0 errors, 280 tests pass
+- [x] CI workflow — `.github/workflows/ci.yml` runs format:check → lint → test on push/PR to main

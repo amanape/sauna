@@ -18,7 +18,9 @@ describe("resolveProvider", () => {
     });
 
     test("error message lists valid providers", () => {
-      expect(() => resolveProvider("unknown")).toThrow(/claude.*codex|codex.*claude/i);
+      expect(() => resolveProvider("unknown")).toThrow(
+        /claude.*codex|codex.*claude/i,
+      );
     });
 
     test("explicit codex flag with claude model still returns Codex", () => {
@@ -28,7 +30,9 @@ describe("resolveProvider", () => {
 
   describe("model inference (no --provider flag)", () => {
     test("claude- prefix → Claude", () => {
-      expect(resolveProvider(undefined, "claude-sonnet-4-20250514")).toBe(ClaudeProvider);
+      expect(resolveProvider(undefined, "claude-sonnet-4-20250514")).toBe(
+        ClaudeProvider,
+      );
     });
 
     test("sonnet alias → Claude", () => {
@@ -70,7 +74,9 @@ describe("resolveProvider", () => {
     });
 
     test("unrecognized model → Claude (backward compat)", () => {
-      expect(resolveProvider(undefined, "some-custom-model")).toBe(ClaudeProvider);
+      expect(resolveProvider(undefined, "some-custom-model")).toBe(
+        ClaudeProvider,
+      );
     });
   });
 

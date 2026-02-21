@@ -5,7 +5,11 @@
  * and error isolation between iterations. Accepts a session factory and
  * write callback for testability — no direct SDK or stdout dependency.
  */
-import { formatLoopHeader, processProviderEvent, createStreamState } from "./stream";
+import {
+  formatLoopHeader,
+  processProviderEvent,
+  createStreamState,
+} from "./stream";
 import type { ProviderEvent } from "./provider";
 
 export type LoopConfig = {
@@ -35,7 +39,7 @@ export async function runLoop(
   createSession: SessionFactory,
   write: WriteFn,
   signal?: AbortSignal,
-  errWrite?: WriteFn
+  errWrite?: WriteFn,
 ): Promise<boolean> {
   // Infinite mode: --forever
   if (config.forever) {

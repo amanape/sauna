@@ -2,11 +2,11 @@
 
 ## Verdict: Appropriately simple, with some self-congratulatory testing
 
-571 lines of source. 1,585 lines of tests. 2 runtime dependencies. The code is clean. But let's not give it a medal for doing what any 571-line project *should* do — be simple.
+571 lines of source. 1,585 lines of tests. 2 runtime dependencies. The code is clean. But let's not give it a medal for doing what any 571-line project _should_ do — be simple.
 
 ---
 
-## The real question: is this complex *for what it does*?
+## The real question: is this complex _for what it does_?
 
 What sauna does: shell out to the Claude Agent SDK with a prompt, optionally in a loop or REPL. That's it. It's a thin CLI wrapper around `query()`.
 
@@ -18,7 +18,7 @@ The honest answer: **No, it's not over-engineered.** But some of the "simplicity
 
 ### `write` callback injection — **Justified, but worth questioning the cost**
 
-Every function takes `write: (s: string) => void`. This makes testing easy — no global stdout mocking. Fair enough. But it also means *every function signature* carries a testing concern. The production call site is always `(s) => process.stdout.write(s)`. You're paying a readability tax on every function for testability. For 571 lines, this is fine. At 5,000 lines with `write` threaded through 40 functions, you'd want a different pattern (a writable stream, a context object, something). Watch for this becoming a wart.
+Every function takes `write: (s: string) => void`. This makes testing easy — no global stdout mocking. Fair enough. But it also means _every function signature_ carries a testing concern. The production call site is always `(s) => process.stdout.write(s)`. You're paying a readability tax on every function for testability. For 571 lines, this is fine. At 5,000 lines with `write` threaded through 40 functions, you'd want a different pattern (a writable stream, a context object, something). Watch for this becoming a wart.
 
 ### `StreamState` — **Real pain, correctly solved**
 
@@ -54,7 +54,7 @@ Named parameter shapes. No ceremony. This is what types are for.
 
 ---
 
-## What's correctly *not* abstracted
+## What's correctly _not_ abstracted
 
 - **Duplicated query options** in `session.ts` and `interactive.ts` — Both construct the same SDK options object independently. Extracting a shared builder would be premature. The risk (divergence) is real but small. Correct for now.
 
@@ -111,7 +111,7 @@ Is this good? It depends on what you're testing. Some observations:
 
 - `setup.test.ts` (230 lines) tests that `package.json` has the right fields and that `bun build` produces binaries for 5 platforms. This is genuinely useful — it catches build/release regressions.
 
-- `interactive.test.ts` (508 lines) is the longest file in the *entire project*, source or test. It's longer than the file it tests (201 lines). Much of it is setting up mock streams, fake query factories, and signal handler overrides. The `InteractiveOverrides` type exists to serve this file. There's a circularity: the production code was shaped to be testable, and the tests are complex because the production code's testability surface is large.
+- `interactive.test.ts` (508 lines) is the longest file in the _entire project_, source or test. It's longer than the file it tests (201 lines). Much of it is setting up mock streams, fake query factories, and signal handler overrides. The `InteractiveOverrides` type exists to serve this file. There's a circularity: the production code was shaped to be testable, and the tests are complex because the production code's testability surface is large.
 
 - `stream.test.ts` (360 lines) is thorough and well-structured. The formatting functions are pure, so the tests are straightforward assertions. This is where the test ratio pays off most clearly.
 
@@ -121,19 +121,19 @@ The test suite is comprehensive. But "comprehensive tests for simple code" is no
 
 ## Numbers
 
-| Metric | Value |
-|---|---|
-| Source lines | 571 |
-| Test lines | 1,585 |
-| Test:source ratio | 2.8:1 |
-| Source files | 7 |
-| Test files | 6 |
-| Runtime dependencies | 2 |
-| Abstractions driven by pain | 3 (StreamState, createMessageChannel, DRY_RUN) |
+| Metric                             | Value                                                           |
+| ---------------------------------- | --------------------------------------------------------------- |
+| Source lines                       | 571                                                             |
+| Test lines                         | 1,585                                                           |
+| Test:source ratio                  | 2.8:1                                                           |
+| Source files                       | 7                                                               |
+| Test files                         | 6                                                               |
+| Runtime dependencies               | 2                                                               |
+| Abstractions driven by pain        | 3 (StreamState, createMessageChannel, DRY_RUN)                  |
 | Abstractions driven by testability | 3 (write callback, InteractiveOverrides, findClaude extraction) |
-| Abstractions driven by reuse | 2 (buildPrompt, resolveModel) |
-| Pass-through layers | 0 |
-| Known bugs, unfixed | 1 (findClaude error handling) |
+| Abstractions driven by reuse       | 2 (buildPrompt, resolveModel)                                   |
+| Pass-through layers                | 0                                                               |
+| Known bugs, unfixed                | 1 (findClaude error handling)                                   |
 
 ---
 
@@ -149,6 +149,6 @@ But the previous analysis was too gentle. The honest version:
 
 3. **The one real bug (`findClaude` error handling) has been documented multiple times and not fixed.** At some point, writing about a bug is not a substitute for fixing it.
 
-4. **The codebase isn't simple because of discipline — it's simple because the scope is small.** The real question is what happens when the next 5 features land. The current structure has no obvious extension points (no plugin system, no middleware, no config layer). That's fine *now*, but claiming "YAGNI applied correctly" is unfalsifiable until you actually need it.
+4. **The codebase isn't simple because of discipline — it's simple because the scope is small.** The real question is what happens when the next 5 features land. The current structure has no obvious extension points (no plugin system, no middleware, no config layer). That's fine _now_, but claiming "YAGNI applied correctly" is unfalsifiable until you actually need it.
 
 The code is good. Just don't mistake "small and clean" for "architecturally principled." They're correlated at this scale, not equivalent.

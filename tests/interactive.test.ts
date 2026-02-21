@@ -2,7 +2,11 @@ import { test, expect, describe } from "bun:test";
 import { PassThrough } from "node:stream";
 import { runInteractive, writePrompt } from "../src/interactive";
 import { createStreamState } from "../src/stream";
-import type { InteractiveSession, ProviderEvent, Provider } from "../src/provider";
+import type {
+  InteractiveSession,
+  ProviderEvent,
+  Provider,
+} from "../src/provider";
 
 // Minimal provider stub — createInteractiveSession is never called in these tests
 // because overrides.session is always provided.
@@ -13,7 +17,9 @@ const stubProvider: Provider = {
   knownAliases: () => ({}),
   async *createSession(_config) {},
   createInteractiveSession(_config) {
-    throw new Error("stub: createInteractiveSession should not be called in interactive.test.ts");
+    throw new Error(
+      "stub: createInteractiveSession should not be called in interactive.test.ts",
+    );
   },
 };
 
@@ -66,7 +72,12 @@ function createMockSession() {
 const successResult = (): ProviderEvent => ({
   type: "result",
   success: true,
-  summary: { inputTokens: 100, outputTokens: 50, numTurns: 1, durationMs: 1000 },
+  summary: {
+    inputTokens: 100,
+    outputTokens: 50,
+    numTurns: 1,
+    durationMs: 1000,
+  },
 });
 
 const textDelta = (text: string): ProviderEvent => ({
@@ -99,10 +110,17 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("Hello from agent\n"), successResult()]);
 
     // After first turn, readline will prompt — send empty line to exit
-    setTimeout(() => stdin.writeLine(""), 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
-      { prompt: "test prompt", model: "claude-sonnet-4-20250514", context: ["foo.md"], provider: stubProvider },
+      {
+        prompt: "test prompt",
+        model: "claude-sonnet-4-20250514",
+        context: ["foo.md"],
+        provider: stubProvider,
+      },
       write,
       {
         input: stdin.stream,
@@ -128,10 +146,17 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("response\n"), successResult()]);
 
     // Send empty line immediately after first turn
-    setTimeout(() => stdin.writeLine(""), 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
-      { prompt: "go", model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        prompt: "go",
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       () => {},
       {
         input: stdin.stream,
@@ -151,10 +176,17 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("hi\n"), successResult()]);
 
     // Send EOF after first turn
-    setTimeout(() => stdin.end(), 50);
+    setTimeout(() => {
+      stdin.end();
+    }, 50);
 
     await runInteractive(
-      { prompt: "go", model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        prompt: "go",
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       () => {},
       {
         input: stdin.stream,
@@ -175,11 +207,20 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("second response\n"), successResult()]);
 
     // After first turn, send a follow-up, then empty to exit
-    setTimeout(() => stdin.writeLine("follow up question"), 50);
-    setTimeout(() => stdin.writeLine(""), 200);
+    setTimeout(() => {
+      stdin.writeLine("follow up question");
+    }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 200);
 
     await runInteractive(
-      { prompt: "initial prompt", model: "claude-sonnet-4-20250514", context: ["ctx.md"], provider: stubProvider },
+      {
+        prompt: "initial prompt",
+        model: "claude-sonnet-4-20250514",
+        context: ["ctx.md"],
+        provider: stubProvider,
+      },
       () => {},
       {
         input: stdin.stream,
@@ -207,11 +248,20 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("recovered\n"), successResult()]);
 
     // After error on first turn, send another prompt, then exit
-    setTimeout(() => stdin.writeLine("try again"), 50);
-    setTimeout(() => stdin.writeLine(""), 200);
+    setTimeout(() => {
+      stdin.writeLine("try again");
+    }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 200);
 
     await runInteractive(
-      { prompt: "cause error", model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        prompt: "cause error",
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       (s) => output.push(s),
       {
         input: stdin.stream,
@@ -237,11 +287,19 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("hi\n"), successResult()]);
 
     // Send the first prompt via stdin, then exit
-    setTimeout(() => stdin.writeLine("hello from stdin"), 50);
-    setTimeout(() => stdin.writeLine(""), 150);
+    setTimeout(() => {
+      stdin.writeLine("hello from stdin");
+    }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 150);
 
     await runInteractive(
-      { model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       () => {},
       {
         input: stdin.stream,
@@ -259,10 +317,16 @@ describe("P2: Interactive Mode", () => {
     const stdin = createFakeStdin();
 
     // Immediately end stdin — should exit without sending
-    setTimeout(() => stdin.end(), 50);
+    setTimeout(() => {
+      stdin.end();
+    }, 50);
 
     await runInteractive(
-      { model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       () => {},
       {
         input: stdin.stream,
@@ -283,14 +347,19 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("working...\n"), successResult()]);
 
     // When the REPL prompts after the first result, simulate SIGINT
-    const signalHandlers: Map<string, (...args: any[]) => void> = new Map();
+    const signalHandlers = new Map<string, (...args: any[]) => void>();
     setTimeout(() => {
       const handler = signalHandlers.get("SIGINT");
       if (handler) handler("SIGINT");
     }, 50);
 
     await runInteractive(
-      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        prompt: "test",
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       () => {},
       {
         input: stdin.stream,
@@ -315,14 +384,19 @@ describe("P2: Interactive Mode", () => {
 
     mockSession.queueTurn([textDelta("working...\n"), successResult()]);
 
-    const signalHandlers: Map<string, (...args: any[]) => void> = new Map();
+    const signalHandlers = new Map<string, (...args: any[]) => void>();
     setTimeout(() => {
       const handler = signalHandlers.get("SIGTERM");
       if (handler) handler("SIGTERM");
     }, 50);
 
     await runInteractive(
-      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        prompt: "test",
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       () => {},
       {
         input: stdin.stream,
@@ -346,10 +420,17 @@ describe("P2: Interactive Mode", () => {
     const removedSignals: string[] = [];
 
     mockSession.queueTurn([textDelta("hi\n"), successResult()]);
-    setTimeout(() => stdin.writeLine(""), 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
-      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        prompt: "test",
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       () => {},
       {
         input: stdin.stream,
@@ -384,7 +465,12 @@ describe("P4: error output routing to stderr", () => {
     };
 
     await runInteractive(
-      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        prompt: "test",
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       (s) => stdout.push(s),
       {
         input: stdin.stream,
@@ -411,10 +497,17 @@ describe("P4: error output routing to stderr", () => {
     ]);
 
     // After first result, send empty line to exit
-    setTimeout(() => stdin.writeLine(""), 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
-      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        prompt: "test",
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       (s) => stdout.push(s),
       {
         input: stdin.stream,
@@ -440,16 +533,26 @@ describe("P5: prompt visibility", () => {
     const stdin = createFakeStdin();
     const promptOutput = new PassThrough();
     const promptChunks: string[] = [];
-    promptOutput.on("data", (chunk: Buffer) => promptChunks.push(chunk.toString()));
+    promptOutput.on("data", (chunk: Buffer) =>
+      promptChunks.push(chunk.toString()),
+    );
 
     mockSession.queueTurn([textDelta("hi\n"), successResult()]);
 
     // Send first prompt via stdin, then empty to exit
-    setTimeout(() => stdin.writeLine("hello"), 50);
-    setTimeout(() => stdin.writeLine(""), 150);
+    setTimeout(() => {
+      stdin.writeLine("hello");
+    }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 150);
 
     await runInteractive(
-      { model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       () => {},
       {
         input: stdin.stream,
@@ -467,15 +570,24 @@ describe("P5: prompt visibility", () => {
     const stdin = createFakeStdin();
     const promptOutput = new PassThrough();
     const promptChunks: string[] = [];
-    promptOutput.on("data", (chunk: Buffer) => promptChunks.push(chunk.toString()));
+    promptOutput.on("data", (chunk: Buffer) =>
+      promptChunks.push(chunk.toString()),
+    );
 
     mockSession.queueTurn([textDelta("response\n"), successResult()]);
 
     // Send empty line after result to exit
-    setTimeout(() => stdin.writeLine(""), 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
-      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        prompt: "test",
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       () => {},
       {
         input: stdin.stream,
@@ -519,10 +631,17 @@ describe("P5: prompt visibility", () => {
     const stdout: string[] = [];
 
     mockSession.queueTurn([textDelta("hi\n"), successResult()]);
-    setTimeout(() => stdin.writeLine(""), 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
-      { prompt: "test", model: "claude-sonnet-4-20250514", context: [], provider: stubProvider },
+      {
+        prompt: "test",
+        model: "claude-sonnet-4-20250514",
+        context: [],
+        provider: stubProvider,
+      },
       (s) => stdout.push(s),
       {
         input: stdin.stream,

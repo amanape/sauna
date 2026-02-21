@@ -40,33 +40,29 @@ const ALIAS_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 function validateAliasName(name: string): void {
   if (!name || !ALIAS_NAME_RE.test(name)) {
     throw new Error(
-      `Invalid alias name "${name}": must be non-empty and contain only [a-zA-Z0-9_-]`
+      `Invalid alias name "${name}": must be non-empty and contain only [a-zA-Z0-9_-]`,
     );
   }
   if (RESERVED_NAMES.has(name)) {
-    throw new Error(
-      `Reserved name "${name}" cannot be used as an alias`
-    );
+    throw new Error(`Reserved name "${name}" cannot be used as an alias`);
   }
 }
 
 function validateAliasDefinition(
   name: string,
-  raw: Record<string, unknown>
+  raw: Record<string, unknown>,
 ): AliasDefinition {
   // Check for unknown fields
   for (const key of Object.keys(raw)) {
     if (!VALID_FIELDS.has(key)) {
-      throw new Error(
-        `Alias "${name}": unknown field "${key}"`
-      );
+      throw new Error(`Alias "${name}": unknown field "${key}"`);
     }
   }
 
   // prompt is required and must be a string
   if (!("prompt" in raw) || typeof raw.prompt !== "string") {
     throw new Error(
-      `Alias "${name}": "prompt" is required and must be a string`
+      `Alias "${name}": "prompt" is required and must be a string`,
     );
   }
 
@@ -84,23 +80,15 @@ function validateAliasDefinition(
       !Array.isArray(raw.context) ||
       !raw.context.every((v: unknown) => typeof v === "string")
     ) {
-      throw new Error(
-        `Alias "${name}": "context" must be an array of strings`
-      );
+      throw new Error(`Alias "${name}": "context" must be an array of strings`);
     }
-    def.context = raw.context as string[];
+    def.context = raw.context;
   }
 
   if ("count" in raw) {
     const count = raw.count;
-    if (
-      typeof count !== "number" ||
-      !Number.isInteger(count) ||
-      count <= 0
-    ) {
-      throw new Error(
-        `Alias "${name}": "count" must be a positive integer`
-      );
+    if (typeof count !== "number" || !Number.isInteger(count) || count <= 0) {
+      throw new Error(`Alias "${name}": "count" must be a positive integer`);
     }
     def.count = count;
   }
@@ -114,9 +102,7 @@ function validateAliasDefinition(
 
   if ("interactive" in raw) {
     if (typeof raw.interactive !== "boolean") {
-      throw new Error(
-        `Alias "${name}": "interactive" must be a boolean`
-      );
+      throw new Error(`Alias "${name}": "interactive" must be a boolean`);
     }
     def.interactive = raw.interactive;
   }
@@ -124,13 +110,13 @@ function validateAliasDefinition(
   // Mutual exclusivity checks
   if (def.forever && def.count !== undefined) {
     throw new Error(
-      `Alias "${name}": "forever" and "count" are mutually exclusive`
+      `Alias "${name}": "forever" and "count" are mutually exclusive`,
     );
   }
   if (def.interactive && (def.forever || def.count !== undefined)) {
     const conflict = def.forever ? "forever" : "count";
     throw new Error(
-      `Alias "${name}": "interactive" and "${conflict}" are mutually exclusive`
+      `Alias "${name}": "interactive" and "${conflict}" are mutually exclusive`,
     );
   }
 
@@ -142,9 +128,7 @@ function validateAliasDefinition(
  * Returns an empty object if the file does not exist.
  * Throws on malformed TOML or schema violations.
  */
-export function loadAliases(
-  root?: string
-): Record<string, AliasDefinition> {
+export function loadAliases(root?: string): Record<string, AliasDefinition> {
   const dir = root ?? process.cwd();
   const filePath = join(dir, ".sauna", "aliases.toml");
 
@@ -160,15 +144,14 @@ export function loadAliases(
   for (const [name, value] of Object.entries(parsed)) {
     validateAliasName(name);
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- smol-toml returns unknown values; guard is needed
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      throw new Error(
-        `Alias "${name}": expected a table, got ${typeof value}`
-      );
+      throw new Error(`Alias "${name}": expected a table, got ${typeof value}`);
     }
 
     aliases[name] = validateAliasDefinition(
       name,
-      value as Record<string, unknown>
+      value as Record<string, unknown>,
     );
   }
 
@@ -183,17 +166,19 @@ export function loadAliases(
  */
 export function expandAlias(
   alias: AliasDefinition,
-  extraArgs: string[]
+  extraArgs: string[],
 ): string[] {
   // Reject positional arguments: anything that doesn't start with "-"
   // and isn't the value of a preceding flag
   for (let i = 0; i < extraArgs.length; i++) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- index within bounds of for loop
     const arg = extraArgs[i]!;
     if (!arg.startsWith("-")) {
       // Check if this is a value for a preceding flag
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- index within bounds of for loop
       if (i === 0 || !extraArgs[i - 1]!.startsWith("-")) {
         throw new Error(
-          `Aliases do not accept positional arguments. Got: "${arg}"`
+          `Aliases do not accept positional arguments. Got: "${arg}"`,
         );
       }
     }

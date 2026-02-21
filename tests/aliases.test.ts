@@ -3,11 +3,7 @@ import { resolve, join } from "node:path";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 
 // Will import from the module under test once created
-import {
-  loadAliases,
-  expandAlias,
-  type AliasDefinition,
-} from "../src/aliases";
+import { loadAliases, expandAlias, type AliasDefinition } from "../src/aliases";
 
 const TMP = resolve(import.meta.dir, ".tmp-aliases-test");
 
@@ -46,11 +42,11 @@ interactive = true
 `);
     const aliases = loadAliases(TMP);
     expect(Object.keys(aliases)).toEqual(["build", "review", "chat"]);
-    expect(aliases["build"]!.prompt).toBe(".sauna/prompts/build.md");
-    expect(aliases["build"]!.context).toEqual([".sauna/specs", ".sauna/tasks.md"]);
-    expect(aliases["build"]!.count).toBe(5);
-    expect(aliases["review"]!.model).toBe("opus");
-    expect(aliases["chat"]!.interactive).toBe(true);
+    expect(aliases.build!.prompt).toBe(".sauna/prompts/build.md");
+    expect(aliases.build!.context).toEqual([".sauna/specs", ".sauna/tasks.md"]);
+    expect(aliases.build!.count).toBe(5);
+    expect(aliases.review!.model).toBe("opus");
+    expect(aliases.chat!.interactive).toBe(true);
   });
 
   test("returns empty object when file is missing (no error)", () => {
@@ -341,13 +337,7 @@ describe("P1: aliases — expandAlias", () => {
       context: [".sauna/specs"],
     };
     const result = expandAlias(alias, ["-c", "/extra"]);
-    expect(result).toEqual([
-      "build",
-      "-c",
-      ".sauna/specs",
-      "-c",
-      "/extra",
-    ]);
+    expect(result).toEqual(["build", "-c", ".sauna/specs", "-c", "/extra"]);
   });
 
   test("rejects positional arguments after alias expansion", () => {
@@ -355,9 +345,7 @@ describe("P1: aliases — expandAlias", () => {
       prompt: "build",
     };
     // "extra prompt" is a positional arg — should be rejected
-    expect(() => expandAlias(alias, ["extra prompt"])).toThrow(
-      /positional/i
-    );
+    expect(() => expandAlias(alias, ["extra prompt"])).toThrow(/positional/i);
   });
 
   test("allows flags that start with -", () => {

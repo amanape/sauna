@@ -41,14 +41,15 @@ describe("ProviderEvent discriminated union", () => {
     };
     expect(withDetail.type).toBe("tool_end");
     expect(
-      (withDetail as { type: "tool_end"; name: string; detail?: string }).detail
+      (withDetail as { type: "tool_end"; name: string; detail?: string })
+        .detail,
     ).toBe("src/index.ts");
 
     const withoutDetail: ProviderEvent = { type: "tool_end", name: "Read" };
     expect(withoutDetail.type).toBe("tool_end");
     expect(
       (withoutDetail as { type: "tool_end"; name: string; detail?: string })
-        .detail
+        .detail,
     ).toBeUndefined();
   });
 
@@ -79,7 +80,7 @@ describe("ProviderEvent discriminated union", () => {
           success: false;
           errors?: string[];
         }
-      ).errors
+      ).errors,
     ).toEqual(["something went wrong"]);
   });
 
@@ -175,7 +176,9 @@ describe("Provider interface", () => {
           },
         };
       },
-      createInteractiveSession: (_config: InteractiveSessionConfig): InteractiveSession => {
+      createInteractiveSession: (
+        _config: InteractiveSessionConfig,
+      ): InteractiveSession => {
         throw new Error("not implemented");
       },
     };
@@ -205,7 +208,9 @@ describe("Provider interface", () => {
           },
         };
       },
-      createInteractiveSession: (_config: InteractiveSessionConfig): InteractiveSession => {
+      createInteractiveSession: (
+        _config: InteractiveSessionConfig,
+      ): InteractiveSession => {
         throw new Error("not implemented");
       },
     };
@@ -247,7 +252,12 @@ describe("InteractiveSession", () => {
         yield {
           type: "result" as const,
           success: true,
-          summary: { inputTokens: 1, outputTokens: 1, numTurns: 1, durationMs: 10 },
+          summary: {
+            inputTokens: 1,
+            outputTokens: 1,
+            numTurns: 1,
+            durationMs: 10,
+          },
         };
       },
       close: () => {},
@@ -266,7 +276,12 @@ describe("InteractiveSession", () => {
         yield {
           type: "result" as const,
           success: true,
-          summary: { inputTokens: 5, outputTokens: 3, numTurns: 1, durationMs: 50 },
+          summary: {
+            inputTokens: 5,
+            outputTokens: 3,
+            numTurns: 1,
+            durationMs: 50,
+          },
         };
       },
       close: () => {},
@@ -296,7 +311,9 @@ describe("Provider interface with createInteractiveSession", () => {
       resolveModel: (alias?: string) => alias,
       knownAliases: () => ({}),
       createSession: async function* (_config: ProviderSessionConfig) {},
-      createInteractiveSession: (_config: InteractiveSessionConfig): InteractiveSession => mockSession,
+      createInteractiveSession: (
+        _config: InteractiveSessionConfig,
+      ): InteractiveSession => mockSession,
     };
 
     const session = mock.createInteractiveSession({ context: ["src/foo.ts"] });

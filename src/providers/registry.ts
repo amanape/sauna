@@ -12,12 +12,15 @@ const CODEX_ALIASES = new Set(["codex", "codex-mini"]);
  * This function only selects — it does not call `isAvailable()`. That is the
  * CLI's responsibility after selection.
  */
-export function resolveProvider(providerFlag?: string, modelFlag?: string): Provider {
+export function resolveProvider(
+  providerFlag?: string,
+  modelFlag?: string,
+): Provider {
   if (providerFlag !== undefined) {
     if (providerFlag === "claude") return ClaudeProvider;
     if (providerFlag === "codex") return CodexProvider;
     throw new Error(
-      `Unknown provider "${providerFlag}". Valid providers: claude, codex`
+      `Unknown provider "${providerFlag}". Valid providers: claude, codex`,
     );
   }
 

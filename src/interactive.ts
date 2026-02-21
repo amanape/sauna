@@ -9,7 +9,11 @@
  * output on stdout.
  */
 import { createInterface } from "node:readline";
-import { processProviderEvent, createStreamState, type StreamState } from "./stream";
+import {
+  processProviderEvent,
+  createStreamState,
+  type StreamState,
+} from "./stream";
 import type { Provider, InteractiveSession } from "./provider";
 import type { Readable, Writable } from "node:stream";
 
@@ -37,17 +41,27 @@ export type InteractiveOverrides = {
   input?: Readable;
   promptOutput?: Writable;
   session?: InteractiveSession;
-  addSignalHandler?: (signal: string, handler: (...args: any[]) => void) => void;
-  removeSignalHandler?: (signal: string, handler: (...args: any[]) => void) => void;
+  addSignalHandler?: (
+    signal: string,
+    handler: (...args: unknown[]) => void,
+  ) => void;
+  removeSignalHandler?: (
+    signal: string,
+    handler: (...args: unknown[]) => void,
+  ) => void;
 };
 
 /**
  * Reads a single line from the readline interface.
  * Returns null on EOF (Ctrl+D) or if the interface is closed.
  */
-function readLine(rl: ReturnType<typeof createInterface>): Promise<string | null> {
+function readLine(
+  rl: ReturnType<typeof createInterface>,
+): Promise<string | null> {
   return new Promise((resolve) => {
-    const onClose = () => resolve(null);
+    const onClose = () => {
+      resolve(null);
+    };
     rl.once("close", onClose);
     try {
       rl.question("", (answer) => {
@@ -94,10 +108,11 @@ export async function runInteractive(
   // Register signal handlers for graceful cleanup on SIGINT/SIGTERM
   const addSignal =
     overrides?.addSignalHandler ??
-    ((sig: string, fn: (...args: any[]) => void) => process.on(sig, fn));
+    ((sig: string, fn: (...args: unknown[]) => void) => process.on(sig, fn));
   const removeSignal =
     overrides?.removeSignalHandler ??
-    ((sig: string, fn: (...args: any[]) => void) => process.removeListener(sig, fn));
+    ((sig: string, fn: (...args: unknown[]) => void) =>
+      process.removeListener(sig, fn));
 
   const onSignal = () => {
     rl.close();
@@ -126,6 +141,7 @@ export async function runInteractive(
     let state = createStreamState();
 
     // REPL loop: stream one turn, prompt for input, repeat
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     while (true) {
       for await (const event of session.stream()) {
         processProviderEvent(event, write, state, errWrite);

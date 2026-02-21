@@ -1,7 +1,13 @@
 import { realpathSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { Provider, ProviderSessionConfig, ProviderEvent, InteractiveSessionConfig, InteractiveSession } from "../provider";
+import type {
+  Provider,
+  ProviderSessionConfig,
+  ProviderEvent,
+  InteractiveSessionConfig,
+  InteractiveSession,
+} from "../provider";
 import { buildPrompt } from "../prompt";
 import { redactSecrets, extractFirstLine } from "../stream";
 
@@ -17,7 +23,11 @@ export type ClaudeAdapterState = {
 
 /** Creates a fresh ClaudeAdapterState — call once per session. */
 export function createClaudeAdapterState(): ClaudeAdapterState {
-  return { pendingToolName: undefined, pendingToolJson: "", hasEmittedText: false };
+  return {
+    pendingToolName: undefined,
+    pendingToolJson: "",
+    hasEmittedText: false,
+  };
 }
 
 /**
@@ -26,7 +36,16 @@ export function createClaudeAdapterState(): ClaudeAdapterState {
  * Pure function — no I/O, no ANSI formatting, no writes. Mutates `state` to track
  * tool accumulation and text emission across a stream of messages.
  */
-export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): ProviderEvent[] {
+/* eslint-disable
+   @typescript-eslint/no-explicit-any,
+   @typescript-eslint/no-unsafe-member-access,
+   @typescript-eslint/no-unsafe-assignment,
+   @typescript-eslint/restrict-plus-operands
+   -- TODO: add proper types for Claude Agent SDK messages */
+export function adaptClaudeMessage(
+  msg: any,
+  state: ClaudeAdapterState,
+): ProviderEvent[] {
   if (msg.type === "result") {
     const events: ProviderEvent[] = [];
 
@@ -55,14 +74,20 @@ export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): Provide
   if (msg.type === "stream_event") {
     const event = msg.event;
 
-    if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+    if (
+      event.type === "content_block_delta" &&
+      event.delta?.type === "text_delta"
+    ) {
       const text: string = event.delta.text;
       if (text.length === 0) return [];
       state.hasEmittedText = true;
       return [{ type: "text_delta", text }];
     }
 
-    if (event.type === "content_block_start" && event.content_block?.type === "tool_use") {
+    if (
+      event.type === "content_block_start" &&
+      event.content_block?.type === "tool_use"
+    ) {
       // Abandon any incomplete prior tool accumulation
       state.pendingToolName = event.content_block.name;
       state.pendingToolJson = "";
@@ -78,7 +103,10 @@ export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): Provide
       return [];
     }
 
-    if (event.type === "content_block_stop" && state.pendingToolName !== undefined) {
+    if (
+      event.type === "content_block_stop" &&
+      state.pendingToolName !== undefined
+    ) {
       const name = state.pendingToolName;
       state.pendingToolName = undefined;
 
@@ -88,7 +116,11 @@ export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): Provide
           const input = JSON.parse(state.pendingToolJson);
           if (input && typeof input === "object") {
             const raw =
-              input.file_path ?? input.command ?? input.description ?? input.pattern ?? input.query;
+              input.file_path ??
+              input.command ??
+              input.description ??
+              input.pattern ??
+              input.query;
             detail = extractFirstLine(raw);
             if (detail !== undefined && input.command !== undefined) {
               detail = redactSecrets(detail);
@@ -101,9 +133,10 @@ export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): Provide
 
       state.pendingToolJson = "";
 
-      const toolEnd: ProviderEvent = detail !== undefined
-        ? { type: "tool_end", name, detail }
-        : { type: "tool_end", name };
+      const toolEnd: ProviderEvent =
+        detail !== undefined
+          ? { type: "tool_end", name, detail }
+          : { type: "tool_end", name };
       return [toolEnd];
     }
   }
@@ -111,12 +144,18 @@ export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): Provide
   // Unknown or unhandled message types — silently ignored
   return [];
 }
+/* eslint-enable
+   @typescript-eslint/no-explicit-any,
+   @typescript-eslint/no-unsafe-member-access,
+   @typescript-eslint/no-unsafe-assignment,
+   @typescript-eslint/restrict-plus-operands */
 
 /**
  * Simple async message channel. Push user messages to feed the query;
  * the query reads from the channel's async iterator on each turn.
  * Moved here from interactive.ts — owned by the Claude provider.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unnecessary-condition -- TODO: type the message channel properly */
 export function createMessageChannel() {
   let resolve: ((msg: any) => void) | null = null;
   const pending: any[] = [];
@@ -147,6 +186,7 @@ export function createMessageChannel() {
     },
   };
 }
+/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unnecessary-condition */
 
 const CLAUDE_ALIASES: Record<string, string> = {
   sonnet: "claude-sonnet-4-20250514",
@@ -183,14 +223,16 @@ export const ClaudeProvider: Provider = {
     return CLAUDE_ALIASES;
   },
 
-  async *createSession(config: ProviderSessionConfig): AsyncGenerator<ProviderEvent> {
+  async *createSession(
+    config: ProviderSessionConfig,
+  ): AsyncGenerator<ProviderEvent> {
     let claudePath: string;
     try {
       const which = execSync("which claude", { encoding: "utf-8" }).trim();
       claudePath = realpathSync(which);
     } catch {
       throw new Error(
-        "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH"
+        "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH",
       );
     }
 
@@ -217,14 +259,16 @@ export const ClaudeProvider: Provider = {
     }
   },
 
-  createInteractiveSession(config: InteractiveSessionConfig): InteractiveSession {
+  createInteractiveSession(
+    config: InteractiveSessionConfig,
+  ): InteractiveSession {
     let claudePath: string;
     try {
       const which = execSync("which claude", { encoding: "utf-8" }).trim();
       claudePath = realpathSync(which);
     } catch {
       throw new Error(
-        "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH"
+        "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH",
       );
     }
 
@@ -246,7 +290,7 @@ export const ClaudeProvider: Provider = {
     });
 
     return {
-      async send(message: string): Promise<void> {
+      send(message: string): Promise<void> {
         const content = isFirstSend
           ? buildPrompt(message, config.context)
           : message;
@@ -257,6 +301,7 @@ export const ClaudeProvider: Provider = {
           session_id: sessionId ?? "",
           parent_tool_use_id: null,
         });
+        return Promise.resolve();
       },
 
       async *stream(): AsyncGenerator<ProviderEvent> {
@@ -264,6 +309,7 @@ export const ClaudeProvider: Provider = {
         // Must use manual q.next() instead of for-await-of. A for-await-of
         // loop calls q.return() when exited via `return`, which permanently
         // closes the query generator and breaks subsequent turns.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         while (true) {
           const { value: msg, done } = await q.next();
           if (done) return;
