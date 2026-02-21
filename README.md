@@ -263,6 +263,39 @@ sauna ralph-build-infinite  # Phase 3: build until done
 
 ---
 
+## Workflows
+
+### Building Skills from Documentation
+
+Use sauna's context injection to turn any library's documentation into a Claude Code skill — no manual research needed.
+
+```bash
+# Feed docs as context, let the agent create the skill
+sauna -m opus -c node_modules/zod/README.md \
+  "Create a Claude Code skill that helps users scaffold Zod schemas. \
+   Cover common patterns: objects, arrays, enums, refinements, transforms, and error handling."
+```
+
+Define a reusable alias for building skills from any source material:
+
+```toml
+[build-skill]
+prompt = "Read the provided context. If the skill doesn't exist yet, create a well-structured Claude Code skill from it following plugin skill best practices. If the skill already exists, review it against the source material — identify gaps, missing patterns, incorrect examples, or stale information — and improve it."
+model = "opus"
+```
+
+Then swap in whatever documentation you need:
+
+```bash
+sauna build-skill -c node_modules/zod/README.md -n 3
+sauna build-skill -c node_modules/prisma/README.md -n 5
+sauna build-skill -c docs/api-design-guide.md
+```
+
+Use `--count` to iteratively refine. Each pass reviews the skill's current state against the source material, finds what's missing or weak, and improves it
+
+---
+
 ## Contributing
 
 Contributions are welcome! Please read the [contributing guide](CONTRIBUTING.md) to get started.
