@@ -100,6 +100,8 @@ sauna build-skill -c https://reactrouter.com/home -n 7
 
 Use `--count` to iteratively refine. Each pass reviews the skill's current state against the source material, finds what's missing or weak, and improves it.
 
+---
+
 ### Ralph Wiggum
 
 The [Ralph Wiggum technique](https://ghuntley.com/ralph/) (created by Geoffrey Huntley) is an autonomous, loop-driven development methodology. Named after the persistently oblivious Simpsons character, the core idea is simple: feed an AI agent the same prompt file in a loop, letting it read its own prior work via git history and iteratively improve — one task per iteration, fresh context each time.
