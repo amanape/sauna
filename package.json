@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.42",
+    "@openai/codex-sdk": "^0.104.0",
     "cleye": "^2.2.1",
     "smol-toml": "^1.6.0"
   }

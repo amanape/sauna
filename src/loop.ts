@@ -5,14 +5,15 @@
  * and error isolation between iterations. Accepts a session factory and
  * write callback for testability — no direct SDK or stdout dependency.
  */
-import { formatLoopHeader, processMessage, createStreamState } from "./stream";
+import { formatLoopHeader, processProviderEvent, createStreamState } from "./stream";
+import type { ProviderEvent } from "./provider";
 
 export type LoopConfig = {
   forever: boolean;
   count: number | undefined;
 };
 
-type SessionFactory = () => AsyncGenerator<any>;
+type SessionFactory = () => AsyncGenerator<ProviderEvent>;
 type WriteFn = (s: string) => void;
 
 /**
@@ -45,8 +46,8 @@ export async function runLoop(
       const errTarget = errWrite ?? write;
       try {
         const session = createSession();
-        for await (const msg of session) {
-          processMessage(msg, write, state, errWrite);
+        for await (const event of session) {
+          processProviderEvent(event, write, state, errWrite);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -66,8 +67,8 @@ export async function runLoop(
       const errTarget = errWrite ?? write;
       try {
         const session = createSession();
-        for await (const msg of session) {
-          processMessage(msg, write, state, errWrite);
+        for await (const event of session) {
+          processProviderEvent(event, write, state, errWrite);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -86,9 +87,9 @@ export async function runLoop(
   const errTarget = errWrite ?? write;
   try {
     const session = createSession();
-    for await (const msg of session) {
-      processMessage(msg, write, state, errWrite);
-      if (msg.type === "result" && msg.subtype !== "success") {
+    for await (const event of session) {
+      processProviderEvent(event, write, state, errWrite);
+      if (event.type === "result" && !event.success) {
         failed = true;
       }
     }

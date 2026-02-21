@@ -1,79 +1,117 @@
 /**
- * Claude Resolution Tests (P0)
+ * ClaudeProvider Tests
  *
- * Tests that findClaude() produces clear, actionable error messages
- * instead of stack traces when the Claude Code executable is not found.
- * Uses subprocess isolation because findClaude() calls execSync/realpathSync.
+ * Tests ClaudeProvider — the Provider-interface implementation that absorbs
+ * findClaude() / runSession() logic from the legacy modules.
+ * Uses subprocess isolation because isAvailable() calls execSync/realpathSync.
  */
 import { test, expect, describe } from "bun:test";
 import { resolve } from "node:path";
-import { mkdirSync, symlinkSync, rmSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import { ClaudeProvider } from "../src/providers/claude";
 
 const ROOT = resolve(import.meta.dir, "..");
 const BUN = process.execPath;
 
-describe("P0: Claude resolution", () => {
-  test("findClaude throws descriptive error when claude is not on PATH", async () => {
-    const script = `
-      const { findClaude } = require("${ROOT}/src/claude.ts");
-      try {
-        findClaude();
-        process.exit(0);
-      } catch (err) {
-        console.log(err.message);
-        process.exit(1);
-      }
-    `;
-    const proc = Bun.spawn([BUN, "-e", script], {
-      cwd: ROOT,
-      stdout: "pipe",
-      stderr: "pipe",
-      env: { PATH: "/usr/bin:/bin" },
-    });
-    const stdout = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
-
-    expect(exitCode).toBe(1);
-    // Error message should be actionable — not the raw "Command failed: which claude"
-    expect(stdout).not.toContain("Command failed");
-    expect(stdout.toLowerCase()).toContain("claude");
-    // Should mention installation or PATH
-    expect(stdout.toLowerCase()).toMatch(/install|path/);
-  });
-
-  test("findClaude throws descriptive error for dangling symlink", async () => {
-    const tmpDir = `/tmp/sauna-test-claude-${Date.now()}`;
-    mkdirSync(tmpDir, { recursive: true });
-
-    try {
-      symlinkSync("/nonexistent/path/claude", resolve(tmpDir, "claude"));
-
+describe("ClaudeProvider", () => {
+  describe("isAvailable()", () => {
+    test("returns false when claude is not on PATH", async () => {
       const script = `
-        const { findClaude } = require("${ROOT}/src/claude.ts");
-        try {
-          findClaude();
-          process.exit(0);
-        } catch (err) {
-          console.log(err.message);
-          process.exit(1);
-        }
+        const { ClaudeProvider } = require("${ROOT}/src/providers/claude.ts");
+        process.stdout.write(String(ClaudeProvider.isAvailable()));
       `;
       const proc = Bun.spawn([BUN, "-e", script], {
         cwd: ROOT,
         stdout: "pipe",
         stderr: "pipe",
-        env: { PATH: `${tmpDir}:/usr/bin:/bin` },
+        env: { PATH: "/usr/bin:/bin" },
       });
       const stdout = await new Response(proc.stdout).text();
-      const exitCode = await proc.exited;
+      await proc.exited;
+      expect(stdout).toBe("false");
+    });
 
-      expect(exitCode).toBe(1);
-      // Should mention the dangling symlink issue clearly
-      expect(stdout).not.toContain("ENOENT");
-      expect(stdout.toLowerCase()).toContain("claude");
-      expect(stdout.toLowerCase()).toMatch(/symlink|resolve|broken|dangling|not found|install/);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
+    test("returns false for dangling symlink", async () => {
+      const tmpDir = `/tmp/sauna-test-claude-provider-${Date.now()}`;
+      mkdirSync(tmpDir, { recursive: true });
+      try {
+        symlinkSync("/nonexistent/path/claude", resolve(tmpDir, "claude"));
+        const script = `
+          const { ClaudeProvider } = require("${ROOT}/src/providers/claude.ts");
+          process.stdout.write(String(ClaudeProvider.isAvailable()));
+        `;
+        const proc = Bun.spawn([BUN, "-e", script], {
+          cwd: ROOT,
+          stdout: "pipe",
+          stderr: "pipe",
+          env: { PATH: `${tmpDir}:/usr/bin:/bin` },
+        });
+        const stdout = await new Response(proc.stdout).text();
+        await proc.exited;
+        expect(stdout).toBe("false");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    test("returns true when a valid claude executable is on PATH", async () => {
+      const tmpDir = `/tmp/sauna-test-claude-provider-real-${Date.now()}`;
+      mkdirSync(tmpDir, { recursive: true });
+      try {
+        const fakeClaude = resolve(tmpDir, "claude");
+        writeFileSync(fakeClaude, "#!/bin/sh\necho claude\n");
+        chmodSync(fakeClaude, 0o755);
+        const script = `
+          const { ClaudeProvider } = require("${ROOT}/src/providers/claude.ts");
+          process.stdout.write(String(ClaudeProvider.isAvailable()));
+        `;
+        const proc = Bun.spawn([BUN, "-e", script], {
+          cwd: ROOT,
+          stdout: "pipe",
+          stderr: "pipe",
+          env: { PATH: `${tmpDir}:/usr/bin:/bin` },
+        });
+        const stdout = await new Response(proc.stdout).text();
+        await proc.exited;
+        expect(stdout).toBe("true");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("resolveModel()", () => {
+    test("resolves 'sonnet' alias", () => {
+      expect(ClaudeProvider.resolveModel("sonnet")).toBe("claude-sonnet-4-20250514");
+    });
+
+    test("resolves 'opus' alias", () => {
+      expect(ClaudeProvider.resolveModel("opus")).toBe("claude-opus-4-20250514");
+    });
+
+    test("resolves 'haiku' alias", () => {
+      expect(ClaudeProvider.resolveModel("haiku")).toBe("claude-haiku-4-20250414");
+    });
+
+    test("passes through unknown model IDs unchanged", () => {
+      expect(ClaudeProvider.resolveModel("claude-opus-4-20250514")).toBe("claude-opus-4-20250514");
+    });
+
+    test("returns undefined for undefined input", () => {
+      expect(ClaudeProvider.resolveModel(undefined)).toBeUndefined();
+    });
+
+    test("returns undefined for empty string", () => {
+      expect(ClaudeProvider.resolveModel("")).toBeUndefined();
+    });
+  });
+
+  describe("knownAliases()", () => {
+    test("returns map containing all three Claude aliases", () => {
+      const aliases = ClaudeProvider.knownAliases();
+      expect(aliases["sonnet"]).toBe("claude-sonnet-4-20250514");
+      expect(aliases["opus"]).toBe("claude-opus-4-20250514");
+      expect(aliases["haiku"]).toBe("claude-haiku-4-20250414");
+    });
   });
 });

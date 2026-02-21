@@ -21,5 +21,6 @@
 - `@anthropic-ai/claude-agent-sdk@0.2.42` — Claude agent session
 
 ## Modules
+- `src/provider.ts` — Provider contract types (`Provider`, `ProviderSessionConfig`, `ProviderEvent`, `SummaryInfo`); types only, zero runtime deps
 - `src/claude.ts` — `findClaude()` resolves the Claude Code executable path; called once from `index.ts` at startup
 - `index.ts` — CLI entry point; calls `findClaude()` at startup and passes resolved `claudePath` to `runLoop`/`runInteractive`

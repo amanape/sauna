@@ -1,148 +1,54 @@
-# SAU-77: Alias Feature — Implementation Notes
+# Notes
 
-## smol-toml API
+## codex-auth-detection (done)
 
-The `smol-toml` library provides a lightweight TOML parser:
+- `isAvailable()` checks `OPENAI_API_KEY`, `CODEX_API_KEY`, then `$CODEX_HOME/auth.json` (or `~/.codex/auth.json` via `homedir()`).
+- Entire auth.json check is wrapped in try/catch — method never throws.
+- File existence alone is sufficient; contents are not validated.
+- Error messages in `createSession()`, `createInteractiveSession()`, and `index.ts` all mention all three options: `OPENAI_API_KEY`, `CODEX_API_KEY`, and `codex login`.
+- The `returns false` test sets `CODEX_HOME` to an empty temp dir to prevent host machine's real `~/.codex/auth.json` from causing a false positive.
+- Was already implemented alongside the codex-interactive-session work; retroactively documented here.
 
-```ts
-import { parse } from "smol-toml";
+## interactive-session-contract (done)
 
-const result = parse(tomlString); // parses TOML string to JS object
-```
+- Added `InteractiveSessionConfig`, `InteractiveSession` types and `createInteractiveSession` to `src/provider.ts`.
+- Added `createInteractiveSession` as a **required** method on the `Provider` type — all providers must implement it.
+- Added stubs to `ClaudeProvider` and `CodexProvider` (throw "not yet implemented") to satisfy TypeScript until the real implementations land in `claude-interactive-session` and `codex-interactive-session` tasks.
+- Tests in `tests/provider.test.ts`: `InteractiveSessionConfig` shape, `InteractiveSession` method existence, `stream()` yields `ProviderEvent`, mock `Provider` round-trips through `createInteractiveSession`.
+- bun strips `import type` at runtime — type-only TDD tests always pass at runtime. Validate by temporarily breaking an assertion, not the import.
 
-## Aliases Module Pattern
+## codex-interactive-session (done)
 
-The `src/aliases.ts` module implements the core alias functionality:
+- `CodexProvider.createInteractiveSession()` creates a `Codex` client and `Thread` at construction time; throws synchronously if `isAvailable()` is false.
+- `send()` stores a pending message; first call uses `buildPrompt(message, context)`, subsequent calls store raw input.
+- `stream()` calls `thread.runStreamed(pendingMessage)` per turn and adapts events via `adaptCodexEvent()`.
+- `close()` is a no-op — the Codex CLI process exits naturally after each `runStreamed()` turn.
+- **`@openai/codex-sdk` is ESM-only** (`"type": "module"`) — `require()` on it silently exits in Bun's `-e` subprocess mode. Tests that need to mock it must use a temp `.test.ts` file run via `bun test`, which supports `mock.module()` for ESM interop.
+- `require()` of an ESM-only package in Bun `-e` scripts: the process exits silently with code 0 after the require call — no error, no output. This is the tell-tale sign of an ESM-only package.
 
-- **`loadAliases(root?: string)`** — reads `.sauna/aliases.toml` (from the provided root directory or current directory), validates the entire configuration, and returns a `Record<string, AliasDefinition>`. If the file doesn't exist, returns an empty object without error.
+## claude-interactive-session (done)
 
-- **Validation performed by `loadAliases`:**
-  - Alias name validation: only `[a-zA-Z0-9_-]` characters allowed; empty names rejected
-  - Reserved names validation: rejects `alias`, `help`, `version`, `model`, `m`, `forever`, `count`, `n`, `interactive`, `i`, `context`, `c`
-  - Schema validation: `prompt` field must exist and be a string
-  - Unknown fields: any key not in the schema triggers an error
-  - Mutual exclusivity: `forever` + `count` cannot coexist; `interactive` + `forever`/`count` cannot coexist
-  - `count` validation: must be a positive integer when present
+- `ClaudeProvider.createInteractiveSession()` creates a message channel and calls `query()` once at construction time.
+- `send()`: first call uses `buildPrompt(message, config.context)`; subsequent calls push raw input with the captured `session_id`.
+- `stream()`: resets `ClaudeAdapterState` per turn, captures `session_id` from messages, adapts via `adaptClaudeMessage()`, returns after a `result` message.
+- `close()` delegates to `q.close()` on the underlying query generator.
+- `createMessageChannel()` is now defined in `src/providers/claude.ts` (copied from `interactive.ts`; removal from `interactive.ts` is deferred to `interactive-repl-abstraction`).
+- Tests in `tests/session.test.ts`: options check, model omission, first-send buildPrompt (via channel inspection), close tracking (via `Object.assign` on the mock generator).
 
-- **`expandAlias(alias: AliasDefinition, extraArgs: string[])`** — builds the expanded argv array from an alias definition and user-provided extra arguments:
-  - Order: `[prompt, ...aliasFlags, ...extraArgs]`
-  - Flags added from the alias: `-m <model>`, `-c <context>` (may repeat), `-n <count>`, `--forever`, `--interactive`
-  - User's extra args appended at the end
-  - Last-wins semantics for scalar values (flags in `extraArgs` override alias-defined flags)
-  - Accumulation for array-type flags (context paths accumulate with `-c`)
+## interactive-repl-abstraction (done)
 
-- **`AliasDefinition` type:**
-  ```ts
-  type AliasDefinition = {
-    prompt: string;
-    model?: string;
-    context?: string[];
-    count?: number;
-    forever?: boolean;
-    interactive?: boolean;
-  };
-  ```
+- `src/interactive.ts` is now provider-agnostic — no Claude SDK imports, no `adaptClaudeMessage`, no `buildPrompt`.
+- `InteractiveConfig` uses `provider: Provider` instead of `claudePath: string`.
+- `InteractiveOverrides` uses `session?: InteractiveSession` instead of `createQuery?`.
+- Session is created via `overrides?.session ?? config.provider.createInteractiveSession({ model, context })`.
+- REPL loop: `session.send()` then `for await (event of session.stream())` per turn; `createStreamState()` reset at start of each follow-up.
+- `createMessageChannel()` and all Claude SDK imports were moved to `src/providers/claude.ts`.
+- `tests/interactive.test.ts` now uses `createMockSession()` with queued `ProviderEvent[]` turns; `mock.module("@anthropic-ai/claude-agent-sdk")` removed.
 
-## Test Tmp Directory Pattern
+## cli-interactive-provider-wiring (done)
 
-The test suite uses a temporary directory for file operations, managed with `beforeEach`/`afterEach`:
-
-- **Location:** `tests/.tmp-aliases-test/`
-- **Setup (beforeEach):** creates the temp directory before each test
-- **Teardown (afterEach):** removes the temp directory and all contents after each test
-- **Usage:** pass the temp directory as the `root` argument to functions like `loadAliases(tmpDir)`
-
-## Alias Commands Module (`src/alias-commands.ts`)
-
-The CRUD handlers for the `sauna alias` subcommand:
-
-- **`aliasList(aliases, write)`** — prints a compact table with name, truncated prompt (25 chars), and flags in short CLI notation (`-m`, `-c`, `-n`, `--forever`, `-i`). Prints helpful empty-state message when no aliases exist.
-- **`aliasShow(aliases, name, write)`** — uses `smol-toml`'s `stringify()` to output the full TOML definition for a single alias. Throws if not found.
-- **`aliasSet(name, root?, write?)`** — creates `.sauna/` directory and `aliases.toml` if needed. Appends a stub `[name]\nprompt = ""`. Validates against reserved names and duplicates (via `loadAliases`).
-- **`aliasRm(name, root?, write?)`** — loads all aliases, deletes the target, re-stringifies with `stringify()` and rewrites the file. Throws if not found.
-
-**Key decisions:**
-- `aliasRm` uses parse-then-rewrite (via `smol-toml` stringify) rather than regex-based section removal. This is safer but reformats the file — acceptable tradeoff since aliases.toml is small.
-- All handlers accept an injected `write` callback for testability, matching the pattern used in `runLoop`, `runInteractive`, etc.
-- `smol-toml` exports `stringify(obj)` which serializes JS objects back to TOML format.
-
-## Test captureWrite Pattern
-
-When testing functions that take a `write` callback, use a closure over an array (not a string) to capture output:
-
-```ts
-function captureWrite() {
-  const lines: string[] = [];
-  return {
-    lines,
-    output: () => lines.join(""),
-    write: (s: string) => { lines.push(s); },
-  };
-}
-```
-
-**Why not `let output = ""`?** — Returning `{ output, write }` copies the string value at return time. The `write` closure mutates a different `output` variable, so `cap.output` stays `""`. Using an array or getter function avoids this pitfall.
-
-## TypeScript Configuration Note
-
-The project's `tsconfig.json` includes `"noUncheckedIndexedAccess": true`, which requires explicit type-narrowing for record lookups:
-
-- **Pattern:** Use the `!` non-null assertion operator after verifying key existence
-- **Example in tests:**
-  ```ts
-  const aliases = loadAliases(tmpDir);
-  expect(aliases['myalias']).toBeDefined();
-  const def = aliases['myalias']!; // verified to exist, use !
-  expect(def.prompt).toBe('expected prompt');
-  ```
-- This pattern ensures type safety while keeping code clear about which lookups are safe.
-
-## Alias Subcommand Registration (Task 4)
-
-Registered `sauna alias <action> [name]` using cleye's `command()`:
-
-```ts
-commands: [
-  command({
-    name: "alias",
-    parameters: ["<action>", "[name]"],
-  }),
-],
-```
-
-- `argv.command === "alias"` detects the subcommand
-- Routing to handlers is done via a `switch(action)` block that dispatches to `aliasList`, `aliasShow`, `aliasSet`, `aliasRm`
-- The subcommand handler catches errors from the alias-commands module and prints them to stderr
-- `sauna alias` with no action triggers cleye's built-in help display (missing `<action>` parameter)
-
-## Alias Resolution (Task 5)
-
-Alias resolution runs **before** cleye parsing:
-
-1. Check `process.argv[2]` (the first user arg)
-2. Skip if it's `"alias"` (subcommand takes priority) or starts with `-` (it's a flag)
-3. Load aliases from `.sauna/aliases.toml` and check if `argv[2]` matches an alias name
-4. If matched, call `expandAlias()` with `process.argv.slice(3)` as extra args
-5. Pass the expanded argv as cleye's third parameter (`customArgv`)
-
-Key design decision: alias resolution is a **pre-processing step** that transforms argv before cleye sees it. This means cleye's normal flag parsing, validation, and help all work naturally on the expanded argv. No special override logic needed — "last wins" for scalars and accumulation for arrays happen via cleye's native behavior.
-
-## Integration Test Pattern for CLI Process Tests
-
-Process-level tests use `Bun.spawn` with temp directories to test the full CLI:
-
-```ts
-const tmpDir = resolve(ROOT, 'tests', '.tmp-cli-test');
-
-function spawnSauna(args: string[]) {
-  return Bun.spawn(['bun', resolve(ROOT, 'index.ts'), ...args], {
-    cwd: tmpDir,  // Controls where .sauna/aliases.toml is found
-    stdout: 'pipe',
-    stderr: 'pipe',
-    env: { ...process.env, SAUNA_DRY_RUN: '1' },
-  });
-}
-```
-
-- `cwd: tmpDir` controls where `loadAliases()` looks for `.sauna/aliases.toml`
-- `SAUNA_DRY_RUN=1` causes the CLI to print parsed config as JSON and exit — perfect for testing alias expansion without needing a real Claude binary
+- `index.ts` no longer imports `realpathSync` or `execSync` (those were only used in the removed Claude path resolution block).
+- The `if (provider.name === "codex" && interactive)` guard blocking Codex from interactive mode is gone.
+- `runInteractive()` is called with `{ prompt, model, context, provider }` — provider-agnostic.
+- All providers reach the same `runInteractive()` code path via `Provider.createInteractiveSession()`.
+- Test: `--provider codex --interactive` in dry-run succeeds with exit 0, JSON includes `provider: "codex"` and `interactive: true`.

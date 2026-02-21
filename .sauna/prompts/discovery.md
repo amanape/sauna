@@ -16,4 +16,4 @@ Do NOT make any code changes.
 2. Write one spec file per topic with testable acceptance criteria
 3. IMPORTANT: If a topic needs "and" to describe it, split it into multiple topics.
 
-After you have gathered enough information, create the specs in `ralph/specs/[topic-name].md`.
+After you have gathered enough information, create the specs in `.sauna/specs/[topic-name].md`.

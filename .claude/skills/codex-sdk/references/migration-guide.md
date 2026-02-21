@@ -323,7 +323,7 @@ async function review(filePath: string) {
 
 ### Phase 1: Setup
 
-- [ ] Install Codex SDK: `npm install @openai/codex-sdk`
+- [ ] Install Codex SDK: `bun add @openai/codex-sdk`
 - [ ] Configure authentication (API key or ChatGPT login)
 - [ ] Test basic functionality
 - [ ] Familiarize with thread model
@@ -425,7 +425,6 @@ console.log(result.verdict);
 
 ## Support Resources
 
-- **Documentation**: https://developers.openai.com/codex/
-- **Examples**: https://github.com/openai/codex-examples
-- **Community**: https://community.openai.com/c/codex
-- **Migration Help**: codex-migration@openai.com
+- **Documentation**: [developers.openai.com/codex](https://developers.openai.com/codex/)
+- **GitHub**: [github.com/openai/codex](https://github.com/openai/codex)
+- **Community**: [community.openai.com](https://community.openai.com/)
