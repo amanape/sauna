@@ -144,6 +144,7 @@ export function loadAliases(root?: string): Record<string, AliasDefinition> {
   for (const [name, value] of Object.entries(parsed)) {
     validateAliasName(name);
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- smol-toml returns unknown values; guard is needed
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
       throw new Error(`Alias "${name}": expected a table, got ${typeof value}`);
     }
@@ -170,9 +171,11 @@ export function expandAlias(
   // Reject positional arguments: anything that doesn't start with "-"
   // and isn't the value of a preceding flag
   for (let i = 0; i < extraArgs.length; i++) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- index within bounds of for loop
     const arg = extraArgs[i]!;
     if (!arg.startsWith("-")) {
       // Check if this is a value for a preceding flag
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- index within bounds of for loop
       if (i === 0 || !extraArgs[i - 1]!.startsWith("-")) {
         throw new Error(
           `Aliases do not accept positional arguments. Got: "${arg}"`,

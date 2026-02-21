@@ -110,7 +110,9 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("Hello from agent\n"), successResult()]);
 
     // After first turn, readline will prompt — send empty line to exit
-    setTimeout(() => { stdin.writeLine(""); }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
       {
@@ -144,7 +146,9 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("response\n"), successResult()]);
 
     // Send empty line immediately after first turn
-    setTimeout(() => { stdin.writeLine(""); }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
       {
@@ -172,7 +176,9 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("hi\n"), successResult()]);
 
     // Send EOF after first turn
-    setTimeout(() => { stdin.end(); }, 50);
+    setTimeout(() => {
+      stdin.end();
+    }, 50);
 
     await runInteractive(
       {
@@ -201,8 +207,12 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("second response\n"), successResult()]);
 
     // After first turn, send a follow-up, then empty to exit
-    setTimeout(() => { stdin.writeLine("follow up question"); }, 50);
-    setTimeout(() => { stdin.writeLine(""); }, 200);
+    setTimeout(() => {
+      stdin.writeLine("follow up question");
+    }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 200);
 
     await runInteractive(
       {
@@ -238,8 +248,12 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("recovered\n"), successResult()]);
 
     // After error on first turn, send another prompt, then exit
-    setTimeout(() => { stdin.writeLine("try again"); }, 50);
-    setTimeout(() => { stdin.writeLine(""); }, 200);
+    setTimeout(() => {
+      stdin.writeLine("try again");
+    }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 200);
 
     await runInteractive(
       {
@@ -273,8 +287,12 @@ describe("P2: Interactive Mode", () => {
     mockSession.queueTurn([textDelta("hi\n"), successResult()]);
 
     // Send the first prompt via stdin, then exit
-    setTimeout(() => { stdin.writeLine("hello from stdin"); }, 50);
-    setTimeout(() => { stdin.writeLine(""); }, 150);
+    setTimeout(() => {
+      stdin.writeLine("hello from stdin");
+    }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 150);
 
     await runInteractive(
       {
@@ -299,7 +317,9 @@ describe("P2: Interactive Mode", () => {
     const stdin = createFakeStdin();
 
     // Immediately end stdin — should exit without sending
-    setTimeout(() => { stdin.end(); }, 50);
+    setTimeout(() => {
+      stdin.end();
+    }, 50);
 
     await runInteractive(
       {
@@ -400,7 +420,9 @@ describe("P2: Interactive Mode", () => {
     const removedSignals: string[] = [];
 
     mockSession.queueTurn([textDelta("hi\n"), successResult()]);
-    setTimeout(() => { stdin.writeLine(""); }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
       {
@@ -475,7 +497,9 @@ describe("P4: error output routing to stderr", () => {
     ]);
 
     // After first result, send empty line to exit
-    setTimeout(() => { stdin.writeLine(""); }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
       {
@@ -516,8 +540,12 @@ describe("P5: prompt visibility", () => {
     mockSession.queueTurn([textDelta("hi\n"), successResult()]);
 
     // Send first prompt via stdin, then empty to exit
-    setTimeout(() => { stdin.writeLine("hello"); }, 50);
-    setTimeout(() => { stdin.writeLine(""); }, 150);
+    setTimeout(() => {
+      stdin.writeLine("hello");
+    }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 150);
 
     await runInteractive(
       {
@@ -549,7 +577,9 @@ describe("P5: prompt visibility", () => {
     mockSession.queueTurn([textDelta("response\n"), successResult()]);
 
     // Send empty line after result to exit
-    setTimeout(() => { stdin.writeLine(""); }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
       {
@@ -601,7 +631,9 @@ describe("P5: prompt visibility", () => {
     const stdout: string[] = [];
 
     mockSession.queueTurn([textDelta("hi\n"), successResult()]);
-    setTimeout(() => { stdin.writeLine(""); }, 50);
+    setTimeout(() => {
+      stdin.writeLine("");
+    }, 50);
 
     await runInteractive(
       {

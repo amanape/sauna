@@ -28,7 +28,7 @@ export function formatSummary(info: SummaryInfo): string {
   const totalTokens = info.inputTokens + info.outputTokens;
   const turnWord = info.numTurns === 1 ? "turn" : "turns";
   const seconds = (info.durationMs / 1000).toFixed(1);
-  return `${DIM}${totalTokens} tokens · ${info.numTurns} ${turnWord} · ${seconds}s${DIM_OFF}`;
+  return `${DIM}${String(totalTokens)} tokens · ${String(info.numTurns)} ${turnWord} · ${seconds}s${DIM_OFF}`;
 }
 
 /** Formats a bold full-width loop header divider with centered label.
@@ -40,7 +40,10 @@ export function formatLoopHeader(
   columns?: number,
 ): string {
   const label =
-    total !== undefined ? `loop ${iteration} / ${total}` : `loop ${iteration}`;
+    total !== undefined
+      ? `loop ${String(iteration)} / ${String(total)}`
+      : `loop ${String(iteration)}`;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- columns may be undefined at runtime despite type
   const cols = columns ?? process.stdout.columns ?? 40;
   // label + 2 spaces + at least 1 bar on each side = label.length + 4
   if (cols < label.length + 4) {
@@ -169,10 +172,8 @@ export function processProviderEvent(
     return;
   }
 
-  if (event.type === "error") {
-    const target = errWrite ?? write;
-    target(`${RED}${event.message}${RESET}\n`);
-    state.lastCharWasNewline = true;
-    return;
-  }
+  // TypeScript narrows event to { type: "error"; message: string } at this point
+  const target = errWrite ?? write;
+  target(`${RED}${event.message}${RESET}\n`);
+  state.lastCharWasNewline = true;
 }

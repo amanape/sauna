@@ -369,9 +369,9 @@ describe("processProviderEvent", () => {
       const { output, write } = makeWrite();
       const state = createStreamState();
 
-      expect(() =>
-        { processProviderEvent({ type: "tool_end", name: "Bash" }, write, state); },
-      ).not.toThrow();
+      expect(() => {
+        processProviderEvent({ type: "tool_end", name: "Bash" }, write, state);
+      }).not.toThrow();
       expect(output.join("")).toContain("[Bash]");
     });
   });

@@ -17,6 +17,7 @@ export function aliasList(
   const maxNameLen = Math.max(...names.map((n) => n.length));
 
   for (const name of names) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- key from Object.keys, always present
     const alias = aliases[name]!;
     const prompt = truncate(alias.prompt, 25);
     const flags = formatFlags(alias);
@@ -38,7 +39,7 @@ function formatFlags(alias: AliasDefinition): string {
       parts.push(`-c ${ctx}`);
     }
   }
-  if (alias.count !== undefined) parts.push(`-n ${alias.count}`);
+  if (alias.count !== undefined) parts.push(`-n ${String(alias.count)}`);
   if (alias.forever) parts.push("--forever");
   if (alias.interactive) parts.push("-i");
   return parts.join(" ");

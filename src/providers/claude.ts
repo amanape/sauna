@@ -36,6 +36,12 @@ export function createClaudeAdapterState(): ClaudeAdapterState {
  * Pure function — no I/O, no ANSI formatting, no writes. Mutates `state` to track
  * tool accumulation and text emission across a stream of messages.
  */
+/* eslint-disable
+   @typescript-eslint/no-explicit-any,
+   @typescript-eslint/no-unsafe-member-access,
+   @typescript-eslint/no-unsafe-assignment,
+   @typescript-eslint/restrict-plus-operands
+   -- TODO: add proper types for Claude Agent SDK messages */
 export function adaptClaudeMessage(
   msg: any,
   state: ClaudeAdapterState,
@@ -138,12 +144,18 @@ export function adaptClaudeMessage(
   // Unknown or unhandled message types — silently ignored
   return [];
 }
+/* eslint-enable
+   @typescript-eslint/no-explicit-any,
+   @typescript-eslint/no-unsafe-member-access,
+   @typescript-eslint/no-unsafe-assignment,
+   @typescript-eslint/restrict-plus-operands */
 
 /**
  * Simple async message channel. Push user messages to feed the query;
  * the query reads from the channel's async iterator on each turn.
  * Moved here from interactive.ts — owned by the Claude provider.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unnecessary-condition -- TODO: type the message channel properly */
 export function createMessageChannel() {
   let resolve: ((msg: any) => void) | null = null;
   const pending: any[] = [];
@@ -174,6 +186,7 @@ export function createMessageChannel() {
     },
   };
 }
+/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unnecessary-condition */
 
 const CLAUDE_ALIASES: Record<string, string> = {
   sonnet: "claude-sonnet-4-20250514",
@@ -277,7 +290,7 @@ export const ClaudeProvider: Provider = {
     });
 
     return {
-      async send(message: string): Promise<void> {
+      send(message: string): Promise<void> {
         const content = isFirstSend
           ? buildPrompt(message, config.context)
           : message;
@@ -288,6 +301,7 @@ export const ClaudeProvider: Provider = {
           session_id: sessionId ?? "",
           parent_tool_use_id: null,
         });
+        return Promise.resolve();
       },
 
       async *stream(): AsyncGenerator<ProviderEvent> {
@@ -295,6 +309,7 @@ export const ClaudeProvider: Provider = {
         // Must use manual q.next() instead of for-await-of. A for-await-of
         // loop calls q.return() when exited via `return`, which permanently
         // closes the query generator and breaks subsequent turns.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         while (true) {
           const { value: msg, done } = await q.next();
           if (done) return;

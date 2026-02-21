@@ -102,7 +102,7 @@ if (!prompt && !interactive) {
   process.exit(1);
 }
 const count = argv.flags.count;
-const context = argv.flags.context ?? [];
+const context = argv.flags.context;
 
 // Validate --count value before checking flag combinations
 if (count !== undefined) {
@@ -190,14 +190,17 @@ try {
   } else {
     // Wire SIGINT/SIGTERM to an AbortController so loop modes can stop between iterations
     const abort = new AbortController();
-    const onSignal = () => { abort.abort(); };
+    const onSignal = () => {
+      abort.abort();
+    };
     process.on("SIGINT", onSignal);
     process.on("SIGTERM", onSignal);
 
     try {
       const ok = await runLoop(
         { forever, count },
-        () => provider.createSession({ prompt: prompt!, model, context }),
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- TODO: TypeScript doesn't narrow prompt to string through the &&-exit guard above
+      () => provider.createSession({ prompt: prompt!, model, context }),
         write,
         abort.signal,
         errWrite,

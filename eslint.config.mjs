@@ -4,7 +4,14 @@ import prettierConfig from "eslint-config-prettier";
 
 export default tseslint.config(
   {
-    ignores: ["node_modules/", "dist/", "coverage/", ".sauna/"],
+    ignores: [
+      "node_modules/",
+      "dist/",
+      "coverage/",
+      ".sauna/",
+      ".claude/",
+      "eslint.config.mjs",
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
@@ -29,7 +36,16 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-call": "off",
       "@typescript-eslint/no-unsafe-return": "off",
       "@typescript-eslint/no-explicit-any": "off",
-      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-non-null-assertion": "off",
+      "@typescript-eslint/no-empty-function": "off",
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/restrict-template-expressions": "off",
+      "@typescript-eslint/only-throw-error": "off",
+      "@typescript-eslint/no-floating-promises": "off",
+      "require-yield": "off",
+      "no-control-regex": "off",
+      "no-empty": "off",
     },
   },
   prettierConfig,

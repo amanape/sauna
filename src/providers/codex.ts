@@ -241,13 +241,14 @@ export const CodexProvider: Provider = {
     let pendingMessage: string | null = null;
 
     return {
-      async send(message: string): Promise<void> {
+      send(message: string): Promise<void> {
         if (isFirstSend) {
           pendingMessage = buildPrompt(message, config.context);
           isFirstSend = false;
         } else {
           pendingMessage = message;
         }
+        return Promise.resolve();
       },
 
       async *stream(): AsyncGenerator<ProviderEvent> {

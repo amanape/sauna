@@ -43,10 +43,7 @@ interactive = true
     const aliases = loadAliases(TMP);
     expect(Object.keys(aliases)).toEqual(["build", "review", "chat"]);
     expect(aliases.build!.prompt).toBe(".sauna/prompts/build.md");
-    expect(aliases.build!.context).toEqual([
-      ".sauna/specs",
-      ".sauna/tasks.md",
-    ]);
+    expect(aliases.build!.context).toEqual([".sauna/specs", ".sauna/tasks.md"]);
     expect(aliases.build!.count).toBe(5);
     expect(aliases.review!.model).toBe("opus");
     expect(aliases.chat!.interactive).toBe(true);
