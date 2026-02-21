@@ -69,88 +69,36 @@ sauna --forever "monitor and fix lint errors"
 sauna -i "help me debug the API"
 ```
 
-## Models
-
-| Alias        | Provider | Full Model ID              |
-| ------------ | -------- | -------------------------- |
-| `sonnet`     | Claude   | `claude-sonnet-4-20250514` |
-| `opus`       | Claude   | `claude-opus-4-20250514`   |
-| `haiku`      | Claude   | `claude-haiku-4-20250414`  |
-| `codex`      | Codex    | `gpt-5.2-codex`            |
-| `codex-mini` | Codex    | `codex-mini-latest`        |
-
-You can also pass full model IDs directly with `-m`. The provider is inferred automatically from the model name — or you can override it with `-p`.
-
-## Aliases
-
-Define reusable prompt shortcuts in `.sauna/aliases.toml`:
-
-```toml
-[review]
-prompt = "Review the code for bugs and suggest fixes"
-model = "opus"
-context = ["src/", "tests/"]
-
-[iterate]
-prompt = "Run the tests, fix any failures, repeat"
-model = "sonnet"
-count = 3
-
-[chat]
-prompt = "Help me work on this codebase"
-interactive = true
-```
-
-Then run them by name:
-
-```bash
-sauna review                  # Use alias defaults
-sauna review -m haiku         # Override the model
-sauna review -c docs/         # Add extra context
-sauna alias-list              # List all defined aliases
-```
-
-### Alias fields
-
-| Field         | Type     | Required | Description                              |
-| ------------- | -------- | -------- | ---------------------------------------- |
-| `prompt`      | string   | yes      | The prompt text or path to a prompt file |
-| `model`       | string   | no       | Model alias or full ID                   |
-| `context`     | string[] | no       | File/directory paths to include          |
-| `count`       | integer  | no       | Number of loop iterations                |
-| `forever`     | boolean  | no       | Run indefinitely                         |
-| `interactive` | boolean  | no       | Start interactive session                |
-
-## Permissions
-
-When using the Claude provider, sauna runs with **all permission prompts bypassed** (`permissionMode: "bypassPermissions"`). This means Claude Code will execute file writes, shell commands, and other tool calls without asking for confirmation.
-
-This is intentional — sauna is designed for automated and batch workflows where interactive prompts would block execution. If you need permission prompts, use `claude` directly.
-
-> **Note:** The Codex provider uses its own `full-auto` execution policy by default, which similarly skips confirmation prompts.
-
-## CLI Reference
-
-```
-sauna [prompt] [options]
-
-Options:
-  -m, --model <model>       Model to use (alias or full ID)
-  -p, --provider <provider>  Provider: claude or codex
-  -n, --count <n>           Run the prompt n times
-      --forever             Run indefinitely until Ctrl+C
-  -i, --interactive         Start a multi-turn session
-  -c, --context <path>      Include file/directory as context (repeatable)
-      --version             Show version
-      --help                Show help
-
-Subcommands:
-  alias-list                List all defined aliases
-```
-
 ## Workflows
 
-Real-world multi-step workflows you can build with sauna.
+### Building Skills from Documentation
+
+Use sauna's context injection to turn any library's documentation into a Claude Code skill — no manual research needed.
+
+```bash
+# Feed docs as context, let the agent create the skill
+sauna -m opus -c node_modules/zod/README.md \
+  "Create a Claude Code skill that helps users scaffold Zod schemas. \
+   Cover common patterns: objects, arrays, enums, refinements, transforms, and error handling."
+```
+
+Define a reusable alias for building skills from any source material:
+
+```toml
+[build-skill]
+prompt = "Read the provided context. If the skill doesn't exist yet, create a well-structured Claude Code skill from it following plugin skill best practices. If the skill already exists, review it against the source material — identify gaps, missing patterns, incorrect examples, or stale information — and improve it."
+model = "opus"
+```
+
+Then swap in whatever documentation you need:
+
+```bash
+sauna build-skill -c node_modules/zod/README.md -n 3
+sauna build-skill -c node_modules/prisma/README.md -n 5
+sauna build-skill -c docs/api-design-guide.md
+```
+
+Use `--count` to iteratively refine. Each pass reviews the skill's current state against the source material, finds what's missing or weak, and improves it.
 
 ### Ralph Wiggum
 
@@ -263,38 +211,84 @@ sauna ralph-build-infinite  # Phase 3: build until done
 
 ---
 
-## Workflows
+## Models
 
-### Building Skills from Documentation
+| Alias        | Provider | Full Model ID              |
+| ------------ | -------- | -------------------------- |
+| `sonnet`     | Claude   | `claude-sonnet-4-20250514` |
+| `opus`       | Claude   | `claude-opus-4-20250514`   |
+| `haiku`      | Claude   | `claude-haiku-4-20250414`  |
+| `codex`      | Codex    | `gpt-5.2-codex`            |
+| `codex-mini` | Codex    | `codex-mini-latest`        |
 
-Use sauna's context injection to turn any library's documentation into a Claude Code skill — no manual research needed.
+You can also pass full model IDs directly with `-m`. The provider is inferred automatically from the model name — or you can override it with `-p`.
 
-```bash
-# Feed docs as context, let the agent create the skill
-sauna -m opus -c node_modules/zod/README.md \
-  "Create a Claude Code skill that helps users scaffold Zod schemas. \
-   Cover common patterns: objects, arrays, enums, refinements, transforms, and error handling."
-```
+## Aliases
 
-Define a reusable alias for building skills from any source material:
+Define reusable prompt shortcuts in `.sauna/aliases.toml`:
 
 ```toml
-[build-skill]
-prompt = "Read the provided context. If the skill doesn't exist yet, create a well-structured Claude Code skill from it following plugin skill best practices. If the skill already exists, review it against the source material — identify gaps, missing patterns, incorrect examples, or stale information — and improve it."
+[review]
+prompt = "Review the code for bugs and suggest fixes"
 model = "opus"
+context = ["src/", "tests/"]
+
+[iterate]
+prompt = "Run the tests, fix any failures, repeat"
+model = "sonnet"
+count = 3
+
+[chat]
+prompt = "Help me work on this codebase"
+interactive = true
 ```
 
-Then swap in whatever documentation you need:
+Then run them by name:
 
 ```bash
-sauna build-skill -c node_modules/zod/README.md -n 3
-sauna build-skill -c node_modules/prisma/README.md -n 5
-sauna build-skill -c docs/api-design-guide.md
+sauna review                  # Use alias defaults
+sauna review -m haiku         # Override the model
+sauna review -c docs/         # Add extra context
+sauna alias-list              # List all defined aliases
 ```
 
-Use `--count` to iteratively refine. Each pass reviews the skill's current state against the source material, finds what's missing or weak, and improves it
+### Alias fields
 
----
+| Field         | Type     | Required | Description                              |
+| ------------- | -------- | -------- | ---------------------------------------- |
+| `prompt`      | string   | yes      | The prompt text or path to a prompt file |
+| `model`       | string   | no       | Model alias or full ID                   |
+| `context`     | string[] | no       | File/directory paths to include          |
+| `count`       | integer  | no       | Number of loop iterations                |
+| `forever`     | boolean  | no       | Run indefinitely                         |
+| `interactive` | boolean  | no       | Start interactive session                |
+
+## Permissions
+
+When using the Claude provider, sauna runs with **all permission prompts bypassed** (`permissionMode: "bypassPermissions"`). This means Claude Code will execute file writes, shell commands, and other tool calls without asking for confirmation.
+
+This is intentional — sauna is designed for automated and batch workflows where interactive prompts would block execution. If you need permission prompts, use `claude` directly.
+
+> **Note:** The Codex provider uses its own `full-auto` execution policy by default, which similarly skips confirmation prompts.
+
+## CLI Reference
+
+```
+sauna [prompt] [options]
+
+Options:
+  -m, --model <model>       Model to use (alias or full ID)
+  -p, --provider <provider>  Provider: claude or codex
+  -n, --count <n>           Run the prompt n times
+      --forever             Run indefinitely until Ctrl+C
+  -i, --interactive         Start a multi-turn session
+  -c, --context <path>      Include file/directory as context (repeatable)
+      --version             Show version
+      --help                Show help
+
+Subcommands:
+  alias-list                List all defined aliases
+```
 
 ## Contributing
 
