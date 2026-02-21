@@ -148,42 +148,128 @@ Subcommands:
   alias-list                List all defined aliases
 ```
 
-## Architecture
+## Workflows
 
-The codebase is intentionally small (~600 lines of TypeScript):
+Real-world multi-step workflows you can build with sauna.
+
+### Ralph Wiggum
+
+The [Ralph Wiggum technique](https://ghuntley.com/ralph/) (created by Geoffrey Huntley) is an autonomous, loop-driven development methodology. Named after the persistently oblivious Simpsons character, the core idea is simple: feed an AI agent the same prompt file in a loop, letting it read its own prior work via git history and iteratively improve — one task per iteration, fresh context each time.
+
+Sauna's `--forever` and `--count` flags map directly to this pattern.
+
+#### Phase 1 — Define Requirements (human-driven, LLM-assisted)
+
+Use an interactive session to break your project into specifications. The goal is to produce a set of spec files that describe what needs to be built.
+
+```bash
+# Start an interactive session to define specs
+sauna -i -m opus "Help me break down this project into specs. \
+  For each Job to Be Done, identify discrete topics of concern. \
+  Each topic should be describable in one sentence without using 'and'. \
+  Write each topic as a spec file under specs/"
+```
+
+This produces a `specs/` directory:
 
 ```
-index.ts              CLI entry point and arg parsing
-src/
-  provider.ts         Provider interface and event types
-  providers/
-    registry.ts       Provider selection logic
-    claude.ts         Claude Code implementation
-    codex.ts          OpenAI Codex implementation
-  loop.ts             Loop orchestration (single, count, forever)
-  interactive.ts      Multi-turn REPL
-  stream.ts           Event formatting and terminal output
-  prompt.ts           Prompt building with context injection
-  aliases.ts          TOML alias parsing and expansion
-  alias-commands.ts   alias-list subcommand
+specs/
+  auth.md
+  api-routes.md
+  database-schema.md
+  ...
 ```
 
-All providers implement a unified `Provider` interface and emit `ProviderEvent` objects, keeping the loop/rendering layer fully provider-agnostic.
+#### Phase 2 — Planning (autonomous loop)
+
+Run sauna in a loop to generate an implementation plan from the specs. The agent studies all spec files, compares them against the current source code, and produces a prioritized task list — without implementing anything.
+
+```bash
+sauna -n 5 -m opus -c specs/ -c src/ \
+  "Study all spec files in specs/ using parallel subagents. \
+   Study the existing IMPLEMENTATION_PLAN.md if it exists. \
+   Compare specs against current source code. \
+   Create or update IMPLEMENTATION_PLAN.md as a prioritized task list. \
+   Search for TODOs, minimal implementations, and placeholders. \
+   Do NOT implement anything — planning only. \
+   When the plan is complete and accounts for all specs, exit."
+```
+
+Or run indefinitely:
+
+```bash
+sauna --forever -m opus -c specs/ -c src/ "..."
+```
+
+#### Phase 3 — Building (autonomous loop)
+
+Run sauna in a loop to execute the plan. Each iteration picks the most important remaining task, implements it, runs tests, and commits — then exits so the next iteration starts with a fresh context window.
+
+```bash
+sauna -n 30 -m sonnet -c specs/ -c IMPLEMENTATION_PLAN.md \
+  "Read the specs and IMPLEMENTATION_PLAN.md. \
+   Pick the most important remaining task. \
+   Search the codebase first — don't assume something is not implemented. \
+   Implement exactly one task. \
+   Run tests, build, and lint. \
+   If everything passes, update IMPLEMENTATION_PLAN.md, commit, and exit. \
+   If tests fail, fix them before committing."
+```
+
+Or run indefinitely until done:
+
+```bash
+sauna --forever -m sonnet -c specs/ -c IMPLEMENTATION_PLAN.md "..."
+```
+
+#### Aliases for Ralph Wiggum
+
+Define reusable aliases in `.sauna/aliases.toml` so you can kick off each phase with a single command:
+
+```toml
+[ralph-plan]
+prompt = "Study all spec files in specs/. Study IMPLEMENTATION_PLAN.md if it exists. Compare specs against current source. Create or update IMPLEMENTATION_PLAN.md as a prioritized task list. Do NOT implement anything."
+model = "opus"
+context = ["specs/", "src/"]
+count = 5
+
+[ralph-build]
+prompt = "Read specs and IMPLEMENTATION_PLAN.md. Pick the most important remaining task. Search the codebase first. Implement exactly one task. Run tests, build, and lint. If passing, update the plan, commit, and exit."
+model = "sonnet"
+context = ["specs/", "IMPLEMENTATION_PLAN.md"]
+count = 30
+
+[ralph-build-infinite]
+prompt = "Read specs and IMPLEMENTATION_PLAN.md. Pick the most important remaining task. Search the codebase first. Implement exactly one task. Run tests, build, and lint. If passing, update the plan, commit, and exit."
+model = "sonnet"
+context = ["specs/", "IMPLEMENTATION_PLAN.md"]
+forever = true
+```
+
+Then run:
+
+```bash
+sauna ralph-plan            # Phase 2: generate the plan
+sauna ralph-build           # Phase 3: build with a 30-iteration cap
+sauna ralph-build-infinite  # Phase 3: build until done
+```
+
+#### Key principles
+
+- **One task per iteration** — prevents context window overflow and quality degradation
+- **Fresh context each loop** — `IMPLEMENTATION_PLAN.md` on disk serves as persistent memory between iterations
+- **Backpressure** — tests, builds, and lints act as validation gates; the agent must pass them before committing
+- **Start human-in-the-loop, go AFK later** — begin interactively to refine your prompts, then let it run autonomously once confident
+
+---
 
 ## Contributing
 
-Contributions are welcome. Please open an issue first to discuss what you'd like to change.
+Contributions are welcome! Please read the [contributing guide](CONTRIBUTING.md) to get started.
 
-```bash
-# Run tests
-bun test
+## Code of Conduct
 
-# Build for current platform
-bun run build
-
-# Build for all platforms
-bun run build:all
-```
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
 
 ## License
 
