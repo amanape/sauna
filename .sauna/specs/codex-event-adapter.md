@@ -23,8 +23,8 @@ A pure function that converts a single Codex SDK `ThreadEvent` into zero or more
 
 ### Turn lifecycle events
 
-- `turn.completed` maps to `{ type: 'result', success: true, summary }` where summary extracts `input_tokens`, `output_tokens` from `event.usage`; `numTurns` is `1`; `durationMs` is passed in by the caller
-- `turn.failed` maps to `{ type: 'result', success: false, errors: [event.error.message] }`
+- `turn.completed` maps to the success result variant `{ type: 'result', success: true, summary }` where summary extracts `input_tokens`, `output_tokens` from `event.usage`; `numTurns` is `1`; `durationMs` is passed in by the caller
+- `turn.failed` maps to the failure result variant `{ type: 'result', success: false, errors: [event.error.message] }` (no `summary` — failure results lack SDK usage data)
 
 ### Ignored events
 

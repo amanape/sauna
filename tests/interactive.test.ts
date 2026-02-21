@@ -542,7 +542,7 @@ describe("P4: error output routing to stderr", () => {
     expect(stdoutJoined).not.toContain("query exploded");
   });
 
-  test("non-success SDK result goes to errWrite via processMessage", async () => {
+  test("non-success SDK result goes to errWrite", async () => {
     const mockQuery = createMockQuery();
     const stdin = createFakeStdin();
     const stdout: string[] = [];

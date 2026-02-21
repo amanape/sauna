@@ -17,7 +17,8 @@ Shared type definitions that establish the contract all providers must implement
   - `{ type: 'text_delta'; text: string }` — streaming text from the agent
   - `{ type: 'tool_start'; name: string }` — a tool invocation has begun
   - `{ type: 'tool_end'; name: string; detail?: string }` — a tool invocation has completed
-  - `{ type: 'result'; success: boolean; summary: SummaryInfo; errors?: string[] }` — turn/session complete
+  - `{ type: 'result'; success: true; summary: SummaryInfo }` — successful turn/session complete (summary always present)
+  - `{ type: 'result'; success: false; errors?: string[] }` — failed turn/session complete (no summary; failures lack SDK usage data)
   - `{ type: 'error'; message: string }` — non-result error
 - A `SummaryInfo` type is exported with: `inputTokens: number`, `outputTokens: number`, `numTurns: number`, `durationMs: number`
 - `SummaryInfo` moves from `stream.ts` to this file; `stream.ts` imports it from here

@@ -8,6 +8,7 @@
 import { test, expect, describe } from 'bun:test';
 import { formatLoopHeader } from '../src/stream';
 import { runLoop, type LoopConfig } from '../src/loop';
+import type { ProviderEvent } from '../src/provider';
 
 describe('formatLoopHeader', () => {
   test('infinite mode shows iteration number only', () => {
@@ -26,20 +27,18 @@ describe('formatLoopHeader', () => {
 });
 
 // Helpers for loop orchestration tests
-function makeSuccessResult() {
+function makeSuccessResult(): ProviderEvent {
   return {
     type: 'result',
-    subtype: 'success',
-    usage: { input_tokens: 100, output_tokens: 50 },
-    num_turns: 1,
-    duration_ms: 1000,
+    success: true,
+    summary: { inputTokens: 100, outputTokens: 50, numTurns: 1, durationMs: 1000 },
   };
 }
 
-function makeErrorResult(subtype = 'error', errors: string[] = ['something went wrong']) {
+function makeErrorResult(errors: string[] = ['something went wrong']): ProviderEvent {
   return {
     type: 'result',
-    subtype,
+    success: false,
     errors,
   };
 }
@@ -49,7 +48,7 @@ function mockSessionFactory(opts?: { failOnIteration?: number }) {
   const calls: number[] = [];
   let callCount = 0;
 
-  async function* fakeSession(): AsyncGenerator<any> {
+  async function* fakeSession(): AsyncGenerator<ProviderEvent> {
     const n = ++callCount;
     calls.push(n);
     if (opts?.failOnIteration === n) {
@@ -127,27 +126,15 @@ describe('runLoop', () => {
     let callCount = 0;
     const output: string[] = [];
 
-    async function* fakeSession(): AsyncGenerator<any> {
+    async function* fakeSession(): AsyncGenerator<ProviderEvent> {
       callCount++;
       if (callCount === 1) {
         // Iteration 1: text without trailing newline, then result
-        yield {
-          type: 'stream_event',
-          event: {
-            type: 'content_block_delta',
-            delta: { type: 'text_delta', text: 'iter1' },
-          },
-        };
+        yield { type: 'text_delta', text: 'iter1' };
         yield makeSuccessResult();
       } else {
         // Iteration 2: text with leading blank lines — should be stripped if state is fresh
-        yield {
-          type: 'stream_event',
-          event: {
-            type: 'content_block_delta',
-            delta: { type: 'text_delta', text: '\n\niter2' },
-          },
-        };
+        yield { type: 'text_delta', text: '\n\niter2' };
         yield makeSuccessResult();
       }
     }
@@ -177,7 +164,7 @@ describe('runLoop', () => {
     let callCount = 0;
     const abort = new AbortController();
 
-    async function* fakeSession(): AsyncGenerator<any> {
+    async function* fakeSession(): AsyncGenerator<ProviderEvent> {
       callCount++;
       if (callCount >= 3) abort.abort();
       yield makeSuccessResult();
@@ -203,7 +190,7 @@ describe('runLoop', () => {
     const output: string[] = [];
     let callCount = 0;
 
-    async function* fakeSession(): AsyncGenerator<any> {
+    async function* fakeSession(): AsyncGenerator<ProviderEvent> {
       callCount++;
       if (callCount === 1) {
         throw "string error"; // non-Error value
@@ -227,8 +214,8 @@ describe('runLoop', () => {
     // runLoop should return false so the caller can exit non-zero.
     const output: string[] = [];
 
-    async function* fakeSession(): AsyncGenerator<any> {
-      yield makeErrorResult('error', ['agent failed']);
+    async function* fakeSession(): AsyncGenerator<ProviderEvent> {
+      yield makeErrorResult(['agent failed']);
     }
 
     const ok = await runLoop(
@@ -261,7 +248,7 @@ describe('runLoop', () => {
     // catch it, display the error, and return false instead of propagating.
     const output: string[] = [];
 
-    async function* fakeSession(): AsyncGenerator<any> {
+    async function* fakeSession(): AsyncGenerator<ProviderEvent> {
       throw new Error('session crashed');
     }
 
@@ -282,7 +269,7 @@ describe('runLoop', () => {
     let callCount = 0;
     const abort = new AbortController();
 
-    async function* fakeSession(): AsyncGenerator<any> {
+    async function* fakeSession(): AsyncGenerator<ProviderEvent> {
       callCount++;
       // Abort after iteration 2 completes
       if (callCount >= 2) abort.abort();
@@ -329,7 +316,7 @@ describe('runLoop', () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
 
-    async function* fakeSession(): AsyncGenerator<any> {
+    async function* fakeSession(): AsyncGenerator<ProviderEvent> {
       throw new Error('single-run crashed');
     }
 
@@ -351,8 +338,8 @@ describe('runLoop', () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
 
-    async function* fakeSession(): AsyncGenerator<any> {
-      yield makeErrorResult('error', ['agent failed']);
+    async function* fakeSession(): AsyncGenerator<ProviderEvent> {
+      yield makeErrorResult(['agent failed']);
     }
 
     await runLoop(

@@ -1,36 +1,10 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test';
 import { resolve } from 'node:path';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
-import { resolveModel } from '../src/cli';
 
 const ROOT = resolve(import.meta.dir, '..');
 
 describe('P1: CLI parsing', () => {
-  describe('model resolution', () => {
-    test("resolves 'sonnet' to full model ID", () => {
-      expect(resolveModel('sonnet')).toBe('claude-sonnet-4-20250514');
-    });
-
-    test("resolves 'opus' to full model ID", () => {
-      expect(resolveModel('opus')).toBe('claude-opus-4-20250514');
-    });
-
-    test("resolves 'haiku' to full model ID", () => {
-      expect(resolveModel('haiku')).toBe('claude-haiku-4-20250414');
-    });
-
-    test('passes through unrecognized model name as-is', () => {
-      expect(resolveModel('claude-sonnet-4-20250514')).toBe(
-        'claude-sonnet-4-20250514',
-      );
-      expect(resolveModel('my-custom-model')).toBe('my-custom-model');
-    });
-
-    test('returns undefined when no model provided', () => {
-      expect(resolveModel(undefined)).toBeUndefined();
-    });
-  });
-
   describe('missing prompt', () => {
     test('exits non-zero when no prompt is provided', async () => {
       const proc = Bun.spawn(['bun', 'index.ts'], {
@@ -313,6 +287,126 @@ describe('P1: CLI parsing', () => {
       const exitCode = await proc.exited;
       expect(exitCode).toBe(0);
       expect(stdout).toContain('No aliases defined');
+    });
+  });
+
+  describe('--provider flag', () => {
+    test('--provider claude in dry-run includes provider: "claude"', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--provider', 'claude', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.provider).toBe('claude');
+    });
+
+    test('--provider codex in dry-run includes provider: "codex"', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--provider', 'codex', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.provider).toBe('codex');
+    });
+
+    test('dry-run JSON always includes provider field', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed).toHaveProperty('provider');
+    });
+
+    test('--provider codex --interactive prints error and exits non-zero', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--provider', 'codex', '--interactive'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr.toLowerCase()).toContain('interactive');
+      expect(stderr.toLowerCase()).toContain('codex');
+    });
+
+    test('--provider invalidname prints error and exits non-zero', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--provider', 'invalidname', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('invalidname');
+    });
+
+    test('--model codex in dry-run infers Codex provider', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '--model', 'codex', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.provider).toBe('codex');
+    });
+
+    test('-p is accepted as shorthand for --provider', async () => {
+      const proc = Bun.spawn(
+        ['bun', 'index.ts', '-p', 'claude', 'test prompt'],
+        {
+          cwd: ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: { ...process.env, SAUNA_DRY_RUN: '1' },
+        },
+      );
+      const stdout = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.provider).toBe('claude');
     });
   });
 

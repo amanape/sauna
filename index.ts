@@ -1,11 +1,11 @@
+import { realpathSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { cli, command } from "cleye";
-import { resolveModel } from "./src/cli";
-import { findClaude } from "./src/claude";
-import { runSession } from "./src/session";
 import { runLoop } from "./src/loop";
 import { runInteractive } from "./src/interactive";
 import { loadAliases, expandAlias } from "./src/aliases";
 import { aliasList } from "./src/alias-commands";
+import { resolveProvider } from "./src/providers/registry";
 import pkg from "./package.json";
 
 // --- Alias resolution: expand alias names before cleye parses argv ---
@@ -35,13 +35,18 @@ const argv = cli(
     version: pkg.version,
     parameters: ["[prompt]"],
     help: {
-      description: "A lightweight CLI wrapper around the Claude Agent SDK",
+      description: "A lightweight CLI wrapper for AI coding agents",
     },
     flags: {
       model: {
         type: String,
         alias: "m",
-        description: "Model to use (sonnet, opus, haiku, or full model ID)",
+        description: "Model to use (e.g. sonnet, opus, haiku for Claude; codex, codex-mini for Codex; or full model ID)",
+      },
+      provider: {
+        type: String,
+        alias: "p",
+        description: "Provider to use (claude, codex)",
       },
       forever: {
         type: Boolean,
@@ -90,7 +95,6 @@ if (argv.command === "alias-list") {
 }
 
 const prompt = argv._.prompt;
-const model = resolveModel(argv.flags.model);
 const forever = argv.flags.forever ?? false;
 const interactive = argv.flags.interactive ?? false;
 
@@ -132,22 +136,57 @@ if (interactive && (count !== undefined || forever)) {
   process.exit(1);
 }
 
+// Resolve provider — may throw for invalid --provider value
+let provider;
+try {
+  provider = resolveProvider(argv.flags.provider, argv.flags.model);
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  process.stderr.write(`error: ${message}\n`);
+  process.exit(1);
+}
+
+// Codex does not yet support interactive mode
+if (provider.name === "codex" && interactive) {
+  process.stderr.write("error: interactive mode is not yet supported for Codex\n");
+  process.exit(1);
+}
+
+// Resolve model alias via the selected provider
+const model = provider.resolveModel(argv.flags.model);
+
 // In dry-run mode, print parsed config as JSON and exit
 if (process.env.SAUNA_DRY_RUN === "1") {
   console.log(
-    JSON.stringify({ prompt, model, forever, count, interactive, context })
+    JSON.stringify({ prompt, model, forever, count, interactive, context, provider: provider.name })
   );
   process.exit(0);
 }
 
-try {
-  // Resolve Claude Code executable once at startup — before any session or REPL
-  const claudePath = findClaude();
+// Check provider availability before starting any session
+if (!provider.isAvailable()) {
+  const msg = provider.name === "claude"
+    ? "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH"
+    : "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY environment variable";
+  process.stderr.write(`error: ${msg}\n`);
+  process.exit(1);
+}
 
+try {
   const write = (s: string) => process.stdout.write(s);
   const errWrite = (s: string) => process.stderr.write(s);
 
   if (interactive) {
+    // Interactive mode is Claude-only until interactive support is extended to other providers.
+    // Resolve the claude executable path directly (ClaudeProvider.isAvailable() already confirmed it exists).
+    let claudePath: string;
+    try {
+      const which = execSync("which claude", { encoding: "utf-8" }).trim();
+      claudePath = realpathSync(which);
+    } catch {
+      process.stderr.write("error: claude not found on $PATH — install Claude Code and ensure `claude` is in your PATH\n");
+      process.exit(1);
+    }
     await runInteractive({ prompt, model, context, claudePath }, write, undefined, errWrite);
   } else {
     // Wire SIGINT/SIGTERM to an AbortController so loop modes can stop between iterations
@@ -159,7 +198,7 @@ try {
     try {
       const ok = await runLoop(
         { forever, count },
-        () => runSession({ prompt: prompt!, model, context, claudePath }),
+        () => provider.createSession({ prompt: prompt!, model, context }),
         write,
         abort.signal,
         errWrite

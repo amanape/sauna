@@ -13,8 +13,8 @@ A pure function that converts a single Claude Agent SDK message into zero or mor
   - Detail extraction checks `file_path`, `command`, `description`, `pattern`, `query` (same fallback chain as current `stream.ts`)
   - Only the first line of the detail value is used
   - Commands in `detail` are redacted via `redactSecrets()` before emitting
-- `result` with `subtype: 'success'` maps to `{ type: 'result', success: true, summary }` where summary contains `inputTokens`, `outputTokens`, `numTurns`, `durationMs` from the SDK message
-- `result` with any other subtype maps to `{ type: 'result', success: false, errors }` where errors come from `msg.errors`
+- `result` with `subtype: 'success'` maps to the success result variant `{ type: 'result', success: true, summary }` where summary contains `inputTokens`, `outputTokens`, `numTurns`, `durationMs` from the SDK message
+- `result` with any other subtype maps to the failure result variant `{ type: 'result', success: false, errors }` where errors come from `msg.errors` (no `summary` — failure results lack SDK usage data)
 - If no text was emitted during the session and `result.result` contains text, a `text_delta` is emitted before the `result` event (fallback for non-streaming responses)
 - Unknown/unhandled message types are silently ignored (no crash, no emit)
 - The adapter takes a message + mutable `ClaudeAdapterState`, returns `ProviderEvent[]`

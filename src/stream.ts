@@ -20,12 +20,8 @@ export function formatToolTag(name: string): string {
   return `${DIM}[${name}]${DIM_OFF}`;
 }
 
-export type SummaryInfo = {
-  inputTokens: number;
-  outputTokens: number;
-  numTurns: number;
-  durationMs: number;
-};
+import type { SummaryInfo, ProviderEvent } from "./provider";
+export type { SummaryInfo } from "./provider";
 
 /** Formats a dim success summary line with tokens, turns, and duration */
 export function formatSummary(info: SummaryInfo): string {
@@ -91,154 +87,89 @@ export function extractFirstLine(value: unknown): string | undefined {
 type WriteFn = (s: string) => void;
 
 /**
- * Mutable state for tracking output formatting across a stream of messages.
+ * Mutable state for tracking output formatting across a stream of provider events.
  *
  * - lastCharWasNewline: whether the most recent written character was '\n'.
  *   Used to decide if a newline must be inserted before tool tags.
  * - isFirstTextOutput: whether any text_delta has been written yet.
  *   Used to strip leading blank lines from the first text output.
- * - pendingToolName: tool name from content_block_start, waiting for input.
- * - pendingToolJson: accumulated input_json_delta fragments for the pending tool.
  */
 export type StreamState = {
   lastCharWasNewline: boolean;
   isFirstTextOutput: boolean;
-  pendingToolName: string | undefined;
-  pendingToolJson: string;
 };
 
 /** Creates a fresh StreamState — call once per session or loop iteration. */
 export function createStreamState(): StreamState {
-  return { lastCharWasNewline: true, isFirstTextOutput: true, pendingToolName: undefined, pendingToolJson: '' };
+  return { lastCharWasNewline: true, isFirstTextOutput: true };
 }
 
 /**
- * Processes a single SDK message and writes formatted output.
+ * Renders a single ProviderEvent to the terminal with ANSI formatting.
  *
- * When called with a StreamState, tracks newline position and strips
- * leading whitespace from the first text output. When called without
- * state (backwards-compatible), behaves statelessly as before.
+ * This is the unified rendering layer for all providers. Provider-specific
+ * adapters (Claude, Codex) convert SDK messages into ProviderEvent objects;
+ * this function handles display only.
  *
- * errWrite is an optional callback for error output (non-success results).
- * When provided, error formatting goes to errWrite (intended for stderr)
- * instead of write (intended for stdout). Falls back to write if not provided.
+ * errWrite receives error output (result failure, error events).
+ * Falls back to write if not provided.
  */
-export function processMessage(msg: any, write: WriteFn, state?: StreamState, errWrite?: WriteFn): void {
-  if (msg.type === "result") {
-    if (msg.subtype === "success") {
-      // Fallback: if no streaming text was written, display result text
-      if (state?.isFirstTextOutput && msg.result) {
-        let text = msg.result.replace(/^\n+/, "");
-        if (text.length > 0) {
-          write(AGENT_COLOR + text + RESET);
-          if (!text.endsWith("\n")) write("\n");
-          state.isFirstTextOutput = false;
-          state.lastCharWasNewline = true;
-        }
+export function processProviderEvent(
+  event: ProviderEvent,
+  write: WriteFn,
+  state: StreamState,
+  errWrite?: WriteFn
+): void {
+  if (event.type === "text_delta") {
+    let text = event.text;
+    if (state.isFirstTextOutput) {
+      text = text.replace(/^\n+/, "");
+      if (text.length > 0) {
+        state.isFirstTextOutput = false;
       }
-      // Summary: ensure exactly one \n separator from preceding content
-      const sep = state
-        ? (state.lastCharWasNewline ? "" : "\n")
-        : "\n";
-      write(
-        sep +
-          formatSummary({
-            inputTokens: msg.usage.input_tokens,
-            outputTokens: msg.usage.output_tokens,
-            numTurns: msg.num_turns,
-            durationMs: msg.duration_ms,
-          }) +
-          "\n"
-      );
-    } else {
-      const sep = state
-        ? (state.lastCharWasNewline ? "" : "\n")
-        : "\n";
-      const target = errWrite ?? write;
-      target(sep + formatError(msg.subtype, msg.errors ?? []) + "\n");
     }
-    if (state) {
-      state.lastCharWasNewline = true;
+    if (text.length > 0) {
+      write(AGENT_COLOR + text + RESET);
+      state.lastCharWasNewline = text.endsWith("\n");
     }
     return;
   }
 
-  if (msg.type === "stream_event") {
-    const event = msg.event;
-    if (
-      event.type === "content_block_delta" &&
-      event.delta?.type === "text_delta"
-    ) {
-      let text = event.delta.text;
-      // Strip leading blank lines from the very first text output
-      if (state && state.isFirstTextOutput) {
-        text = text.replace(/^\n+/, "");
-        if (text.length > 0) {
-          state.isFirstTextOutput = false;
-        }
-      }
-      if (text.length > 0) {
-        write(AGENT_COLOR + text + RESET);
-        if (state) {
-          state.lastCharWasNewline = text.endsWith("\n");
-        }
-      }
-    } else if (
-      event.type === "content_block_start" &&
-      event.content_block?.type === "tool_use"
-    ) {
-      // Defer tag display until content_block_stop when input is fully accumulated.
-      // The Anthropic streaming API sends input: {} at content_block_start;
-      // actual input arrives via input_json_delta in content_block_delta events.
-      if (state) {
-        state.pendingToolName = event.content_block.name;
-        state.pendingToolJson = '';
-      } else {
-        // Stateless fallback: no accumulation possible, show bare tag
-        const prefix = "";
-        write(`${DIM}[${event.content_block.name}]${DIM_OFF}\n`);
-      }
-    } else if (
-      event.type === "content_block_delta" &&
-      event.delta?.type === "input_json_delta" &&
-      state?.pendingToolName
-    ) {
-      // Accumulate streamed JSON fragments for the pending tool's input
-      state.pendingToolJson += event.delta.partial_json;
-    } else if (
-      event.type === "content_block_stop" &&
-      state?.pendingToolName
-    ) {
-      const name = state.pendingToolName;
+  if (event.type === "tool_start") {
+    // No immediate output — tool name is already embedded in tool_end detail
+    return;
+  }
 
-      // Parse accumulated input and extract tool detail using fallback chain.
-      // Known properties: file_path, command, description, pattern, query
-      let detail: string | undefined;
-      if (state.pendingToolJson.length > 0) {
-        try {
-          const input = JSON.parse(state.pendingToolJson);
-          if (input && typeof input === 'object') {
-            const raw = input.file_path || input.command || input.description || input.pattern || input.query;
-            detail = extractFirstLine(raw);
-            if (detail && input.command !== undefined) {
-              detail = redactSecrets(detail);
-            }
-          }
-        } catch {
-          // Malformed JSON — show bare tag
-        }
-      }
+  if (event.type === "tool_end") {
+    const tag = event.detail
+      ? `${DIM}[${event.name}] ${event.detail}${DIM_OFF}`
+      : `${DIM}[${event.name}]${DIM_OFF}`;
+    const prefix = state.lastCharWasNewline ? "" : "\n";
+    write(prefix + tag + "\n");
+    state.lastCharWasNewline = true;
+    return;
+  }
 
-      const tag = detail
-        ? `${DIM}[${name}] ${detail}${DIM_OFF}`
-        : `${DIM}[${name}]${DIM_OFF}`;
-
-      // Insert newline before tool tag if previous output didn't end with one
-      const prefix = state.lastCharWasNewline ? "" : "\n";
-      write(prefix + tag + "\n");
-      state.lastCharWasNewline = true;
-      state.pendingToolName = undefined;
-      state.pendingToolJson = '';
+  if (event.type === "result") {
+    const sep = state.lastCharWasNewline ? "" : "\n";
+    if (event.success) {
+      write(sep + formatSummary(event.summary) + "\n");
+    } else {
+      const target = errWrite ?? write;
+      const errors = event.errors ?? [];
+      const msg = errors.length > 0
+        ? errors.map(e => `${RED}${e}${RESET}`).join("\n")
+        : `${RED}error${RESET}`;
+      target(sep + msg + "\n");
     }
+    state.lastCharWasNewline = true;
+    return;
+  }
+
+  if (event.type === "error") {
+    const target = errWrite ?? write;
+    target(`${RED}${event.message}${RESET}\n`);
+    state.lastCharWasNewline = true;
+    return;
   }
 }

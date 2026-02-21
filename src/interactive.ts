@@ -8,8 +8,9 @@
  */
 import { query, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { createInterface } from "node:readline";
-import { processMessage, createStreamState, type StreamState } from "./stream";
-import { buildPrompt } from "./session";
+import { processProviderEvent, createStreamState, type StreamState } from "./stream";
+import { adaptClaudeMessage, createClaudeAdapterState } from "./providers/claude";
+import { buildPrompt } from "./prompt";
 import type { Readable, Writable } from "node:stream";
 
 const BOLD_GREEN = "\x1b[1;32m";
@@ -176,6 +177,7 @@ export async function runInteractive(
   try {
     let sessionId: string | undefined;
     let state = createStreamState();
+    let adapterState = createClaudeAdapterState();
 
     // Process all messages across turns from the query generator
     for await (const msg of q) {
@@ -184,7 +186,9 @@ export async function runInteractive(
         sessionId = msg.session_id;
       }
 
-      processMessage(msg, write, state, errWrite);
+      for (const event of adaptClaudeMessage(msg, adapterState)) {
+        processProviderEvent(event, write, state, errWrite);
+      }
 
       // After a result message, prompt for follow-up input
       if (msg.type === "result") {
@@ -196,8 +200,9 @@ export async function runInteractive(
           break;
         }
 
-        // Reset stream state and push follow-up message to the channel
+        // Reset stream and adapter state for the next turn
         state = createStreamState();
+        adapterState = createClaudeAdapterState();
         messages.push({
           type: "user",
           message: { role: "user", content: input },
