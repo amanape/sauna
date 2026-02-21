@@ -100,117 +100,6 @@ sauna build-skill -c https://reactrouter.com/home -n 7
 
 Use `--count` to iteratively refine. Each pass reviews the skill's current state against the source material, finds what's missing or weak, and improves it.
 
-### Compound Engineering
-
-[Compound engineering](https://every.to/guides/compound-engineering) (created by Every/Kieran Klaassen) is a four-phase development loop reminiscent of [Deming's PDSA cycle](https://deming.org/explore/pdsa/). The core idea: each unit of work should make the next one easier. Every cycle produces both a deliverable _and_ accumulated knowledge that the system consumes on the next pass.
-
-Sauna handles the loop orchestration and context injection. Claude Code's native subagent system handles the parallel specialist work within each phase.
-
-#### Phase 1 — Plan
-
-Research the codebase and produce a structured implementation plan. The prompt instructs the agent to spawn parallel research subagents internally.
-
-```bash
-sauna -m opus -c CLAUDE.md -c docs/ -c src/ \
-  "Research this codebase using parallel subagents: \
-   one for repo structure and patterns, \
-   one for framework documentation, \
-   one for best practices, \
-   one for user flow and edge cases. \
-   Synthesize findings into a plan at docs/plans/feat-<name>.md \
-   with checkboxes, affected files, and success criteria. \
-   Do NOT implement anything."
-```
-
-#### Phase 2 — Work
-
-Execute the plan one task at a time. Each iteration picks the next unchecked item, implements it, runs tests, checks off the task, and commits.
-
-```bash
-sauna -n 30 -m sonnet -c CLAUDE.md -c docs/plans/ -c src/ \
-  "Read the latest plan in docs/plans/. \
-   Pick the next unchecked task. Implement it. \
-   Run tests, build, and lint. \
-   If passing, mark the checkbox done, commit, and exit."
-```
-
-#### Phase 3 — Review
-
-Run a single review pass where the agent spawns parallel specialist subagents to examine the changes from multiple angles.
-
-```bash
-sauna -m opus -c CLAUDE.md -c docs/solutions/ -c src/ \
-  "Review the current branch changes. Spawn parallel subagents for: \
-   security (OWASP top 10, auth flaws), \
-   performance (N+1 queries, missing indexes, caching), \
-   architecture (structural concerns, pattern violations), \
-   and code simplicity (complexity, duplication). \
-   Classify each finding as P1 (must fix), P2 (should fix), or P3 (nice to fix). \
-   Write findings to todos/review.md. Fix all P1s before exiting."
-```
-
-#### Phase 4 — Compound
-
-Extract learnings and feed them back into the system so the next cycle starts smarter.
-
-```bash
-sauna -m opus -c CLAUDE.md -c docs/solutions/ -c todos/ \
-  "Review what was built, reviewed, and fixed this cycle. \
-   Document reusable patterns in docs/solutions/ with YAML frontmatter \
-   (title, category, tags, symptom, root_cause). \
-   Update CLAUDE.md with any new rules, patterns, or pitfalls discovered. \
-   The test: would the system catch this automatically next time?"
-```
-
-#### Aliases for Compound Engineering
-
-```toml
-[ce-plan]
-prompt = "Research this codebase using parallel subagents: one for repo structure, one for framework docs, one for best practices, one for edge cases. Create a plan in docs/plans/ with checkboxes. Do NOT implement."
-model = "opus"
-context = ["CLAUDE.md", "docs/", "src/"]
-
-[ce-work]
-prompt = "Read the latest plan in docs/plans/. Pick the next unchecked task. Implement it. Run tests, build, lint. If passing, check it off, commit, and exit."
-model = "sonnet"
-context = ["CLAUDE.md", "docs/plans/", "src/"]
-count = 30
-
-[ce-review]
-prompt = "Review current branch changes. Spawn parallel subagents for security, performance, architecture, and code simplicity. Classify findings as P1/P2/P3 in todos/review.md. Fix all P1s before exiting."
-model = "opus"
-context = ["CLAUDE.md", "docs/solutions/", "src/"]
-
-[ce-compound]
-prompt = "Document what was learned this cycle. Write solution docs to docs/solutions/ with YAML frontmatter. Update CLAUDE.md with new patterns or rules. Test: would the system catch this next time?"
-model = "opus"
-context = ["CLAUDE.md", "docs/solutions/", "todos/"]
-```
-
-Then run each phase:
-
-```bash
-sauna ce-plan                # Phase 1: research and plan
-sauna ce-work                # Phase 2: build (30 iterations)
-sauna ce-review              # Phase 3: multi-angle review
-sauna ce-compound            # Phase 4: extract and compound learnings
-```
-
-Or chain the full cycle:
-
-```bash
-sauna ce-plan && sauna ce-work && sauna ce-review && sauna ce-compound
-```
-
-#### Key principles
-
-- **Each cycle compounds** — `CLAUDE.md` and `docs/solutions/` grow with every pass, so the agent starts each cycle with more knowledge
-- **Subagents do the parallel work** — sauna delivers the prompt; the agent spawns its own specialist subagents for research and review
-- **80/20 split** — plan and review consume most of the effort; implementation is the easy part
-- **Litmus test** — after compounding, ask: "would the system catch this automatically next time?"
-
----
-
 ### Ralph Wiggum
 
 The [Ralph Wiggum technique](https://ghuntley.com/ralph/) (created by Geoffrey Huntley) is an autonomous, loop-driven development methodology. Named after the persistently oblivious Simpsons character, the core idea is simple: feed an AI agent the same prompt file in a loop, letting it read its own prior work via git history and iteratively improve — one task per iteration, fresh context each time.
@@ -319,6 +208,117 @@ sauna ralph-build-infinite  # Phase 3: build until done
 - **Fresh context each loop** — `IMPLEMENTATION_PLAN.md` on disk serves as persistent memory between iterations
 - **Backpressure** — tests, builds, and lints act as validation gates; the agent must pass them before committing
 - **Start human-in-the-loop, go AFK later** — begin interactively to refine your prompts, then let it run autonomously once confident
+
+---
+
+### Compound Engineering
+
+[Compound engineering](https://every.to/guides/compound-engineering) (created by Every/Kieran Klaassen) is a four-phase development loop reminiscent of [Deming's PDSA cycle](https://deming.org/explore/pdsa/). The core idea: each unit of work should make the next one easier. Every cycle produces both a deliverable _and_ accumulated knowledge that the system consumes on the next pass.
+
+Sauna handles the loop orchestration and context injection. Claude Code's native subagent system handles the parallel specialist work within each phase.
+
+#### Phase 1 — Plan
+
+Research the codebase and produce a structured implementation plan. The prompt instructs the agent to spawn parallel research subagents internally.
+
+```bash
+sauna -m opus -c CLAUDE.md -c docs/ -c src/ \
+  "Research this codebase using parallel subagents: \
+   one for repo structure and patterns, \
+   one for framework documentation, \
+   one for best practices, \
+   one for user flow and edge cases. \
+   Synthesize findings into a plan at docs/plans/feat-<name>.md \
+   with checkboxes, affected files, and success criteria. \
+   Do NOT implement anything."
+```
+
+#### Phase 2 — Work
+
+Execute the plan one task at a time. Each iteration picks the next unchecked item, implements it, runs tests, checks off the task, and commits.
+
+```bash
+sauna -n 30 -m sonnet -c CLAUDE.md -c docs/plans/ -c src/ \
+  "Read the latest plan in docs/plans/. \
+   Pick the next unchecked task. Implement it. \
+   Run tests, build, and lint. \
+   If passing, mark the checkbox done, commit, and exit."
+```
+
+#### Phase 3 — Review
+
+Run a single review pass where the agent spawns parallel specialist subagents to examine the changes from multiple angles.
+
+```bash
+sauna -m opus -c CLAUDE.md -c docs/solutions/ -c src/ \
+  "Review the current branch changes. Spawn parallel subagents for: \
+   security (OWASP top 10, auth flaws), \
+   performance (N+1 queries, missing indexes, caching), \
+   architecture (structural concerns, pattern violations), \
+   and code simplicity (complexity, duplication). \
+   Classify each finding as P1 (must fix), P2 (should fix), or P3 (nice to fix). \
+   Write findings to todos/review.md. Fix all P1s before exiting."
+```
+
+#### Phase 4 — Compound
+
+Extract learnings and feed them back into the system so the next cycle starts smarter.
+
+```bash
+sauna -m opus -c CLAUDE.md -c docs/solutions/ -c todos/ \
+  "Review what was built, reviewed, and fixed this cycle. \
+   Document reusable patterns in docs/solutions/ with YAML frontmatter \
+   (title, category, tags, symptom, root_cause). \
+   Update CLAUDE.md with any new rules, patterns, or pitfalls discovered. \
+   The test: would the system catch this automatically next time?"
+```
+
+#### Aliases for Compound Engineering
+
+```toml
+[ce-plan]
+prompt = "Research this codebase using parallel subagents: one for repo structure, one for framework docs, one for best practices, one for edge cases. Create a plan in docs/plans/ with checkboxes. Do NOT implement."
+model = "opus"
+context = ["CLAUDE.md", "docs/", "src/"]
+
+[ce-work]
+prompt = "Read the latest plan in docs/plans/. Pick the next unchecked task. Implement it. Run tests, build, lint. If passing, check it off, commit, and exit."
+model = "sonnet"
+context = ["CLAUDE.md", "docs/plans/", "src/"]
+count = 30
+
+[ce-review]
+prompt = "Review current branch changes. Spawn parallel subagents for security, performance, architecture, and code simplicity. Classify findings as P1/P2/P3 in todos/review.md. Fix all P1s before exiting."
+model = "opus"
+context = ["CLAUDE.md", "docs/solutions/", "src/"]
+
+[ce-compound]
+prompt = "Document what was learned this cycle. Write solution docs to docs/solutions/ with YAML frontmatter. Update CLAUDE.md with new patterns or rules. Test: would the system catch this next time?"
+model = "opus"
+context = ["CLAUDE.md", "docs/solutions/", "todos/"]
+```
+
+Then run each phase:
+
+```bash
+sauna ce-plan                # Phase 1: research and plan
+sauna ce-work                # Phase 2: build (30 iterations)
+sauna ce-review              # Phase 3: multi-angle review
+sauna ce-compound            # Phase 4: extract and compound learnings
+```
+
+Or chain the full cycle:
+
+```bash
+sauna ce-plan && sauna ce-work && sauna ce-review && sauna ce-compound
+```
+
+#### Key principles
+
+- **Each cycle compounds** — `CLAUDE.md` and `docs/solutions/` grow with every pass, so the agent starts each cycle with more knowledge
+- **Subagents do the parallel work** — sauna delivers the prompt; the agent spawns its own specialist subagents for research and review
+- **80/20 split** — plan and review consume most of the effort; implementation is the easy part
+- **Litmus test** — after compounding, ask: "would the system catch this automatically next time?"
 
 ---
 
