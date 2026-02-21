@@ -121,6 +121,14 @@ sauna alias-list              # List all defined aliases
 | `forever`     | boolean  | no       | Run indefinitely                         |
 | `interactive` | boolean  | no       | Start interactive session                |
 
+## Permissions
+
+When using the Claude provider, sauna runs with **all permission prompts bypassed** (`permissionMode: "bypassPermissions"`). This means Claude Code will execute file writes, shell commands, and other tool calls without asking for confirmation.
+
+This is intentional — sauna is designed for automated and batch workflows where interactive prompts would block execution. If you need permission prompts, use `claude` directly.
+
+> **Note:** The Codex provider uses its own `full-auto` execution policy by default, which similarly skips confirmation prompts.
+
 ## CLI Reference
 
 ```
