@@ -1,7 +1,7 @@
 import { realpathSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { Provider, ProviderSessionConfig, ProviderEvent } from "../provider";
+import type { Provider, ProviderSessionConfig, ProviderEvent, InteractiveSessionConfig, InteractiveSession } from "../provider";
 import { buildPrompt } from "../prompt";
 import { redactSecrets, extractFirstLine } from "../stream";
 
@@ -112,6 +112,42 @@ export function adaptClaudeMessage(msg: any, state: ClaudeAdapterState): Provide
   return [];
 }
 
+/**
+ * Simple async message channel. Push user messages to feed the query;
+ * the query reads from the channel's async iterator on each turn.
+ * Moved here from interactive.ts — owned by the Claude provider.
+ */
+export function createMessageChannel() {
+  let resolve: ((msg: any) => void) | null = null;
+  const pending: any[] = [];
+
+  return {
+    push(msg: any) {
+      if (resolve) {
+        const r = resolve;
+        resolve = null;
+        r(msg);
+      } else {
+        pending.push(msg);
+      }
+    },
+    async *[Symbol.asyncIterator]() {
+      while (true) {
+        let msg;
+        if (pending.length > 0) {
+          msg = pending.shift();
+        } else {
+          msg = await new Promise<any>((r) => {
+            resolve = r;
+          });
+        }
+        if (msg === null) return;
+        yield msg;
+      }
+    },
+  };
+}
+
 const CLAUDE_ALIASES: Record<string, string> = {
   sonnet: "claude-sonnet-4-20250514",
   opus: "claude-opus-4-20250514",
@@ -179,5 +215,73 @@ export const ClaudeProvider: Provider = {
         yield event;
       }
     }
+  },
+
+  createInteractiveSession(config: InteractiveSessionConfig): InteractiveSession {
+    let claudePath: string;
+    try {
+      const which = execSync("which claude", { encoding: "utf-8" }).trim();
+      claudePath = realpathSync(which);
+    } catch {
+      throw new Error(
+        "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH"
+      );
+    }
+
+    const messages = createMessageChannel();
+    let isFirstSend = true;
+    let sessionId: string | undefined;
+
+    const q = query({
+      prompt: messages,
+      options: {
+        pathToClaudeCodeExecutable: claudePath,
+        systemPrompt: { type: "preset", preset: "claude_code" },
+        settingSources: ["user", "project"],
+        permissionMode: "bypassPermissions",
+        allowDangerouslySkipPermissions: true,
+        includePartialMessages: true,
+        ...(config.model ? { model: config.model } : {}),
+      },
+    });
+
+    return {
+      async send(message: string): Promise<void> {
+        const content = isFirstSend
+          ? buildPrompt(message, config.context)
+          : message;
+        isFirstSend = false;
+        messages.push({
+          type: "user",
+          message: { role: "user", content },
+          session_id: sessionId ?? "",
+          parent_tool_use_id: null,
+        });
+      },
+
+      async *stream(): AsyncGenerator<ProviderEvent> {
+        const state = createClaudeAdapterState();
+        // Must use manual q.next() instead of for-await-of. A for-await-of
+        // loop calls q.return() when exited via `return`, which permanently
+        // closes the query generator and breaks subsequent turns.
+        while (true) {
+          const { value: msg, done } = await q.next();
+          if (done) return;
+          if ("session_id" in msg && typeof msg.session_id === "string") {
+            sessionId = msg.session_id;
+          }
+          for (const event of adaptClaudeMessage(msg, state)) {
+            yield event;
+          }
+          if (msg.type === "result") {
+            return;
+          }
+        }
+      },
+
+      close(): void {
+        q.close();
+      },
+    };
   },
 };

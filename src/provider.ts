@@ -36,6 +36,31 @@ export type ProviderEvent =
   | { type: "result"; success: false; errors?: string[] }
   | { type: "error"; message: string };
 
+/** Configuration for a multi-turn interactive session. No prompt field — the first user message is passed via send(). */
+export type InteractiveSessionConfig = {
+  model?: string;
+  context: string[];
+};
+
+/**
+ * A stateful multi-turn session returned by Provider.createInteractiveSession().
+ *
+ * The REPL drives the turn loop:
+ *   await session.send(userInput);
+ *   for await (const event of session.stream()) { ... }
+ *
+ * stream() yields ProviderEvent objects for one turn and ends after the result event.
+ * close() releases any held resources.
+ */
+export type InteractiveSession = {
+  /** Queues a user message for the next turn. */
+  send(message: string): Promise<void>;
+  /** Yields ProviderEvent objects for the current turn; ends after a result event. */
+  stream(): AsyncGenerator<ProviderEvent>;
+  /** Releases resources held by the session. */
+  close(): void;
+};
+
 /** Contract that every AI provider must implement. */
 export type Provider = {
   /** Human-readable identifier (e.g., "claude", "codex"). */
@@ -48,4 +73,6 @@ export type Provider = {
   knownAliases(): Record<string, string>;
   /** Runs a single-turn session, yielding ProviderEvent objects. */
   createSession(config: ProviderSessionConfig): AsyncGenerator<ProviderEvent>;
+  /** Creates a stateful multi-turn interactive session. */
+  createInteractiveSession(config: InteractiveSessionConfig): InteractiveSession;
 };

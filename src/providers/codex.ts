@@ -1,5 +1,8 @@
 import { Codex } from "@openai/codex-sdk";
-import type { ProviderEvent, Provider, ProviderSessionConfig } from "../provider";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import type { ProviderEvent, Provider, ProviderSessionConfig, InteractiveSessionConfig, InteractiveSession } from "../provider";
 import { redactSecrets } from "../stream";
 import { buildPrompt } from "../prompt";
 
@@ -119,7 +122,13 @@ export const CodexProvider: Provider = {
   name: "codex",
 
   isAvailable(): boolean {
-    return !!(Bun.env.OPENAI_API_KEY || Bun.env.CODEX_API_KEY);
+    if (Bun.env.OPENAI_API_KEY || Bun.env.CODEX_API_KEY) return true;
+    try {
+      const codexHome = Bun.env.CODEX_HOME ?? join(homedir(), ".codex");
+      return existsSync(join(codexHome, "auth.json"));
+    } catch {
+      return false;
+    }
   },
 
   resolveModel(alias?: string): string | undefined {
@@ -134,7 +143,7 @@ export const CodexProvider: Provider = {
   async *createSession(config: ProviderSessionConfig): AsyncGenerator<ProviderEvent> {
     if (!this.isAvailable()) {
       throw new Error(
-        "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY to use the Codex provider"
+        "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY, or run `codex login` to authenticate"
       );
     }
 
@@ -161,5 +170,53 @@ export const CodexProvider: Provider = {
         yield providerEvent;
       }
     }
+  },
+
+  createInteractiveSession(config: InteractiveSessionConfig): InteractiveSession {
+    if (!this.isAvailable()) {
+      throw new Error(
+        "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY, or run `codex login` to authenticate"
+      );
+    }
+
+    const codex = new Codex();
+    const thread = codex.startThread({
+      workingDirectory: process.cwd(),
+      sandboxMode: "workspace-write",
+      ...(config.model ? { model: config.model } : {}),
+    });
+
+    let isFirstSend = true;
+    let pendingMessage: string | null = null;
+
+    return {
+      async send(message: string): Promise<void> {
+        if (isFirstSend) {
+          pendingMessage = buildPrompt(message, config.context);
+          isFirstSend = false;
+        } else {
+          pendingMessage = message;
+        }
+      },
+
+      async *stream(): AsyncGenerator<ProviderEvent> {
+        if (pendingMessage === null) return;
+        const startMs = Date.now();
+        const msg = pendingMessage;
+        pendingMessage = null;
+
+        const { events } = await thread.runStreamed(msg);
+        for await (const sdkEvent of events) {
+          const durationMs = Date.now() - startMs;
+          for (const providerEvent of adaptCodexEvent(sdkEvent as unknown as ThreadEvent, durationMs)) {
+            yield providerEvent;
+          }
+        }
+      },
+
+      close(): void {
+        // no-op — Codex CLI process exits after each turn
+      },
+    };
   },
 };

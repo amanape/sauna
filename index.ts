@@ -1,5 +1,3 @@
-import { realpathSync } from "node:fs";
-import { execSync } from "node:child_process";
 import { cli, command } from "cleye";
 import { runLoop } from "./src/loop";
 import { runInteractive } from "./src/interactive";
@@ -146,12 +144,6 @@ try {
   process.exit(1);
 }
 
-// Codex does not yet support interactive mode
-if (provider.name === "codex" && interactive) {
-  process.stderr.write("error: interactive mode is not yet supported for Codex\n");
-  process.exit(1);
-}
-
 // Resolve model alias via the selected provider
 const model = provider.resolveModel(argv.flags.model);
 
@@ -167,7 +159,7 @@ if (process.env.SAUNA_DRY_RUN === "1") {
 if (!provider.isAvailable()) {
   const msg = provider.name === "claude"
     ? "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH"
-    : "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY environment variable";
+    : "Codex is not available — set OPENAI_API_KEY or CODEX_API_KEY, or run `codex login` to authenticate";
   process.stderr.write(`error: ${msg}\n`);
   process.exit(1);
 }
@@ -177,17 +169,7 @@ try {
   const errWrite = (s: string) => process.stderr.write(s);
 
   if (interactive) {
-    // Interactive mode is Claude-only until interactive support is extended to other providers.
-    // Resolve the claude executable path directly (ClaudeProvider.isAvailable() already confirmed it exists).
-    let claudePath: string;
-    try {
-      const which = execSync("which claude", { encoding: "utf-8" }).trim();
-      claudePath = realpathSync(which);
-    } catch {
-      process.stderr.write("error: claude not found on $PATH — install Claude Code and ensure `claude` is in your PATH\n");
-      process.exit(1);
-    }
-    await runInteractive({ prompt, model, context, claudePath }, write, undefined, errWrite);
+    await runInteractive({ prompt, model, context, provider }, write, undefined, errWrite);
   } else {
     // Wire SIGINT/SIGTERM to an AbortController so loop modes can stop between iterations
     const abort = new AbortController();

@@ -342,7 +342,7 @@ describe('P1: CLI parsing', () => {
       expect(parsed).toHaveProperty('provider');
     });
 
-    test('--provider codex --interactive prints error and exits non-zero', async () => {
+    test('--provider codex --interactive succeeds in dry-run', async () => {
       const proc = Bun.spawn(
         ['bun', 'index.ts', '--provider', 'codex', '--interactive'],
         {
@@ -352,11 +352,12 @@ describe('P1: CLI parsing', () => {
           env: { ...process.env, SAUNA_DRY_RUN: '1' },
         },
       );
-      const stderr = await new Response(proc.stderr).text();
+      const stdout = await new Response(proc.stdout).text();
       const exitCode = await proc.exited;
-      expect(exitCode).not.toBe(0);
-      expect(stderr.toLowerCase()).toContain('interactive');
-      expect(stderr.toLowerCase()).toContain('codex');
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.provider).toBe('codex');
+      expect(parsed.interactive).toBe(true);
     });
 
     test('--provider invalidname prints error and exits non-zero', async () => {

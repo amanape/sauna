@@ -16,6 +16,8 @@ import type {
   ProviderSessionConfig,
   ProviderEvent,
   SummaryInfo,
+  InteractiveSessionConfig,
+  InteractiveSession,
 } from "../src/provider";
 
 describe("ProviderEvent discriminated union", () => {
@@ -173,6 +175,9 @@ describe("Provider interface", () => {
           },
         };
       },
+      createInteractiveSession: (_config: InteractiveSessionConfig): InteractiveSession => {
+        throw new Error("not implemented");
+      },
     };
 
     expect(mock.name).toBe("test");
@@ -200,6 +205,9 @@ describe("Provider interface", () => {
           },
         };
       },
+      createInteractiveSession: (_config: InteractiveSessionConfig): InteractiveSession => {
+        throw new Error("not implemented");
+      },
     };
 
     const events: ProviderEvent[] = [];
@@ -212,5 +220,95 @@ describe("Provider interface", () => {
     expect(events).toHaveLength(2);
     expect(events[0]!.type).toBe("text_delta");
     expect(events[1]!.type).toBe("result");
+  });
+});
+
+describe("InteractiveSessionConfig", () => {
+  test("has optional model and required context, no prompt field", () => {
+    const withModel: InteractiveSessionConfig = {
+      model: "sonnet",
+      context: ["src/index.ts"],
+    };
+    expect(withModel.model).toBe("sonnet");
+    expect(withModel.context).toEqual(["src/index.ts"]);
+
+    const withoutModel: InteractiveSessionConfig = { context: [] };
+    expect(withoutModel.model).toBeUndefined();
+    expect(withoutModel.context).toEqual([]);
+  });
+});
+
+describe("InteractiveSession", () => {
+  test("mock session has send, stream, and close methods", async () => {
+    const session: InteractiveSession = {
+      send: async (_message: string) => {},
+      stream: async function* () {
+        yield { type: "text_delta" as const, text: "hi" };
+        yield {
+          type: "result" as const,
+          success: true,
+          summary: { inputTokens: 1, outputTokens: 1, numTurns: 1, durationMs: 10 },
+        };
+      },
+      close: () => {},
+    };
+
+    expect(typeof session.send).toBe("function");
+    expect(typeof session.stream).toBe("function");
+    expect(typeof session.close).toBe("function");
+  });
+
+  test("stream yields ProviderEvent objects and ends after result", async () => {
+    const session: InteractiveSession = {
+      send: async (_message: string) => {},
+      stream: async function* () {
+        yield { type: "text_delta" as const, text: "response" };
+        yield {
+          type: "result" as const,
+          success: true,
+          summary: { inputTokens: 5, outputTokens: 3, numTurns: 1, durationMs: 50 },
+        };
+      },
+      close: () => {},
+    };
+
+    const events: ProviderEvent[] = [];
+    for await (const event of session.stream()) {
+      events.push(event);
+    }
+    expect(events).toHaveLength(2);
+    expect(events[0]!.type).toBe("text_delta");
+    expect(events[1]!.type).toBe("result");
+  });
+});
+
+describe("Provider interface with createInteractiveSession", () => {
+  test("mock provider can implement createInteractiveSession returning InteractiveSession", () => {
+    const mockSession: InteractiveSession = {
+      send: async (_message: string) => {},
+      stream: async function* () {},
+      close: () => {},
+    };
+
+    const mock: Provider = {
+      name: "test",
+      isAvailable: () => true,
+      resolveModel: (alias?: string) => alias,
+      knownAliases: () => ({}),
+      createSession: async function* (_config: ProviderSessionConfig) {},
+      createInteractiveSession: (_config: InteractiveSessionConfig): InteractiveSession => mockSession,
+    };
+
+    const session = mock.createInteractiveSession({ context: ["src/foo.ts"] });
+    expect(typeof session.send).toBe("function");
+    expect(typeof session.stream).toBe("function");
+    expect(typeof session.close).toBe("function");
+  });
+
+  test("createInteractiveSession config has no prompt field", () => {
+    const config: InteractiveSessionConfig = { model: "opus", context: [] };
+    // InteractiveSessionConfig has no `prompt` — messages are sent via send()
+    expect("prompt" in config).toBe(false);
+    expect(config.model).toBe("opus");
   });
 });
