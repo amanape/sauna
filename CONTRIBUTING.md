@@ -47,6 +47,7 @@ bun run build:all
 ## Reporting bugs
 
 Open an issue with:
+
 - What you expected to happen
 - What actually happened
 - Steps to reproduce
