@@ -200,7 +200,7 @@ try {
       const ok = await runLoop(
         { forever, count },
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- TODO: TypeScript doesn't narrow prompt to string through the &&-exit guard above
-      () => provider.createSession({ prompt: prompt!, model, context }),
+        () => provider.createSession({ prompt: prompt!, model, context }),
         write,
         abort.signal,
         errWrite,
