@@ -3,3 +3,9 @@
 prompt = ".sauna/prompts/plan.md"
 context = [".sauna/specs", ".sauna/tasks.md"]
 model = "claude-opus-4-6"
+
+
+[build]
+prompt = ".sauna/prompts/build.md"
+context = [".sauna/specs", ".sauna/tasks.md"]
+model = "claude-sonnet-4-6"
