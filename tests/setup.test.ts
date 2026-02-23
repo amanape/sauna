@@ -1,6 +1,9 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test";
 import { rmSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
+import { isWindows } from "./platform";
+
+const BINARY = isWindows ? "./sauna.exe" : "./sauna";
 
 describe("P0: package setup", () => {
   test("package.json has bin field pointing to index.ts", async () => {
@@ -58,12 +61,12 @@ describe("P5: binary compilation", () => {
   });
 
   test("bun run build produces a sauna binary", async () => {
-    const file = Bun.file("./sauna");
+    const file = Bun.file(BINARY);
     expect(await file.exists()).toBe(true);
   });
 
   test("sauna with no args prints help and exits non-zero", async () => {
-    const proc = Bun.spawn(["./sauna"], {
+    const proc = Bun.spawn([BINARY], {
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -79,7 +82,7 @@ describe("P5: binary compilation", () => {
     const pkg = await Bun.file("package.json").json();
     const tmpDir = await import("node:os").then((os) => os.tmpdir());
     const binaryPath = await import("node:path").then((path) =>
-      path.resolve("./sauna"),
+      path.resolve(BINARY),
     );
 
     // Run the binary from a temp directory — no package.json nearby
@@ -128,26 +131,31 @@ describe("P1: cross-platform compilation", () => {
     expect(script).toContain("dist/");
   });
 
-  // Cross-compiling five targets is slow — allow up to 60 seconds
-  test("build:all produces all expected binaries", async () => {
-    // Clean dist/ before building
-    rmSync("dist", { recursive: true, force: true });
+  // Cross-compiling five targets is slow — allow up to 60 seconds.
+  // Skip on Windows: Bun can't extract darwin/linux executables on Windows.
+  test.skipIf(isWindows)(
+    "build:all produces all expected binaries",
+    async () => {
+      // Clean dist/ before building
+      rmSync("dist", { recursive: true, force: true });
 
-    const proc = Bun.spawn(["bun", "run", "build:all"], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    await proc.exited;
-    if (proc.exitCode !== 0) {
-      const stderr = await new Response(proc.stderr).text();
-      throw new Error(`bun run build:all failed: ${stderr}`);
-    }
+      const proc = Bun.spawn(["bun", "run", "build:all"], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      await proc.exited;
+      if (proc.exitCode !== 0) {
+        const stderr = await new Response(proc.stderr).text();
+        throw new Error(`bun run build:all failed: ${stderr}`);
+      }
 
-    for (const binary of expectedBinaries) {
-      const file = Bun.file(binary);
-      expect(await file.exists()).toBe(true);
-    }
-  }, 60_000);
+      for (const binary of expectedBinaries) {
+        const file = Bun.file(binary);
+        expect(await file.exists()).toBe(true);
+      }
+    },
+    60_000,
+  );
 
   test("existing build script is unchanged", async () => {
     const pkg = await Bun.file("package.json").json();

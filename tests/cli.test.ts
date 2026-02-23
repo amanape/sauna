@@ -1,6 +1,7 @@
 import { test, expect, describe, beforeEach, afterEach } from "bun:test";
 import { resolve } from "node:path";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { safeEnv, minimalPath } from "./platform";
 
 const ROOT = resolve(import.meta.dir, "..");
 
@@ -201,9 +202,7 @@ describe("P1: CLI parsing", () => {
         stdout: "pipe",
         stderr: "pipe",
         // PATH has bun but no claude
-        env: {
-          PATH: `${process.execPath.replace(/\/bun$/, "")}:/usr/bin:/bin`,
-        },
+        env: safeEnv({ PATH: minimalPath() }),
       });
       const stderr = await new Response(proc.stderr).text();
       const stdout = await new Response(proc.stdout).text();
