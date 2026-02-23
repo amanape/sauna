@@ -41,6 +41,15 @@
 - Replaced `"workflow runs tests"` (no such step in the new workflow or its spec) with `"build-and-publish job is gated on release_created output"`.
 - Root cause: tests were not updated when the release workflow was rewritten. Keep release workflow tests in sync with actual job names and trigger structure.
 
+## pre-commit hooks (2026-02-23)
+
+- `lint-staged@16.2.7` installed as devDependency; invoked by the `pre-commit` git hook so only staged files are linted/formatted on each commit.
+- `lint-staged` config lives directly in `package.json` under the `"lint-staged"` key (no separate `.lintstagedrc` needed).
+- `*.{ts,mts}` pattern runs `eslint --fix` then `prettier --write` in sequence — ESLint first so prettier sees already-fixed code.
+- `*.{json,md,yml,yaml,mjs}` pattern runs `prettier --write` only (no lint step for non-TS files).
+- `simple-git-hooks.pre-commit` set to `bunx lint-staged`; `commit-msg` hook preserved unchanged. Both hooks are managed by the single `bunx simple-git-hooks` command (run automatically via the `prepare` script on `bun install`).
+- Tests in `tests/pre-commit-hook.test.ts` verify the `package.json` config shape and the presence/content of `.git/hooks/pre-commit` and `.git/hooks/commit-msg` — no subprocess required since everything is static config.
+
 ## commit-msg-hook (2026-02-23)
 
 - `simple-git-hooks@2.13.1` installed as devDependency; activates via `prepare` script (`bunx simple-git-hooks`) which runs automatically on `bun install`.

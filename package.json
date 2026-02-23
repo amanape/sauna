@@ -54,6 +54,7 @@
     "@types/bun": "latest",
     "eslint": "^10.0.1",
     "eslint-config-prettier": "^10.1.8",
+    "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
     "simple-git-hooks": "^2.13.1",
     "typescript-eslint": "^8.56.0",
@@ -63,7 +64,17 @@
     "typescript": "^5"
   },
   "simple-git-hooks": {
+    "pre-commit": "bunx lint-staged",
     "commit-msg": "bunx commitlint --edit $1"
+  },
+  "lint-staged": {
+    "*.{ts,mts}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,mjs}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.42",
