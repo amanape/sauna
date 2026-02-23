@@ -10,7 +10,10 @@ describe("lint-staged-dependency", () => {
   });
 
   test("lint-staged binary exists in node_modules/.bin", async () => {
-    const bin = Bun.file(join(PROJECT_ROOT, "node_modules/.bin/lint-staged"));
+    const ext = process.platform === "win32" ? ".cmd" : "";
+    const bin = Bun.file(
+      join(PROJECT_ROOT, `node_modules/.bin/lint-staged${ext}`),
+    );
     expect(await bin.exists()).toBe(true);
   });
 });
