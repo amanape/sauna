@@ -29,9 +29,11 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
 
 // Stub execSync so createSession() resolves a "claude" path without needing a real install.
 // process.execPath points to the Bun binary — it exists on disk, so realpathSync won't throw.
+// Handle both `which claude` (Unix) and `where claude` (Windows).
 mock.module("node:child_process", () => ({
   execSync: (cmd: string) => {
-    if (cmd === "which claude") return process.execPath + "\n";
+    if (cmd === "which claude" || cmd === "where claude")
+      return process.execPath + "\n";
     return "";
   },
 }));

@@ -202,7 +202,7 @@ const CLAUDE_ALIASES: Record<string, string> = {
 function findClaudeBinary(): string {
   const cmd = process.platform === "win32" ? "where claude" : "which claude";
   const raw = execSync(cmd, { encoding: "utf-8" }).trim();
-  const first = raw.split(/\r?\n/)[0];
+  const first = raw.split(/\r?\n/)[0] ?? raw;
   return realpathSync(first);
 }
 
