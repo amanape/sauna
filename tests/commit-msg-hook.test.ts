@@ -9,9 +9,7 @@ const COMMITLINT_BIN = join(PROJECT_ROOT, "node_modules/.bin/commitlint");
 describe("commit-msg-hook", () => {
   test("simple-git-hooks is in devDependencies", async () => {
     const pkg = await import("../package.json");
-    expect(Object.keys(pkg.devDependencies)).toContain(
-      "simple-git-hooks",
-    );
+    expect(Object.keys(pkg.devDependencies)).toContain("simple-git-hooks");
   });
 
   test("package.json has simple-git-hooks.commit-msg set to 'bunx commitlint --edit $1'", async () => {
