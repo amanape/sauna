@@ -9,12 +9,8 @@ describe("lint-staged-dependency", () => {
     expect(Object.keys(pkg.devDependencies ?? {})).toContain("lint-staged");
   });
 
-  test("lint-staged binary exists in node_modules/.bin", async () => {
-    const ext = process.platform === "win32" ? ".cmd" : "";
-    const bin = Bun.file(
-      join(PROJECT_ROOT, `node_modules/.bin/lint-staged${ext}`),
-    );
-    expect(await bin.exists()).toBe(true);
+  test("lint-staged is resolvable", () => {
+    expect(() => require.resolve("lint-staged")).not.toThrow();
   });
 });
 
