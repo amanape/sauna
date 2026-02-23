@@ -5,7 +5,7 @@ import { parse as parseYaml } from "yaml";
 describe("P0: package setup", () => {
   test("package.json has bin field pointing to index.ts", async () => {
     const pkg = await Bun.file("package.json").json();
-    expect(pkg.bin).toBe("./sauna");
+    expect(pkg.bin).toEqual({ sauna: "./index.ts" });
   });
 
   test("package.json has build script with bun build --compile", async () => {
@@ -171,14 +171,14 @@ describe("P2: automated releases", () => {
     expect(await Bun.file(workflowPath).exists()).toBe(true);
   });
 
-  test("workflow triggers on v* tags", () => {
-    const tags = workflow.on?.push?.tags;
-    expect(tags).toBeDefined();
-    expect(tags).toContainEqual("v*");
+  test("workflow triggers on push to main branch", () => {
+    const branches = workflow.on?.push?.branches;
+    expect(branches).toBeDefined();
+    expect(branches).toContainEqual("main");
   });
 
   test("workflow installs Bun", () => {
-    const steps = workflow.jobs?.release?.steps;
+    const steps = workflow.jobs?.["build-and-publish"]?.steps;
     expect(steps).toBeDefined();
     const bunStep = steps.find(
       (s: any) =>
@@ -188,23 +188,21 @@ describe("P2: automated releases", () => {
   });
 
   test("workflow installs dependencies", () => {
-    const steps = workflow.jobs?.release?.steps;
+    const steps = workflow.jobs?.["build-and-publish"]?.steps;
     const installStep = steps.find(
       (s: any) => typeof s.run === "string" && s.run.includes("bun install"),
     );
     expect(installStep).toBeDefined();
   });
 
-  test("workflow runs tests", () => {
-    const steps = workflow.jobs?.release?.steps;
-    const testStep = steps.find(
-      (s: any) => typeof s.run === "string" && s.run.includes("bun test"),
-    );
-    expect(testStep).toBeDefined();
+  test("build-and-publish job is gated on release_created output", () => {
+    const job = workflow.jobs?.["build-and-publish"];
+    expect(job).toBeDefined();
+    expect(job.if).toContain("release_created");
   });
 
   test("workflow runs build:all to produce binaries", () => {
-    const steps = workflow.jobs?.release?.steps;
+    const steps = workflow.jobs?.["build-and-publish"]?.steps;
     const buildStep = steps.find(
       (s: any) => typeof s.run === "string" && s.run.includes("build:all"),
     );
@@ -212,7 +210,7 @@ describe("P2: automated releases", () => {
   });
 
   test("workflow creates a GitHub Release with binaries attached", () => {
-    const steps = workflow.jobs?.release?.steps;
+    const steps = workflow.jobs?.["build-and-publish"]?.steps;
     const releaseStep = steps.find(
       (s: any) =>
         typeof s.uses === "string" &&
