@@ -1,11 +1,14 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test";
 import { rmSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
+import { isWindows } from "./platform";
+
+const BINARY = isWindows ? "./sauna.exe" : "./sauna";
 
 describe("P0: package setup", () => {
   test("package.json has bin field pointing to index.ts", async () => {
     const pkg = await Bun.file("package.json").json();
-    expect(pkg.bin).toBe("./sauna");
+    expect(pkg.bin).toEqual({ sauna: "./index.ts" });
   });
 
   test("package.json has build script with bun build --compile", async () => {
@@ -58,12 +61,12 @@ describe("P5: binary compilation", () => {
   });
 
   test("bun run build produces a sauna binary", async () => {
-    const file = Bun.file("./sauna");
+    const file = Bun.file(BINARY);
     expect(await file.exists()).toBe(true);
   });
 
   test("sauna with no args prints help and exits non-zero", async () => {
-    const proc = Bun.spawn(["./sauna"], {
+    const proc = Bun.spawn([BINARY], {
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -79,7 +82,7 @@ describe("P5: binary compilation", () => {
     const pkg = await Bun.file("package.json").json();
     const tmpDir = await import("node:os").then((os) => os.tmpdir());
     const binaryPath = await import("node:path").then((path) =>
-      path.resolve("./sauna"),
+      path.resolve(BINARY),
     );
 
     // Run the binary from a temp directory — no package.json nearby
@@ -128,26 +131,31 @@ describe("P1: cross-platform compilation", () => {
     expect(script).toContain("dist/");
   });
 
-  // Cross-compiling five targets is slow — allow up to 60 seconds
-  test("build:all produces all expected binaries", async () => {
-    // Clean dist/ before building
-    rmSync("dist", { recursive: true, force: true });
+  // Cross-compiling five targets is slow — allow up to 60 seconds.
+  // Skip on Windows: Bun can't extract darwin/linux executables on Windows.
+  test.skipIf(isWindows)(
+    "build:all produces all expected binaries",
+    async () => {
+      // Clean dist/ before building
+      rmSync("dist", { recursive: true, force: true });
 
-    const proc = Bun.spawn(["bun", "run", "build:all"], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    await proc.exited;
-    if (proc.exitCode !== 0) {
-      const stderr = await new Response(proc.stderr).text();
-      throw new Error(`bun run build:all failed: ${stderr}`);
-    }
+      const proc = Bun.spawn(["bun", "run", "build:all"], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      await proc.exited;
+      if (proc.exitCode !== 0) {
+        const stderr = await new Response(proc.stderr).text();
+        throw new Error(`bun run build:all failed: ${stderr}`);
+      }
 
-    for (const binary of expectedBinaries) {
-      const file = Bun.file(binary);
-      expect(await file.exists()).toBe(true);
-    }
-  }, 60_000);
+      for (const binary of expectedBinaries) {
+        const file = Bun.file(binary);
+        expect(await file.exists()).toBe(true);
+      }
+    },
+    60_000,
+  );
 
   test("existing build script is unchanged", async () => {
     const pkg = await Bun.file("package.json").json();
@@ -171,14 +179,14 @@ describe("P2: automated releases", () => {
     expect(await Bun.file(workflowPath).exists()).toBe(true);
   });
 
-  test("workflow triggers on v* tags", () => {
-    const tags = workflow.on?.push?.tags;
-    expect(tags).toBeDefined();
-    expect(tags).toContainEqual("v*");
+  test("workflow triggers on push to main branch", () => {
+    const branches = workflow.on?.push?.branches;
+    expect(branches).toBeDefined();
+    expect(branches).toContainEqual("main");
   });
 
   test("workflow installs Bun", () => {
-    const steps = workflow.jobs?.release?.steps;
+    const steps = workflow.jobs?.["build-and-publish"]?.steps;
     expect(steps).toBeDefined();
     const bunStep = steps.find(
       (s: any) =>
@@ -188,23 +196,21 @@ describe("P2: automated releases", () => {
   });
 
   test("workflow installs dependencies", () => {
-    const steps = workflow.jobs?.release?.steps;
+    const steps = workflow.jobs?.["build-and-publish"]?.steps;
     const installStep = steps.find(
       (s: any) => typeof s.run === "string" && s.run.includes("bun install"),
     );
     expect(installStep).toBeDefined();
   });
 
-  test("workflow runs tests", () => {
-    const steps = workflow.jobs?.release?.steps;
-    const testStep = steps.find(
-      (s: any) => typeof s.run === "string" && s.run.includes("bun test"),
-    );
-    expect(testStep).toBeDefined();
+  test("build-and-publish job is gated on release_created output", () => {
+    const job = workflow.jobs?.["build-and-publish"];
+    expect(job).toBeDefined();
+    expect(job.if).toContain("release_created");
   });
 
   test("workflow runs build:all to produce binaries", () => {
-    const steps = workflow.jobs?.release?.steps;
+    const steps = workflow.jobs?.["build-and-publish"]?.steps;
     const buildStep = steps.find(
       (s: any) => typeof s.run === "string" && s.run.includes("build:all"),
     );
@@ -212,7 +218,7 @@ describe("P2: automated releases", () => {
   });
 
   test("workflow creates a GitHub Release with binaries attached", () => {
-    const steps = workflow.jobs?.release?.steps;
+    const steps = workflow.jobs?.["build-and-publish"]?.steps;
     const releaseStep = steps.find(
       (s: any) =>
         typeof s.uses === "string" &&

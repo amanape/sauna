@@ -1,45 +1,49 @@
-# Notes — SAU-85: Extend CI (ESLint + Prettier)
+# Notes
 
-## Why these linting choices were made
+## ci-pipeline (2026-02-23)
 
-### `strictTypeChecked` + `stylisticTypeChecked`
-We chose the strictest typescript-eslint presets because the codebase is fully typed. Weaker presets would miss real bugs in the SDK adapter code. The upfront remediation cost was acceptable given the long-term safety benefit.
+- Replaced single `check` job with four jobs: `lint`, `typecheck`, `test`, `build`.
+- `test` uses an OS matrix (`ubuntu-latest`, `macos-latest`, `windows-latest`) because we ship binaries for all three platforms.
+- `build` is a gate-only check — artifacts are not uploaded here (that happens in the release workflow).
+- `bun install --frozen-lockfile` is required in all jobs to ensure reproducible installs in CI.
+- Concurrency group `ci-${{ github.ref }}` cancels stale in-progress runs when a new push arrives on the same branch/PR.
 
-### `eslint-config-prettier` last
-Prettier and typescript-eslint share overlapping formatting rules (e.g., `@typescript-eslint/no-extra-semi`). Placing `prettierConfig` last disables all ESLint rules that could conflict with Prettier's output, preventing double-formatting fights in CI.
+## npm-package-config (2026-02-23)
 
-### `consistent-type-definitions` disabled globally
-The codebase uses `type` aliases uniformly for object shapes (e.g., `type ProviderEvent = ...`). Enabling this rule would force a mass rename to `interface` with no correctness benefit and high diff noise.
+- `package.json` `bin` changed from a string (`"./sauna"`) to an object (`{ "sauna": "./index.ts" }`). This is required for npm to install the binary correctly for scoped packages.
+- `files` array controls what gets published to npm — only `src/`, `index.ts`, `README.md`, and `LICENSE` are included (keeps the package lean).
+- `engines.bun` is informational for consumers but is enforced by `npm install` on newer npm versions.
+- `publishConfig.access: "public"` is required for any scoped (`@org/pkg`) package on the public npm registry — without it, publish defaults to private and fails.
+- `prepublishOnly` runs `bun test && bun run lint` before every `npm publish`, acting as a local safety gate before the CI-enforced release.
 
-### Test override block instead of inline `eslint-disable`
-Mock objects and stub providers in `tests/` routinely trigger `no-unsafe-*` and `no-explicit-any`. Rather than scatter `eslint-disable` comments through every test file, a single `files: ["tests/**/*.ts"]` override block disables the noisy rules cleanly. Source files in `src/` remain at full strictness.
+## commitlint-ci (2026-02-23)
 
-### `send()` returns `Promise<void>` without `async`
-`InteractiveSession.send()` must return `Promise<void>`. Implementing it as `async` triggers `require-await` because the body has no `await`. Solution: non-async method body returning `Promise.resolve()` satisfies both the interface and the linter.
+- Created `.github/workflows/commitlint.yml` triggered on `pull_request` to `main`.
+- `fetch-depth: 0` is required so the full commit history is available for `--from base.sha`.
+- Lints range `base.sha..head.sha` using `bunx commitlint` — catches every commit in a PR, not just the PR title.
+- `--verbose` surfaces which rule each commit violated, making failure messages actionable.
 
-### Block `eslint-disable` in `src/providers/claude.ts`
-The Claude Agent SDK returns untyped `any` from `adaptClaudeMessage` and `createMessageChannel`. A block disable (not line-level) is used with a `TODO` comment to surface these when the SDK ships proper types.
+## release-please + release-publish (2026-02-23)
 
-## Patterns discovered during remediation
+- Rewrote `.github/workflows/release.yml` from a tag-triggered `softprops/action-gh-release` workflow into a two-job release-please pipeline.
+- Trigger changed from `push: tags: v*` to `push: branches: main` — release-please drives tags, not the engineer.
+- `release-please` job uses `googleapis/release-please-action@v4` with `release-type: node`; promotes `release_created` and `tag_name` step outputs to job-level so the downstream job can reference them via `needs.release-please.outputs`.
+- `build-and-publish` job is gated on `needs.release-please.outputs.release_created`; checks out the release tag ref so binaries are built from the exact tagged commit.
+- `sha256sum * > checksums.txt` (run inside `dist/`) produces a single `checksums.txt` alongside the binaries; all are uploaded together via `softprops/action-gh-release@v2`.
+- `npm publish --provenance --access public` requires `id-token: write` (set at workflow level) for SLSA provenance and `--access public` because `@amanape/sauna` is a scoped package.
+- `NPM_TOKEN` must be added as a GitHub repository secret manually — outside the scope of this workflow file.
 
-- `while (true)` → needs `// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition`
-- Numbers in template literals → `String(n)` to satisfy `restrict-template-expressions`
-- Non-null assertions on `Object.keys()` results → inline disable with explanation comment
-- Signal handler `args` → type as `unknown[]` instead of `any[]`
+## test-sync for release-please (2026-02-23)
 
-## CI workflow structure
+- `setup.test.ts` "P2: automated releases" block had 6 stale tests written for the old tag-triggered, single-`release`-job workflow.
+- After `release-please` rewrite: trigger is `push.branches: [main]`, jobs are `release-please` and `build-and-publish`.
+- Updated tests: trigger assertion checks `workflow.on.push.branches`; step lookups use `workflow.jobs["build-and-publish"].steps`.
+- Replaced `"workflow runs tests"` (no such step in the new workflow or its spec) with `"build-and-publish job is gated on release_created output"`.
+- Root cause: tests were not updated when the release workflow was rewritten. Keep release workflow tests in sync with actual job names and trigger structure.
 
-Two workflows are intentionally separate:
-- `release.yml` — triggered on tag push (`v*`), builds cross-platform binaries, creates GitHub Release. Does not need lint/format gates since those are enforced on the PR that lands the tag commit.
-- `ci.yml` — triggered on push/PR to `main`, runs `format:check → lint → test`. Fast feedback loop; no binary builds.
+## commit-msg-hook (2026-02-23)
 
-Step order in `ci.yml` is intentional: formatting is cheapest to check, lint is next, tests are slowest. Fast-fail on cheaper checks first.
-
-### `?? []` on array flags is unnecessary with cleye
-cleye types `type: [String]` flags as `string[]` (defaults to `[]`), never `undefined`. Using `?? []` triggers `no-unnecessary-condition`. Fix: remove the `?? []`.
-
-### Non-null assertion after `&&`-exit guard
-TypeScript doesn't narrow `prompt` to `string` inside a nested else block when the guard is `if (!prompt && !interactive) { process.exit(1) }`. The non-null assertion (`!`) is needed but forbidden by `no-non-null-assertion`. Fix: inline `eslint-disable-next-line` with a TODO, consistent with the project's disable-comment pattern.
-
-## Test count baseline
-280 tests across 15 files. Any new test addition should be verified by first making the assertion fail, then reverting.
+- `simple-git-hooks@2.13.1` installed as devDependency; activates via `prepare` script (`bunx simple-git-hooks`) which runs automatically on `bun install`.
+- `simple-git-hooks.commit-msg` in `package.json` runs `bunx commitlint --edit $1` — prevents non-conventional commit messages before they reach CI.
+- The `simple-git-hooks` config block must sit at the top level of `package.json` (not inside `devDependencies`); `bunx simple-git-hooks` reads it and writes `.git/hooks/commit-msg`.
+- Fixed a pre-existing regression: `tests/setup.test.ts` was checking `pkg.bin === "./sauna"` (old string format) but the `npm-package-config` task had changed `bin` to `{ "sauna": "./index.ts" }`. Updated the assertion to `toEqual({ sauna: "./index.ts" })`.

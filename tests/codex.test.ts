@@ -18,14 +18,12 @@
  * - createSession() throwing with a clear error when the key is missing
  *   ensures users get actionable feedback instead of an SDK crash.
  */
-import { test, expect, describe, afterAll } from "bun:test";
-import { resolve, join } from "node:path";
+import { test, expect, describe } from "bun:test";
+import { join } from "node:path";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { CodexProvider } from "../src/providers/codex";
-
-const ROOT = resolve(import.meta.dir, "..");
-const BUN = process.execPath;
+import { ROOT, BUN, isWindows, safeEnv, minimalPath } from "./platform";
 
 describe("CodexProvider", () => {
   describe("name", () => {
@@ -44,7 +42,7 @@ describe("CodexProvider", () => {
         cwd: ROOT,
         stdout: "pipe",
         stderr: "pipe",
-        env: { OPENAI_API_KEY: "sk-test-key-123" },
+        env: safeEnv({ OPENAI_API_KEY: "sk-test-key-123" }),
       });
       const stdout = await new Response(proc.stdout).text();
       await proc.exited;
@@ -60,7 +58,7 @@ describe("CodexProvider", () => {
         cwd: ROOT,
         stdout: "pipe",
         stderr: "pipe",
-        env: { CODEX_API_KEY: "cdx-test-key-456" },
+        env: safeEnv({ CODEX_API_KEY: "cdx-test-key-456" }),
       });
       const stdout = await new Response(proc.stdout).text();
       await proc.exited;
@@ -80,7 +78,7 @@ describe("CodexProvider", () => {
           cwd: ROOT,
           stdout: "pipe",
           stderr: "pipe",
-          env: { PATH: "/usr/bin:/bin", CODEX_HOME: tmpDir },
+          env: safeEnv({ PATH: minimalPath(), CODEX_HOME: tmpDir }),
         });
         const stdout = await new Response(proc.stdout).text();
         await proc.exited;
@@ -102,7 +100,7 @@ describe("CodexProvider", () => {
           cwd: ROOT,
           stdout: "pipe",
           stderr: "pipe",
-          env: { PATH: "/usr/bin:/bin", CODEX_HOME: tmpDir },
+          env: safeEnv({ PATH: minimalPath(), CODEX_HOME: tmpDir }),
         });
         const stdout = await new Response(proc.stdout).text();
         await proc.exited;
@@ -121,12 +119,13 @@ describe("CodexProvider", () => {
           const { CodexProvider } = require("${ROOT}/src/providers/codex.ts");
           process.stdout.write(String(CodexProvider.isAvailable()));
         `;
+        // On Windows, os.homedir() reads USERPROFILE; on Unix it reads HOME.
+        const homeKey = isWindows ? "USERPROFILE" : "HOME";
         const proc = Bun.spawn([BUN, "-e", script], {
           cwd: ROOT,
           stdout: "pipe",
           stderr: "pipe",
-          // No CODEX_HOME — relies on HOME-based default path
-          env: { PATH: "/usr/bin:/bin", HOME: tmpHome },
+          env: safeEnv({ PATH: minimalPath(), [homeKey]: tmpHome }),
         });
         const stdout = await new Response(proc.stdout).text();
         await proc.exited;
@@ -200,7 +199,7 @@ describe("CodexProvider", () => {
           cwd: ROOT,
           stdout: "pipe",
           stderr: "pipe",
-          env: { PATH: "/usr/bin:/bin", CODEX_HOME: tmpDir }, // no API keys, no auth.json
+          env: safeEnv({ PATH: minimalPath(), CODEX_HOME: tmpDir }),
         });
         const stdout = await new Response(proc.stdout).text();
         const exitCode = await proc.exited;
@@ -236,7 +235,7 @@ describe("CodexProvider", () => {
         cwd: ROOT,
         stdout: "pipe",
         stderr: "pipe",
-        env: { OPENAI_API_KEY: "sk-test-key-123" },
+        env: safeEnv({ OPENAI_API_KEY: "sk-test-key-123" }),
       });
       const stdout = await new Response(proc.stdout).text();
       const exitCode = await proc.exited;
@@ -267,7 +266,7 @@ describe("CodexProvider", () => {
           cwd: ROOT,
           stdout: "pipe",
           stderr: "pipe",
-          env: { PATH: "/usr/bin:/bin", CODEX_HOME: tmpDir },
+          env: safeEnv({ PATH: minimalPath(), CODEX_HOME: tmpDir }),
         });
         const stdout = await new Response(proc.stdout).text();
         const exitCode = await proc.exited;
@@ -324,7 +323,6 @@ describe("CodexProvider", () => {
           env: { ...process.env, OPENAI_API_KEY: "sk-test-key-123" },
         });
         const exitCode = await proc.exited;
-        const stderr = await new Response(proc.stderr).text();
         expect(exitCode).toBe(0);
       } finally {
         rmSync(tmpDir, { recursive: true });

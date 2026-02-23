@@ -14,10 +14,9 @@ import {
   chmodSync,
   rmSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { ClaudeProvider } from "../src/providers/claude";
-
-const ROOT = resolve(import.meta.dir, "..");
-const BUN = process.execPath;
+import { ROOT, BUN, isWindows, safeEnv, minimalPath } from "./platform";
 
 describe("ClaudeProvider", () => {
   describe("isAvailable()", () => {
@@ -30,15 +29,19 @@ describe("ClaudeProvider", () => {
         cwd: ROOT,
         stdout: "pipe",
         stderr: "pipe",
-        env: { PATH: "/usr/bin:/bin" },
+        env: safeEnv({ PATH: minimalPath() }),
       });
       const stdout = await new Response(proc.stdout).text();
       await proc.exited;
       expect(stdout).toBe("false");
     });
 
-    test("returns false for dangling symlink", async () => {
-      const tmpDir = `/tmp/sauna-test-claude-provider-${Date.now()}`;
+    // Symlinks require admin privileges or developer mode on Windows
+    test.skipIf(isWindows)("returns false for dangling symlink", async () => {
+      const tmpDir = resolve(
+        tmpdir(),
+        `sauna-test-claude-provider-${Date.now()}`,
+      );
       mkdirSync(tmpDir, { recursive: true });
       try {
         symlinkSync("/nonexistent/path/claude", resolve(tmpDir, "claude"));
@@ -50,7 +53,7 @@ describe("ClaudeProvider", () => {
           cwd: ROOT,
           stdout: "pipe",
           stderr: "pipe",
-          env: { PATH: `${tmpDir}:/usr/bin:/bin` },
+          env: safeEnv({ PATH: minimalPath(tmpDir) }),
         });
         const stdout = await new Response(proc.stdout).text();
         await proc.exited;
@@ -61,12 +64,23 @@ describe("ClaudeProvider", () => {
     });
 
     test("returns true when a valid claude executable is on PATH", async () => {
-      const tmpDir = `/tmp/sauna-test-claude-provider-real-${Date.now()}`;
+      const tmpDir = resolve(
+        tmpdir(),
+        `sauna-test-claude-provider-real-${Date.now()}`,
+      );
       mkdirSync(tmpDir, { recursive: true });
       try {
-        const fakeClaude = resolve(tmpDir, "claude");
-        writeFileSync(fakeClaude, "#!/bin/sh\necho claude\n");
-        chmodSync(fakeClaude, 0o755);
+        if (isWindows) {
+          // `where` finds executables by PATHEXT — create a .cmd file
+          writeFileSync(
+            resolve(tmpDir, "claude.cmd"),
+            "@echo off\necho claude\n",
+          );
+        } else {
+          const fakeClaude = resolve(tmpDir, "claude");
+          writeFileSync(fakeClaude, "#!/bin/sh\necho claude\n");
+          chmodSync(fakeClaude, 0o755);
+        }
         const script = `
           const { ClaudeProvider } = require("${ROOT}/src/providers/claude.ts");
           process.stdout.write(String(ClaudeProvider.isAvailable()));
@@ -75,7 +89,7 @@ describe("ClaudeProvider", () => {
           cwd: ROOT,
           stdout: "pipe",
           stderr: "pipe",
-          env: { PATH: `${tmpDir}:/usr/bin:/bin` },
+          env: safeEnv({ PATH: minimalPath(tmpDir) }),
         });
         const stdout = await new Response(proc.stdout).text();
         await proc.exited;

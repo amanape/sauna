@@ -195,9 +195,21 @@ const CLAUDE_ALIASES: Record<string, string> = {
 };
 
 /**
+ * Locates the `claude` binary on PATH, returning its resolved real path.
+ * Uses `where` on Windows and `which` on Unix.
+ * `where` can return multiple lines; we take the first match.
+ */
+function findClaudeBinary(): string {
+  const cmd = process.platform === "win32" ? "where claude" : "which claude";
+  const raw = execSync(cmd, { encoding: "utf-8" }).trim();
+  const first = raw.split(/\r?\n/)[0] ?? raw;
+  return realpathSync(first);
+}
+
+/**
  * Provider implementation for Claude Code.
  *
- * Locates the Claude Code binary via `which claude`, resolves symlinks, and
+ * Locates the Claude Code binary on PATH, resolves symlinks, and
  * runs single-turn sessions through the Claude Agent SDK. Absorbs the logic
  * from the legacy `src/claude.ts` (findClaude) and `src/session.ts` (runSession).
  */
@@ -206,8 +218,7 @@ export const ClaudeProvider: Provider = {
 
   isAvailable(): boolean {
     try {
-      const which = execSync("which claude", { encoding: "utf-8" }).trim();
-      realpathSync(which);
+      findClaudeBinary();
       return true;
     } catch {
       return false;
@@ -228,8 +239,7 @@ export const ClaudeProvider: Provider = {
   ): AsyncGenerator<ProviderEvent> {
     let claudePath: string;
     try {
-      const which = execSync("which claude", { encoding: "utf-8" }).trim();
-      claudePath = realpathSync(which);
+      claudePath = findClaudeBinary();
     } catch {
       throw new Error(
         "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH",
@@ -264,8 +274,7 @@ export const ClaudeProvider: Provider = {
   ): InteractiveSession {
     let claudePath: string;
     try {
-      const which = execSync("which claude", { encoding: "utf-8" }).trim();
-      claudePath = realpathSync(which);
+      claudePath = findClaudeBinary();
     } catch {
       throw new Error(
         "Claude Code is not available — install Claude Code and ensure `claude` is in your PATH",
