@@ -20,13 +20,11 @@ import type { Readable, Writable } from "node:stream";
 const BOLD_GREEN = "\x1b[1;32m";
 const RESET = "\x1b[0m";
 
-/** Writes a bold green "> " prompt to the output stream.
- *  Inserts a newline first if the last output didn't end with one. */
-export function writePrompt(output: Writable, state: StreamState): void {
-  if (!state.lastCharWasNewline) {
-    output.write("\n");
-  }
-  output.write(`${BOLD_GREEN}> ${RESET}`);
+/** Returns the bold-green "> " prompt string.
+ *  Includes a newline prefix if the last output didn't end with one. */
+export function formatPrompt(state: StreamState): string {
+  const prefix = state.lastCharWasNewline ? "" : "\n";
+  return `${prefix}${BOLD_GREEN}> ${RESET}`;
 }
 
 export type InteractiveConfig = {
@@ -57,6 +55,7 @@ export type InteractiveOverrides = {
  */
 function readLine(
   rl: ReturnType<typeof createInterface>,
+  prompt?: string,
 ): Promise<string | null> {
   return new Promise((resolve) => {
     const onClose = () => {
@@ -64,7 +63,7 @@ function readLine(
     };
     rl.once("close", onClose);
     try {
-      rl.question("", (answer) => {
+      rl.question(prompt ?? "", (answer) => {
         rl.removeListener("close", onClose);
         resolve(answer);
       });
@@ -96,8 +95,6 @@ export async function runInteractive(
     prompt: "",
   });
 
-  const promptOutput = overrides?.promptOutput ?? process.stderr;
-
   const session =
     overrides?.session ??
     config.provider.createInteractiveSession({
@@ -128,8 +125,7 @@ export async function runInteractive(
       firstInput = config.prompt;
     } else {
       const initialState = createStreamState();
-      writePrompt(promptOutput, initialState);
-      const line = await readLine(rl);
+      const line = await readLine(rl, formatPrompt(initialState));
       if (line === null || line.trim() === "") {
         return;
       }
@@ -147,8 +143,7 @@ export async function runInteractive(
         processProviderEvent(event, write, state, errWrite);
       }
 
-      writePrompt(promptOutput, state);
-      const input = await readLine(rl);
+      const input = await readLine(rl, formatPrompt(state));
 
       // Empty input or EOF exits cleanly
       if (input === null || input.trim() === "") break;

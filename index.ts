@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 import { cli, command } from "cleye";
 import { runLoop } from "./src/loop";
 import { runInteractive } from "./src/interactive";
