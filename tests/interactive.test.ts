@@ -1,6 +1,6 @@
 import { test, expect, describe } from "bun:test";
 import { PassThrough } from "node:stream";
-import { runInteractive, writePrompt } from "../src/interactive";
+import { runInteractive, formatPrompt } from "../src/interactive";
 import { createStreamState } from "../src/stream";
 import type {
   InteractiveSession,
@@ -599,30 +599,18 @@ describe("P5: prompt visibility", () => {
     expect(promptChunks.join("")).toContain(BOLD_GREEN_PROMPT);
   });
 
-  test("writePrompt inserts newline when lastCharWasNewline is false", () => {
-    const output = new PassThrough();
-    const chunks: string[] = [];
-    output.on("data", (chunk: Buffer) => chunks.push(chunk.toString()));
-
-    const state = createStreamState();
-    state.lastCharWasNewline = false;
-
-    writePrompt(output, state);
-
-    expect(chunks.join("")).toBe("\n" + BOLD_GREEN_PROMPT);
-  });
-
-  test("writePrompt omits newline when lastCharWasNewline is true", () => {
-    const output = new PassThrough();
-    const chunks: string[] = [];
-    output.on("data", (chunk: Buffer) => chunks.push(chunk.toString()));
-
+  test("formatPrompt returns bold green > without newline when lastCharWasNewline is true", () => {
     const state = createStreamState();
     state.lastCharWasNewline = true;
 
-    writePrompt(output, state);
+    expect(formatPrompt(state)).toBe(BOLD_GREEN_PROMPT);
+  });
 
-    expect(chunks.join("")).toBe(BOLD_GREEN_PROMPT);
+  test("formatPrompt returns newline + bold green > when lastCharWasNewline is false", () => {
+    const state = createStreamState();
+    state.lastCharWasNewline = false;
+
+    expect(formatPrompt(state)).toBe("\n" + BOLD_GREEN_PROMPT);
   });
 
   test("prompt does not appear on stdout (piped output stays clean)", async () => {
