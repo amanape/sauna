@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/amanape/sauna/compare/v0.5.0...v0.5.1) (2026-02-24)
+
+
+### Bug Fixes
+
+* user indicator ([#24](https://github.com/amanape/sauna/issues/24)) ([93164bb](https://github.com/amanape/sauna/commit/93164bbadefaa1ae2c538ed52819f25cded697c5))
+
 ## [0.5.0](https://github.com/amanape/sauna/compare/v0.4.0...v0.5.0) (2026-02-23)
 
 ### Features
